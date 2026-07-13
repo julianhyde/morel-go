@@ -133,110 +133,213 @@ slot-indexed frames.
 | New tests | Written against morel-java first (upstream), then propagated back; go-only `.smli` files are a temporary escape hatch, flagged by the report tool |
 | Convergence gate | Per-file divergence from morel-java (source of truth) may never increase, and trends to zero; informational diff against morel-rust (which carries ~6.4k divergent lines of its own) |
 
-## Phases and tasks
+## The first 50 tasks
 
-### Phase 0 — Infrastructure
+Not locked in — tasks will change as we learn. Each task is sized
+like a good early morel-rust commit ("Implement `case`, `if`,
+negation", "Recursive functions", "`String` structure"): one
+sitting, one commit, independently verifiable. Rust's two big-bang
+commits — importing every java test at once (`dd0670d1`) and the
+whole grammar in one commit (`1ae50309`, the commit where test
+files got mutilated to fit the splitter) — are deliberately
+unbundled here; the first 80% of each component is much easier
+than the last 20%, so the slices below front-load the easy 80%
+and make hardening its own task.
 
-- [x] 0.1 Repo skeleton: license files, CI, lint, `cmd/morel`.
-- [ ] 0.2 Project lint test: license headers, trailing whitespace,
-      `.smli` hygiene (port of java `LintTest` / rust
-      `tests/lint.rs`).
-- [ ] 0.3 Lexer: tokens, positions, nested comments, string and
-      char literals, backtick-quoted identifiers.
-- [ ] 0.4 `StatementSplitter`, driven by the lexer.
-- [ ] 0.5 `Kernel` (execute(stmt) -> output; owns `Config`,
-      environment, session), `ScriptRunner` (line loop, echo,
-      prompts), batch `main`.
-- [ ] 0.6 Minimal idempotent script harness (`> `-prefixed
-      expected output; file must reproduce itself); test list
-      generated from the directory. `.sig` files, `data/` CSVs,
-      and `.smli` hunks are pulled as components need them.
-- [ ] 0.7 Port `etc/check-convergence.py`: per-file divergence
-      from java may never increase; per-file report is the
-      project dashboard. Propagation ledger.
+Parser, type, and evaluator slices each end by pulling the stable
+`.smli` hunks they enable.
 
-### Phase 1 — Parse
+### A. Infrastructure (1-8)
 
-- [ ] 1.1 AST (spans, node ids) and the full grammar.
-- [ ] 1.2 `Sys.parseTree` (java 49c48703) plus the minimal
-      evaluation path needed to call a builtin from a script
-      (string literal -> curried builtin application -> string
-      result). Parser correctness is then verified by pulled
-      parse-tree hunks, not by Go unit tests; new parse tests are
-      added to morel-java first and propagated back.
-      **Milestone: full grammar; pulled parse-tree hunks pass.**
+- [x] 1. Repo skeleton: license files, CI, golangci-lint,
+      `cmd/morel`.
+- [ ] 2. Project lint test v1: license headers, long lines,
+      trailing whitespace, newline at EOF. (Rust touched lint 8
+      times in its first 45 commits — invest continuously, keep
+      directives extensible.)
+- [ ] 3. Lexer v1: identifiers, keywords, int/real/string/char
+      literals with escapes, symbols, line comments, nested block
+      comments; positions/spans.
+- [ ] 4. Lexer v2: type variables (`'a`), backtick-quoted
+      identifiers, `~` negation vs negative literals, scientific
+      notation. Go unit tests (internal infrastructure — the
+      `.smli` corpus can't test the lexer directly).
+- [ ] 5. `StatementSplitter` driven by the lexer. Regression tests
+      for every case in rust's fix cascade: `;` inside comments
+      and strings, `*)` inside `(*)` line comments, `(op *)`,
+      nested block comments.
+- [ ] 6. `Kernel` skeleton (execute(string) -> string; owns
+      `Config`, session) + batch `main` reading stdin (rust #2
+      equivalent).
+- [ ] 7. Script harness: run a `.smli` file, echo statements,
+      compare `> `-prefixed expected output, idempotency check;
+      test list generated from the directory.
+- [ ] 8. Convergence tooling: port `etc/check-convergence.py`
+      (three-way path mapping); divergence report as the project
+      dashboard; propagation ledger file.
 
-### Phase 2 — Types
+### B. Parser, in slices (9-19)
 
-- [ ] 2.1 `TypeSystem`, type hierarchy, type-from-string bootstrap
-      for builtin signatures.
-- [ ] 2.2 Unifier (Martelli-Montanari port) with constraint hooks.
-- [ ] 2.3 `TypeResolver`: Ast -> Core (typed IR from the start).
-- [ ] 2.4 `.sig`-driven builtin registry (types only — `:t` needs
-      no implementations) + signature checker.
-- [ ] 2.5 `:t` support in the harness, and type printing in java's
-      exact format; pull stable `:t` hunks of
-      `type-inference.smli` and `type.smli` as inference grows.
+- [ ] 9. AST scaffolding: node interfaces, spans, ids;
+      parse-tree rendering framework whose text format matches
+      java's `Sys.parseTree` output exactly.
+- [ ] 10. Micro-evaluator for `Sys.parseTree "..."`: parse an
+      application of a dotted name to a string literal, invoke the
+      builtin, print `val it = "..." : string`. Establishes the
+      curried, span-carrying builtin convention.
+- [ ] 11. Parse-test corpus: check how much `Sys.parseTree`
+      coverage java's corpus has for core constructs (most known
+      usage is attribute-heavy `attribute.smli`); author a
+      `parse.smli` in morel-java where coverage is thin, and pull
+      it. This is the test vehicle for tasks 12-18.
+- [ ] 12. Expressions I: literals, identifiers, application,
+      parentheses, tuples, lists, records, selectors (`#label`,
+      `e.field`).
+- [ ] 13. Expressions II: infix/prefix operators with java's
+      precedence table (`+ - * / div mod`, comparisons, `::`, `@`,
+      `^`, `o`, `andalso`, `orelse`, unary `~`).
+- [ ] 14. Expressions III: `if`/`then`/`else`, `fn`, `case` with
+      match rules; patterns I (wildcard, literal, id, tuple,
+      record, `::`, layered `as`).
+- [ ] 15. Declarations I: `val`, `val rec`, `fun` (multi-clause,
+      multi-parameter), `let ... in ... end`.
+- [ ] 16. Declarations II: `datatype`, `type` aliases; type
+      expressions (tyvars, arrow/tuple/record/list types, type
+      annotations).
+- [ ] 17. Queries I: `from` with `in`/`=`/unbounded scans,
+      `where`, `yield`, `join ... on`.
+- [ ] 18. Queries II: `group`/`compute` (`over` syntax), `order`,
+      `distinct`, `skip`/`take`, `union`/`intersect`/`except`,
+      `into`/`through`, `exists`/`forall`/`require`, `current`,
+      `ordinal`.
+- [ ] 19. Parser hardening: error messages with spans in java's
+      format; precedence/associativity corners; the last 20%.
+      **Milestone: pulled parse-tree hunks pass.**
+
+### C. Type inference, in slices (20-28)
+
+- [ ] 20. Type representations: `TypeSystem` registry, primitives,
+      tuple/record/fn/list types, type variables; type-from-string
+      parser (bootstraps builtin signatures).
+- [ ] 21. Unifier: Martelli-Montanari port with occurs check and
+      action hooks. Constraint-hook interfaces (overloads,
+      default-to-int, collection kind) designed now, even though
+      their first users come later. Go unit tests.
+- [ ] 22. Core IR + `Resolver` skeleton (Ast -> Core from day 1);
+      TypeResolver slice I: literals, ids, application, `if`,
+      `fn`, `let val`; the `it` binding.
+- [ ] 23. `:t` support in the harness; type printing in java's
+      exact format (`'a` naming order, parenthesization). Pull the
+      first `:t` hunks of `type-inference.smli`.
+- [ ] 24. TypeResolver slice II: tuples, records, selectors —
+      record typing via unifier actions, java's colon encoding
+      verbatim (rust's backtick deviation was reverted).
+- [ ] 25. TypeResolver slice III: `case`/patterns; `fun`/`val
+      rec`; generalization at `let`; top-level `forall` for free
+      tyvars.
+- [ ] 26. TypeResolver slice IV: monomorphic datatypes,
+      constructor patterns. (Match-coverage analysis is NOT here —
+      later, with morel#55.)
+- [ ] 27. `.sig` subset parser; builtin types loaded from
+      `lib/*.sig` (types only — no implementations needed for
+      `:t`); signature checker.
+- [ ] 28. Pull stable `type.smli`/`type-inference.smli` hunks
+      broadly.
       **Milestone: pulled `:t` hunks pass — type inference tested
       without evaluation.**
 
-### Phase 3 — Evaluator core
+### D. Evaluator, in slices (29-40)
 
-- [ ] 3.1 `Val` representation; type-directed comparators.
-- [ ] 3.2 Span-carrying errors; uniformly curried builtins.
-- [ ] 3.3 `Code`/`Compiler`; slot-indexed frames, capture analysis,
-      link table, let-rec — designed as one unit, frames shaped for
+- [ ] 29. `Val` representation — constructors carry (datatype,
+      ordinal) from day 1; span-carrying `MorelError`; curried,
+      partial-application-safe builtin convention (generalizing
+      task 10).
+- [ ] 30. `Code`/`Compiler` slice I: literals, vars, builtin
+      application; slot-indexed `Frame`; `val it = ...` statement
+      output.
+- [ ] 31. Wadler-Leijen printing engine (morel#398, pulled
+      forward): primitive/list/tuple/record values, wrapping,
+      real formatting (compute in float64 — rust#44), so the
+      first printed value already matches java's present-day
+      format.
+- [ ] 32. `case`, `if`, `~`; pattern binding through a single
+      walk-all-pattern-names utility (rust's capture bugs came
+      from three ad-hoc versions of this).
+- [ ] 33. Non-recursive functions: `fn`, multi-clause matches,
+      closures.
+- [ ] 34. Recursive functions: session-owned link table
+      (top-level) + lexical capture (let-rec); frames shaped for
       trampolining.
-- [ ] 3.4 Wadler-Leijen printing engine (morel#398) — pulled
-      forward deliberately, so output matches java's present-day
-      format exactly (wrapping, real formatting, SML-NJ span
-      format) and pulled hunks never need re-blessing.
-- [ ] 3.5 Output matcher + `matchStrict` (morel#334).
-      **Milestone: hunks of `simple`, `closure`, `match`,
-      `datatype`, `exception` pulled and passing.**
+- [ ] 35. `fun` multi-parameter currying; `val` patterns;
+      `let`/sequential declarations; `it` semantics (assigned only
+      on success).
+- [ ] 36. List/string operators: `nil`, `::`, `@`, `^`; equality
+      and comparison via type-directed comparators.
+- [ ] 37. Exceptions: raising built-in exceptions (`Div`, `Bind`,
+      `Subscript`, ...) with java's report format. (User-defined
+      `exception`/`handle` stay out of scope, as in java/rust.)
+- [ ] 38. Datatype values: constructor application, `case`
+      dispatch on constructors; `SOME`/`NONE` pattern matching.
+- [ ] 39. Pull stable hunks: `simple.smli`, `closure.smli`, basic
+      `match.smli`, monomorphic `datatype.smli`.
+- [ ] 40. Cross-statement correctness pass (rust's largest bug
+      farm, worth its own task): closures stored in `it`/`val`s
+      and applied in later statements; escaping lambdas calling
+      sibling recursive functions; recursive functions called
+      from later statements.
+      **Milestone: core-language hunks pass end-to-end.**
 
-### Phase 4 — Standard library (one structure per commit)
+### E. Standard library, load-bearing first (41-46)
 
 Most functions in most structures are not load-bearing: implement
-the ones later hunks depend on first, and fill in breadth at any
-time — early, late, or opportunistically. The grouping below is a
-default order, not a commitment.
+what later hunks depend on first; fill in breadth early, late, or
+opportunistically.
 
-- [ ] 4.1 General, Bool, Order, Option.
-- [ ] 4.2 Int, Math, Real.
-- [ ] 4.3 String, Char.
-- [ ] 4.4 List, Bag, ListPair, Vector, Either.
-- [ ] 4.5 Sys, Fn; environment compaction.
-      **Milestone: load-bearing functions in place; pulled
-      `built-in.smli` hunks pass.**
+- [ ] 41. Builtin registry mechanics: structure-as-record values,
+      one table mapping builtin -> implementation, alphabetical
+      order enforced by lint.
+- [ ] 42. `General`, `Bool`, `Order`, `Option`.
+- [ ] 43. `Int`, `Real`, `Math` (float computed in float64).
+- [ ] 44. `String`, `Char`.
+- [ ] 45. `List` — the heavily-used core: `map`, `filter`, `foldl`,
+      `foldr`, `length`, `rev`, `hd`, `tl`, `nth`, ...
+- [ ] 46. `Sys`: `env`, `set`/`show`/`unset`; properties
+      `lineWidth`, `printDepth`, `printLength`, `stringDepth`,
+      `output`.
+      **Milestone: pulled `built-in.smli` hunks pass for these
+      structures.**
 
-### Phase 5 — Relational
+### F. Relational, first slices (47-50)
 
-- [ ] 5.1 `FromBuilder`; scan/where/yield.
-- [ ] 5.2 `RowSink` push pipeline, java's binding model verbatim.
-- [ ] 5.3 Joins (incl. comma joins); group/compute (final syntax).
-- [ ] 5.4 Ordered/unordered queries; aggregate adaptation
-      (morel#273, #271, #282, #328).
-- [ ] 5.5 Set-op steps, distinct, take/skip, into/through,
-      quantifiers (exists/forall/require).
-- [ ] 5.6 In-heap scott dataset (morel#255).
-- [ ] 5.7 **Milestone: `relational.smli`, `bag.smli` largely
-      green.**
+- [ ] 47. `Core.From` + `FromBuilder`; typing for scan (`in`),
+      `where`, `yield` (lists first; the collection-kind
+      constraint hook from task 21 is ready for bags).
+- [ ] 48. `RowSink` push pipeline: scan/where/yield sinks; java's
+      binding model verbatim — canonical field-name-ordered rows,
+      one implicit-label helper, `current` as a rewrite, one
+      shared row read/write helper (rust's row-layout bugs took a
+      15-commit tail).
+- [ ] 49. Joins: comma joins and `join ... on`; nested and
+      dependent scans; pattern scans.
+- [ ] 50. `group`/`compute` with the basic aggregates (`count`,
+      `sum`, `min`, `max`); output matcher + `matchStrict`
+      (morel#334) for unordered results.
+      **Milestone: first `relational.smli` hunks pass.**
 
-### Phase 6 — Maturity features
+### Beyond task 50 (to the endpoint)
 
-- [ ] 6.1 Full `over`/`inst` overloading surface (morel#237);
-      polymorphic datatypes (morel#70, #205).
-- [ ] 6.2 Cross-statement recursion; cross-unit inlining
-      (morel#223, #330).
-- [ ] 6.3 Range, Variant, Time, Date structures; now/timeZone
-      properties (morel#338, #324, #351, #278, #352).
-- [ ] 6.4 Surface conveniences: postfix method calls, `op`
-      sections, unparser, tabular output, `-e`/`--eval`, `use`
-      (morel#346, #311, #293, #259, #333, #198).
-- [ ] 6.5 Predicate inversion (morel#217): `such-that.smli`,
-      `fixed-point.smli`.
-      **Endpoint milestone: parity with morel-rust `e0779b86`.**
+In rough order: `order`/`distinct`/`take`/`skip` evaluation;
+set-op steps; quantifiers; `Bag`/`Vector`/`ListPair`/`Either`
+structures; in-heap scott dataset (morel#255); ordered/unordered
+queries + aggregate adaptation (morel#273, #271, #282, #328); full
+`over`/`inst` overloading surface (morel#237); polymorphic
+datatypes (morel#70, #205); cross-unit inlining (morel#223, #330);
+`Range`, `Variant`, `Time`, `Date` structures (morel#338, #324,
+#351, #278, #352); surface conveniences — postfix method calls,
+`op` sections, unparser, tabular output, `-e`/`--eval`, `use`
+(morel#346, #311, #293, #259, #333, #198); match-coverage analysis
+(morel#55); predicate inversion (morel#217).
+**Endpoint milestone: parity with morel-rust `e0779b86`.**
 
 ## After the endpoint
 
