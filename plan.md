@@ -231,7 +231,7 @@ Parser, type, and evaluator slices each end by pulling the stable
       identity, in Go's case);
       parse-tree rendering framework whose text format matches
       java's `Sys.parseTree` output exactly.
-- [ ] 10. Micro-evaluator for `Sys.parseTree "..."`: parse an
+- [x] 10. Micro-evaluator for `Sys.parseTree "..."`: parse an
       application of a dotted name to a string literal, invoke the
       builtin, print `val it = "..." : string`. Establishes the
       curried, span-carrying builtin convention.
