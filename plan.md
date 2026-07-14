@@ -328,7 +328,7 @@ Parser, type, and evaluator slices each end by pulling the stable
       correct however deeply captured, covering both top-level
       and let-rec (no link table needed until `over`/`inst`);
       frames shaped for trampolining.
-- [ ] 35. `fun` multi-parameter currying; `val` patterns;
+- [x] 35. `fun` multi-parameter currying; `val` patterns;
       `let`/sequential declarations; `it` semantics (assigned only
       on success).
 - [ ] 36. List/string operators: `nil`, `::`, `@`, `^`; equality
