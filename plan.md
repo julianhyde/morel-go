@@ -264,7 +264,7 @@ Parser, type, and evaluator slices each end by pulling the stable
       `distinct`, `skip`/`take`, `union`/`intersect`/`except`,
       `into`/`through`, `exists`/`forall`/`require`, `current`,
       `ordinal`.
-- [ ] 19. Parser hardening: error messages and spans must match
+- [x] 19. Parser hardening: error messages and spans must match
       the `.smli` corpus exactly, whether or not the java text is
       JavaCC-shaped ("Encountered ...", expected-token lists);
       precedence/associativity corners; the last 20%.
