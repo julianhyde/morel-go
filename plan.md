@@ -272,7 +272,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 
 ### C. Type inference, in slices (20-28)
 
-- [ ] 20. Type representations: `TypeSystem` registry, primitives,
+- [x] 20. Type representations: `TypeSystem` registry, primitives,
       tuple/record/fn/list types, type variables; type-from-string
       parser (bootstraps builtin signatures).
 - [ ] 21. Unifier: Martelli-Montanari port with occurs check and
