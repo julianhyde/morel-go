@@ -288,9 +288,9 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 24. TypeResolver slice II: tuples, records, selectors —
       record typing via unifier actions, java's colon encoding
       verbatim (rust's backtick deviation was reverted).
-- [ ] 25. TypeResolver slice III: `case`/patterns; `fun`/`val
-      rec`; generalization at `let`; top-level `forall` for free
-      tyvars.
+- [x] 25. TypeResolver slice III: `case`/patterns; `fun`/`val
+      rec`; top-level generalization for free tyvars (like java,
+      `let` is monomorphic; confirmed by probe).
 - [ ] 26. TypeResolver slice IV: monomorphic datatypes,
       constructor patterns. (Match-coverage analysis is NOT here —
       later, with morel#55.)
