@@ -275,7 +275,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 20. Type representations: `TypeSystem` registry, primitives,
       tuple/record/fn/list types, type variables; type-from-string
       parser (bootstraps builtin signatures).
-- [ ] 21. Unifier: Martelli-Montanari port with occurs check and
+- [x] 21. Unifier: Martelli-Montanari port with occurs check and
       action hooks. Constraint-hook interfaces (overloads,
       default-to-int, collection kind) designed now, even though
       their first users come later. Go unit tests.
