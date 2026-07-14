@@ -322,7 +322,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 32. `case`, `if`, `~`; pattern binding through a single
       walk-all-pattern-names utility (rust's capture bugs came
       from three ad-hoc versions of this).
-- [ ] 33. Non-recursive functions: `fn`, multi-clause matches,
+- [x] 33. Non-recursive functions: `fn`, multi-clause matches,
       closures.
 - [ ] 34. Recursive functions: session-owned link table
       (top-level) + lexical capture (let-rec); frames shaped for
