@@ -39,6 +39,14 @@
  *  * allEq raises no exception but returns false if the lists are
  *    found to have unequal lengths (after traversing the lists).
  *)
+Sys.set ("lineWidth", 78);
+> val it = () : unit
+Sys.set ("printLength", 999);
+> val it = () : unit
+Sys.set ("stringDepth", ~1);
+> val it = () : unit
+fun print x = ignore x;
+> val print = fn : 'a -> unit
 
 (* [all p (xs, ys)] applies predicate p to the pairs of corresponding
    elements of xs and ys from left to right until p evaluates to false

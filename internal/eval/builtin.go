@@ -23,6 +23,7 @@ import (
 	"math"
 
 	"github.com/hydromatic/morel-go/internal/ast"
+	"github.com/hydromatic/morel-go/internal/core"
 	"github.com/hydromatic/morel-go/internal/parse"
 )
 
@@ -70,65 +71,162 @@ func Curry3(f func(a, b, c Val) (Val, error)) Fn {
 // lib/*.sig, arrives with the standard library.)
 var Builtins = map[string]Fn{
 	// lint: sort until '^}' where '^\t"'
-	"Bool.not":      notFn,
-	"Char.chr":      chrFn,
-	"Char.ord":      ordFn,
-	"Int.*":         arith(mulInt, nil),
-	"Int.+":         arith(addInt, nil),
-	"Int.-":         arith(subInt, nil),
-	"Int.abs":       absFn,
-	"Int.div":       arith(divInt, nil),
-	"Int.mod":       arith(modInt, nil),
-	"Int.~":         negFn,
-	"List.@":        atFn,
-	"List.hd":       hdFn,
-	"List.length":   lengthFn,
-	"List.map":      mapFn,
-	"List.null":     nullFn,
-	"List.rev":      revFn,
-	"List.tl":       tlFn,
-	"Real.*":        arith(nil, mulReal),
-	"Real.+":        arith(nil, addReal),
-	"Real.-":        arith(nil, subReal),
-	"Real./":        arith(nil, divReal),
-	"Real.abs":      absFn,
-	"Real.~":        negFn,
-	"String.^":      caretFn,
-	"String.concat": concatFn,
-	"String.size":   sizeFn,
-	"String.str":    strFn,
-	"Sys.parseTree": parseTree,
-	"abs":           absFn,
-	"chr":           chrFn,
-	"concat":        concatFn,
-	"explode":       explodeFn,
-	"hd":            hdFn,
-	"implode":       implodeFn,
-	"length":        lengthFn,
-	"map":           mapFn,
-	"not":           notFn,
-	"null":          nullFn,
-	"op *":          arith(mulInt, mulReal),
-	"op +":          arith(addInt, addReal),
-	"op -":          arith(subInt, subReal),
-	"op /":          arith(nil, divReal),
-	"op ::":         consFn,
-	"op <":          compareFn(func(c int) bool { return c < 0 }),
-	"op <=":         compareFn(func(c int) bool { return c <= 0 }),
-	"op <>":         equalFn(true),
-	"op =":          equalFn(false),
-	"op >":          compareFn(func(c int) bool { return c > 0 }),
-	"op >=":         compareFn(func(c int) bool { return c >= 0 }),
-	"op @":          atFn,
-	"op ^":          caretFn,
-	"op div":        arith(divInt, nil),
-	"op mod":        arith(modInt, nil),
-	"op ~":          negFn,
-	"ord":           ordFn,
-	"rev":           revFn,
-	"size":          sizeFn,
-	"str":           strFn,
-	"tl":            tlFn,
+	"Bool.<": boolOp(func(a, b bool) bool {
+		return !a && b
+	}),
+	"Bool.<>": boolOp(func(a, b bool) bool {
+		return a != b
+	}),
+	"Bool.=": boolOp(func(a, b bool) bool {
+		return a == b
+	}),
+	"Bool.>": boolOp(func(a, b bool) bool {
+		return a && !b
+	}),
+	"Bool.andalso": boolOp(func(a, b bool) bool {
+		return a && b
+	}),
+	"Bool.fromString": boolFromStringFn,
+	"Bool.implies": boolOp(func(a, b bool) bool {
+		return !a || b
+	}),
+	"Bool.not": notFn,
+	"Bool.orelse": boolOp(func(a, b bool) bool {
+		return a || b
+	}),
+	"Bool.toString":         boolToStringFn,
+	"Char.chr":              chrFn,
+	"Char.ord":              ordFn,
+	"General.before":        beforeFn,
+	"General.ignore":        ignoreFn,
+	"General.o":             composeFn,
+	"Int.*":                 arith(mulInt, nil),
+	"Int.+":                 arith(addInt, nil),
+	"Int.-":                 arith(subInt, nil),
+	"Int.abs":               absFn,
+	"Int.div":               arith(divInt, nil),
+	"Int.mod":               arith(modInt, nil),
+	"Int.~":                 negFn,
+	"List.@":                atFn,
+	"List.hd":               hdFn,
+	"List.length":           lengthFn,
+	"List.map":              mapFn,
+	"List.null":             nullFn,
+	"List.rev":              revFn,
+	"List.tl":               tlFn,
+	"Option.app":            optionAppFn,
+	"Option.compose":        optionComposeFn,
+	"Option.composePartial": optionComposePartialFn,
+	"Option.filter":         optionFilterFn,
+	"Option.getOpt":         getOptFn,
+	"Option.isSome":         isSomeFn,
+	"Option.join":           optionJoinFn,
+	"Option.map":            optionMapFn,
+	"Option.mapPartial":     optionMapPartialFn,
+	"Option.valOf":          valOfFn,
+	"Real.*":                arith(nil, mulReal),
+	"Real.+":                arith(nil, addReal),
+	"Real.-":                arith(nil, subReal),
+	"Real./":                arith(nil, divReal),
+	"Real.abs":              absFn,
+	"Real.~":                negFn,
+	"String.^":              caretFn,
+	"String.concat":         concatFn,
+	"String.size":           sizeFn,
+	"String.str":            strFn,
+	"Sys.parseTree":         parseTree,
+	"abs":                   absFn,
+	"chr":                   chrFn,
+	"concat":                concatFn,
+	"explode":               explodeFn,
+	"getOpt":                getOptFn,
+	"hd":                    hdFn,
+	"ignore":                ignoreFn,
+	"implode":               implodeFn,
+	"isSome":                isSomeFn,
+	"length":                lengthFn,
+	"map":                   mapFn,
+	"not":                   notFn,
+	"null":                  nullFn,
+	"op *":                  arith(mulInt, mulReal),
+	"op +":                  arith(addInt, addReal),
+	"op -":                  arith(subInt, subReal),
+	"op /":                  arith(nil, divReal),
+	"op ::":                 consFn,
+	"op <":                  compareFn(func(c int) bool { return c < 0 }),
+	"op <=":                 compareFn(func(c int) bool { return c <= 0 }),
+	"op <>":                 equalFn(true),
+	"op =":                  equalFn(false),
+	"op >":                  compareFn(func(c int) bool { return c > 0 }),
+	"op >=":                 compareFn(func(c int) bool { return c >= 0 }),
+	"op @":                  atFn,
+	"op ^":                  caretFn,
+	"op div":                arith(divInt, nil),
+	"op mod":                arith(modInt, nil),
+	"op o":                  composeFn,
+	"op ~":                  negFn,
+	"ord":                   ordFn,
+	"rev":                   revFn,
+	"size":                  sizeFn,
+	"str":                   strFn,
+	"tl":                    tlFn,
+	"valOf":                 valOfFn,
+}
+
+// unitVal is the unit value.
+var unitVal = core.Unit{}
+
+// boolToStringFn is "Bool.toString b".
+func boolToStringFn(arg Val) (Val, error) {
+	if asBool(arg) {
+		return "true", nil
+	}
+	return "false", nil
+}
+
+// boolFromStringFn is "Bool.fromString s".
+func boolFromStringFn(arg Val) (Val, error) {
+	switch asString(arg) {
+	case "false":
+		return someVal(false), nil
+	case "true":
+		return someVal(true), nil
+	default:
+		return noneVal, nil
+	}
+}
+
+// boolOp adapts a binary bool function to a built-in. (As a
+// function value, "Bool.andalso" evaluates both operands; only
+// the infix form short-circuits.)
+func boolOp(f func(a, b bool) bool) Fn {
+	return func(arg Val) (Val, error) {
+		a, b := asPair(arg)
+		return f(asBool(a), asBool(b)), nil
+	}
+}
+
+// composeFn is "f o g".
+func composeFn(arg Val) (Val, error) {
+	f, g := asPair(arg)
+	return Fn(func(a Val) (Val, error) {
+		v, err := ApplyVal(g, a)
+		if err != nil {
+			return nil, err
+		}
+		return ApplyVal(f, v)
+	}), nil
+}
+
+// beforeFn is "a before b": a, discarding b.
+func beforeFn(arg Val) (Val, error) {
+	a, _ := asPair(arg)
+	return a, nil
+}
+
+// ignoreFn is "ignore a".
+func ignoreFn(Val) (Val, error) {
+	return unitVal, nil
 }
 
 // The scalar accessors panic on the wrong type: built-in
