@@ -285,7 +285,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 23. `:t` support in the harness; type printing in java's
       exact format (`'a` naming order, parenthesization). Pull the
       first `:t` hunks of `type-inference.smli`.
-- [ ] 24. TypeResolver slice II: tuples, records, selectors —
+- [x] 24. TypeResolver slice II: tuples, records, selectors —
       record typing via unifier actions, java's colon encoding
       verbatim (rust's backtick deviation was reverted).
 - [ ] 25. TypeResolver slice III: `case`/patterns; `fun`/`val
