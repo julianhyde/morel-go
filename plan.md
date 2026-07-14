@@ -218,7 +218,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 6. `Kernel` skeleton (execute(string) -> string; owns
       `Config`, session) + batch `main` reading stdin (rust #2
       equivalent).
-- [ ] 7. Script harness: run a `.smli` file, echo statements,
+- [x] 7. Script harness: run a `.smli` file, echo statements,
       compare `> `-prefixed expected output, idempotency check;
       test list generated from the directory.
 - [ ] 8. Convergence tooling: port `etc/check-convergence.py`
