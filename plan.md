@@ -291,7 +291,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 25. TypeResolver slice III: `case`/patterns; `fun`/`val
       rec`; top-level generalization for free tyvars (like java,
       `let` is monomorphic; confirmed by probe).
-- [ ] 26. TypeResolver slice IV: monomorphic datatypes,
+- [x] 26. TypeResolver slice IV: monomorphic datatypes,
       constructor patterns. (Match-coverage analysis is NOT here —
       later, with morel#55.)
 - [ ] 27. `.sig` subset parser; builtin types loaded from
