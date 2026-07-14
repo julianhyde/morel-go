@@ -331,7 +331,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 35. `fun` multi-parameter currying; `val` patterns;
       `let`/sequential declarations; `it` semantics (assigned only
       on success).
-- [ ] 36. List/string operators: `nil`, `::`, `@`, `^`; equality
+- [x] 36. List/string operators: `nil`, `::`, `@`, `^`; equality
       and comparison via type-directed comparators.
 - [ ] 37. Exceptions: raising built-in exceptions (`Div`, `Bind`,
       `Subscript`, ...) with java's report format. (User-defined
