@@ -116,6 +116,48 @@ func TestLexStrings(t *testing.T) {
 	check(t, `#"a" #"\n"`, `char literal:#"a" char literal:#"\n"`)
 }
 
+func TestLexTyVars(t *testing.T) {
+	check(t, "'a 'b2 'a_b 'a'b",
+		"type variable:'a type variable:'b2 "+
+			"type variable:'a_b type variable:'a'b")
+	check(t, "('a, 'b) 'a list",
+		"(:( type variable:'a ,:, type variable:'b ):) "+
+			"type variable:'a identifier:list")
+}
+
+func TestLexQuotedIdents(t *testing.T) {
+	check(t, "`<<` `a b`",
+		"quoted identifier:`<<` quoted identifier:`a b`")
+	check(t, "`a``b`", "quoted identifier:`a``b`")
+	check(t, "Word.`<<` (a, b)",
+		"identifier:Word .:. quoted identifier:`<<` "+
+			"(:( identifier:a ,:, identifier:b ):)")
+}
+
+func TestLexNegativeNumbers(t *testing.T) {
+	check(t, "~1 ~1.5",
+		"integer literal:~1 real literal:~1.5")
+	// "~" directly before a digit is part of the literal; before
+	// anything else it is the negation operator.
+	check(t, "1 ~2", "integer literal:1 integer literal:~2")
+	check(t, "1 ~ 2",
+		"integer literal:1 ~:~ integer literal:2")
+	check(t, "1~2", "integer literal:1 integer literal:~2")
+	check(t, "~x", "~:~ identifier:x")
+}
+
+func TestLexScientificNumbers(t *testing.T) {
+	check(t, "1e2 1E2 1e~2 1.5e10 ~1.5e~2",
+		"scientific literal:1e2 scientific literal:1E2 "+
+			"scientific literal:1e~2 scientific literal:1.5e10 "+
+			"scientific literal:~1.5e~2")
+	// An "e" not followed by an exponent is an identifier.
+	check(t, "1e", "integer literal:1 identifier:e")
+	check(t, "1.5E", "real literal:1.5 identifier:E")
+	check(t, "1e+5",
+		"integer literal:1 identifier:e +:+ integer literal:5")
+}
+
 func TestLexLabels(t *testing.T) {
 	check(t, "#1 #deptno #x'",
 		"label:#1 label:#deptno label:#x'")
@@ -177,6 +219,8 @@ func TestLexErrors(t *testing.T) {
 		{`"bad \q escape"`, "stdIn:1.6-1.7: illegal escape"},
 		{"a ? b", "stdIn:1.3-1.4: illegal character"},
 		{"#?", "stdIn:1.1-1.2: illegal character"},
+		{"''a", "stdIn:1.1-1.2: illegal character"},
+		{"`abc", "stdIn:1.1-1.5: unclosed quoted identifier"},
 	} {
 		if got := lexError(t, tc.src); got != tc.want {
 			t.Errorf("lex %q:\n got %q\nwant %q",

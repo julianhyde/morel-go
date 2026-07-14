@@ -39,10 +39,12 @@ func (e *Error) Error() string {
 
 // Lexer splits source text into tokens.
 type Lexer struct {
-	name string
-	src  []rune
-	i    int
-	pos  token.Pos
+	name   string
+	src    []rune
+	i      int
+	pos    token.Pos
+	start  token.Pos
+	startI int
 }
 
 // NewLexer returns a lexer over src; name (e.g. "stdIn" or a file
@@ -62,26 +64,38 @@ func (l *Lexer) Next() (token.Token, error) {
 	if err != nil {
 		return token.Token{}, err
 	}
-	start := l.pos
-	r := l.peek(0)
-	switch {
+	l.start = l.pos
+	l.startI = l.i
+	switch r := l.peek(0); {
 	case r < 0:
-		return l.token(token.EOF, start), nil
+		return l.token(token.EOF), nil
 	case isLetter(r):
-		return l.scanIdent(start), nil
+		return l.scanIdent(), nil
 	case isDigit(r):
-		return l.scanNumber(start), nil
+		return l.scanNumber(), nil
+	case r == '~' && isDigit(l.peek(1)):
+		l.advance()
+		return l.scanNumber(), nil
+	case r == '\'' && isLetter(l.peek(1)):
+		return l.scanTyVar(), nil
+	case r == '`':
+		return l.scanQuotedIdent()
 	case r == '"':
-		return l.scanString(start, token.StringLit)
+		return l.scanString(token.StringLit)
 	case r == '#':
-		return l.scanHash(start)
+		return l.scanHash()
 	default:
-		return l.scanSymbol(start)
+		return l.scanSymbol()
 	}
 }
 
 func (l *Lexer) errorAt(span token.Span, msg string) error {
 	return &Error{Name: l.name, Span: span, Msg: msg}
+}
+
+func (l *Lexer) errorHere(msg string) error {
+	span := token.Span{Start: l.start, End: l.pos}
+	return l.errorAt(span, msg)
 }
 
 // peek returns the rune at offset k from the current position, or
@@ -121,16 +135,23 @@ func (l *Lexer) has(s string) bool {
 	return true
 }
 
-// token builds a token whose text is the source from start to the
-// current position.
-func (l *Lexer) token(k token.Kind, start token.Pos) token.Token {
-	// Tokens never contain newlines, so the start index can be
-	// recovered from the column difference.
-	n := l.i - (l.pos.Col - start.Col)
+// hasDigits reports whether the next n runes are all digits.
+func (l *Lexer) hasDigits(n int) bool {
+	for k := range n {
+		if !isDigit(l.peek(k)) {
+			return false
+		}
+	}
+	return true
+}
+
+// token builds a token whose text is the source from the start of
+// the current scan to the current position.
+func (l *Lexer) token(k token.Kind) token.Token {
 	return token.Token{
 		Kind: k,
-		Text: string(l.src[n:l.i]),
-		Span: token.Span{Start: start, End: l.pos},
+		Text: string(l.src[l.startI:l.i]),
+		Span: token.Span{Start: l.start, End: l.pos},
 	}
 }
 
@@ -185,45 +206,96 @@ func (l *Lexer) skipBlockComment() error {
 	return nil
 }
 
-func (l *Lexer) scanIdent(start token.Pos) token.Token {
+func (l *Lexer) scanIdent() token.Token {
 	for isIdentPart(l.peek(0)) {
 		l.advance()
 	}
-	t := l.token(token.Ident, start)
+	t := l.token(token.Ident)
 	t.Kind = token.Lookup(t.Text)
 	return t
 }
 
-func (l *Lexer) scanNumber(start token.Pos) token.Token {
-	for isDigit(l.peek(0)) {
-		l.advance()
-	}
-	if l.peek(0) != '.' || !isDigit(l.peek(1)) {
-		return l.token(token.IntLit, start)
-	}
+// scanTyVar consumes a type variable such as "'a".
+func (l *Lexer) scanTyVar() token.Token {
 	l.advance()
+	for isIdentPart(l.peek(0)) {
+		l.advance()
+	}
+	return l.token(token.TyVar)
+}
+
+// scanQuotedIdent consumes a backtick-quoted identifier; a
+// doubled backtick is an escape.
+func (l *Lexer) scanQuotedIdent() (token.Token, error) {
+	l.advance()
+	for {
+		switch {
+		case l.peek(0) < 0:
+			return token.Token{},
+				l.errorHere("unclosed quoted identifier")
+		case l.peek(0) == '`' && l.peek(1) == '`':
+			l.skipN(len("``"))
+		case l.peek(0) == '`':
+			l.advance()
+			return l.token(token.QuotedIdent), nil
+		default:
+			l.advance()
+		}
+	}
+}
+
+// scanNumber consumes an integer, real, or scientific literal; a
+// leading "~" has already been consumed.
+func (l *Lexer) scanNumber() token.Token {
 	for isDigit(l.peek(0)) {
 		l.advance()
 	}
-	return l.token(token.RealLit, start)
+	kind := token.IntLit
+	if l.peek(0) == '.' && isDigit(l.peek(1)) {
+		l.advance()
+		for isDigit(l.peek(0)) {
+			l.advance()
+		}
+		kind = token.RealLit
+	}
+	if l.hasExponent() {
+		l.advance()
+		if l.peek(0) == '~' {
+			l.advance()
+		}
+		for isDigit(l.peek(0)) {
+			l.advance()
+		}
+		kind = token.ScientificLit
+	}
+	return l.token(kind)
+}
+
+// hasExponent reports whether an exponent follows: "e" or "E",
+// then digits with an optional "~" sign.
+func (l *Lexer) hasExponent() bool {
+	if l.peek(0) != 'e' && l.peek(0) != 'E' {
+		return false
+	}
+	k := 1
+	if l.peek(k) == '~' {
+		k++
+	}
+	return isDigit(l.peek(k))
 }
 
 // scanString consumes a quoted string, validating escapes:
 // \a \b \t \n \v \f \r \" \\, a control escape \^C for C in
 // "@"–"_", or a three-digit decimal escape \ddd.
-func (l *Lexer) scanString(start token.Pos, kind token.Kind) (
-	token.Token, error,
-) {
+func (l *Lexer) scanString(kind token.Kind) (token.Token, error) {
 	l.advance()
 	for {
 		switch r := l.peek(0); {
 		case r < 0 || r == '\n':
-			span := token.Span{Start: start, End: l.pos}
-			return token.Token{},
-				l.errorAt(span, "unclosed string")
+			return token.Token{}, l.errorHere("unclosed string")
 		case r == '"':
 			l.advance()
-			return l.token(kind, start), nil
+			return l.token(kind), nil
 		case r == '\\':
 			err := l.scanEscape()
 			if err != nil {
@@ -260,32 +332,21 @@ func (l *Lexer) scanEscape() error {
 	}
 }
 
-// hasDigits reports whether the next n runes are all digits.
-func (l *Lexer) hasDigits(n int) bool {
-	for k := range n {
-		if !isDigit(l.peek(k)) {
-			return false
-		}
-	}
-	return true
-}
-
 // scanHash consumes a char literal #"c" or a record label #x.
-func (l *Lexer) scanHash(start token.Pos) (token.Token, error) {
+func (l *Lexer) scanHash() (token.Token, error) {
 	if l.peek(1) == '"' {
 		l.advance()
-		return l.scanString(start, token.CharLit)
+		return l.scanString(token.CharLit)
 	}
 	if !isIdentPart(l.peek(1)) {
 		l.advance()
-		span := token.Span{Start: start, End: l.pos}
-		return token.Token{}, l.errorAt(span, "illegal character")
+		return token.Token{}, l.errorHere("illegal character")
 	}
 	l.advance()
 	for isIdentPart(l.peek(0)) {
 		l.advance()
 	}
-	return l.token(token.Label, start), nil
+	return l.token(token.Label), nil
 }
 
 var symbols = []struct {
@@ -322,16 +383,15 @@ var symbols = []struct {
 	{"@", token.At},
 }
 
-func (l *Lexer) scanSymbol(start token.Pos) (token.Token, error) {
+func (l *Lexer) scanSymbol() (token.Token, error) {
 	for _, s := range symbols {
 		if l.has(s.text) {
 			l.skipN(len(s.text))
-			return l.token(s.kind, start), nil
+			return l.token(s.kind), nil
 		}
 	}
 	l.advance()
-	span := token.Span{Start: start, End: l.pos}
-	return token.Token{}, l.errorAt(span, "illegal character")
+	return token.Token{}, l.errorHere("illegal character")
 }
 
 func isSpace(r rune) bool {
