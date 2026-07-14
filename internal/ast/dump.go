@@ -48,6 +48,19 @@ func dump(b *strings.Builder, node Node) {
 		dumpMatches(b, "", n.Matches)
 	case *Fn:
 		dumpMatches(b, "(fn", n.Matches)
+	case *FunBind:
+		dumpList(b, "(funBind", n.Matches)
+	case *FunDecl:
+		dumpList(b, "(fun", n.Binds)
+	case *FunMatch:
+		b.WriteString("(funMatch " + n.Name)
+		for _, pat := range n.Pats {
+			b.WriteString(" ")
+			dumpPat(b, pat)
+		}
+		b.WriteString(" ")
+		dump(b, n.Exp)
+		b.WriteString(")")
 	case *ID:
 		b.WriteString("(id " + n.Name + ")")
 	case *If:
@@ -63,6 +76,15 @@ func dump(b *strings.Builder, node Node) {
 		dump(b, n.A0)
 		b.WriteString(" ")
 		dump(b, n.A1)
+		b.WriteString(")")
+	case *Let:
+		b.WriteString("(let")
+		for _, d := range n.Decls {
+			b.WriteString(" ")
+			dump(b, d)
+		}
+		b.WriteString(" ")
+		dump(b, n.Exp)
 		b.WriteString(")")
 	case *ListExp:
 		sexp(b, "list", n.Args)
@@ -90,9 +112,37 @@ func dump(b *strings.Builder, node Node) {
 		b.WriteString("(record_selector #" + n.Name + ")")
 	case *Tuple:
 		sexp(b, "tuple", n.Args)
+	case *ValBind:
+		b.WriteString("(valBind ")
+		dumpPat(b, n.Pat)
+		b.WriteString(" ")
+		dump(b, n.Exp)
+		b.WriteString(")")
+	case *ValDecl:
+		b.WriteString("(val")
+		if n.Rec {
+			b.WriteString(" rec")
+		}
+		for _, vb := range n.Binds {
+			b.WriteString(" ")
+			dump(b, vb)
+		}
+		b.WriteString(")")
 	default:
 		panic(fmt.Sprintf("dump: unknown node %T", node))
 	}
+}
+
+// dumpList renders "open child1 child2 ...)".
+func dumpList[T Node](b *strings.Builder, open string,
+	children []T,
+) {
+	b.WriteString(open)
+	for _, c := range children {
+		b.WriteString(" ")
+		dump(b, c)
+	}
+	b.WriteString(")")
 }
 
 func dumpMatches(b *strings.Builder, open string,

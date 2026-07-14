@@ -215,6 +215,70 @@ func TestParsePatterns(t *testing.T) {
 		"(fn (match (cons_pat (a :: b) :: c) (int_literal 1)))")
 }
 
+func checkDecl(t *testing.T, src, want string) {
+	t.Helper()
+	n, err := parse.DeclOrExpr("stdIn", src)
+	if err != nil {
+		t.Fatalf("DeclOrExpr(%q): %v", src, err)
+	}
+	if got := ast.Dump(n); got != want {
+		t.Errorf("DeclOrExpr(%q):\n got %s\nwant %s",
+			src, got, want)
+	}
+}
+
+func TestParseValDecl(t *testing.T) {
+	checkDecl(t, "val x = 1",
+		"(val (valBind (idPat x) (int_literal 1)))")
+	checkDecl(t, "val rec f = fn x => x",
+		"(val rec (valBind (idPat f) "+
+			"(fn (match (idPat x) (id x)))))")
+	checkDecl(t, "val x = 1 and y = 2",
+		"(val (valBind (idPat x) (int_literal 1)) "+
+			"(valBind (idPat y) (int_literal 2)))")
+	checkDecl(t, "val (a, b) = p",
+		"(val (valBind (tuplePat (idPat a) (idPat b)) (id p)))")
+	// The first "=" binds; later ones are operators.
+	checkDecl(t, "val b = 1 = 2",
+		"(val (valBind (idPat b) "+
+			"(eq (int_literal 1) (int_literal 2))))")
+}
+
+func TestParseFunDecl(t *testing.T) {
+	checkDecl(t, "fun f x = x",
+		"(fun (funBind (funMatch f (idPat x) (id x))))")
+	checkDecl(t, "fun f 0 = 1 | f x = x + 1",
+		"(fun (funBind "+
+			"(funMatch f (int_literal_pat 0) (int_literal 1)) "+
+			"(funMatch f (idPat x) "+
+			"(plus (id x) (int_literal 1)))))")
+	checkDecl(t, "fun f x y = x",
+		"(fun (funBind (funMatch f (idPat x) (idPat y) (id x))))")
+	checkDecl(t, "fun add (a, b) = a + b",
+		"(fun (funBind (funMatch add "+
+			"(tuplePat (idPat a) (idPat b)) "+
+			"(plus (id a) (id b)))))")
+	checkDecl(t, "fun f x = x and g y = y",
+		"(fun (funBind (funMatch f (idPat x) (id x))) "+
+			"(funBind (funMatch g (idPat y) (id y))))")
+}
+
+func TestParseLet(t *testing.T) {
+	checkExpr(t, "let val x = 1 in x end",
+		"(let (val (valBind (idPat x) (int_literal 1))) (id x))")
+	// Declarations may be separated by ";" or nothing.
+	checkExpr(t, "let val x = 1; val y = 2 in x + y end",
+		"(let (val (valBind (idPat x) (int_literal 1))) "+
+			"(val (valBind (idPat y) (int_literal 2))) "+
+			"(plus (id x) (id y)))")
+	checkExpr(t, "let val x = 1 val y = 2 in x end",
+		"(let (val (valBind (idPat x) (int_literal 1))) "+
+			"(val (valBind (idPat y) (int_literal 2))) (id x))")
+	checkExpr(t, "let fun f x = x in f 1 end",
+		"(let (fun (funBind (funMatch f (idPat x) (id x)))) "+
+			"(apply (id f) (int_literal 1)))")
+}
+
 func TestStmt(t *testing.T) {
 	e, err := parse.Stmt("stdIn", "f 1;")
 	if err != nil {

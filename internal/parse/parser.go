@@ -58,14 +58,14 @@ func Expr(name, src string) (ast.Expr, error) {
 	return e, nil
 }
 
-// Stmt parses src as an expression statement: an expression
+// Stmt parses src as a statement: a declaration or an expression,
 // followed by ";".
-func Stmt(name, src string) (ast.Expr, error) {
+func Stmt(name, src string) (ast.Node, error) {
 	p, err := NewParser(name, src)
 	if err != nil {
 		return nil, err
 	}
-	e, err := p.expr()
+	n, err := p.declOrExpr()
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,31 @@ func Stmt(name, src string) (ast.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	return e, nil
+	return n, nil
+}
+
+// DeclOrExpr parses src as a declaration or an expression.
+func DeclOrExpr(name, src string) (ast.Node, error) {
+	p, err := NewParser(name, src)
+	if err != nil {
+		return nil, err
+	}
+	n, err := p.declOrExpr()
+	if err != nil {
+		return nil, err
+	}
+	err = p.expect(token.EOF)
+	if err != nil {
+		return nil, err
+	}
+	return n, nil
+}
+
+func (p *Parser) declOrExpr() (ast.Node, error) {
+	if isDeclStart(p.tok.Kind) {
+		return p.decl()
+	}
+	return p.expr()
 }
 
 func (p *Parser) next() error {
@@ -358,6 +382,8 @@ func (p *Parser) atom() (ast.Expr, error) {
 			return nil, err
 		}
 		return ast.NewRecordSelector(tok.Span, tok.Text[1:]), nil
+	case token.Let:
+		return p.letExpr()
 	default:
 		return p.literal()
 	}

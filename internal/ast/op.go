@@ -82,6 +82,15 @@ const (
 	RecordPatOp
 	ConsPatOp
 	AsPatOp
+
+	// Declarations.
+
+	ValDeclOp
+	ValBindOp
+	FunDeclOp
+	FunBindOp
+	FunMatchOp
+	LetOp
 )
 
 var opNames = map[Op]string{
@@ -136,6 +145,13 @@ var opNames = map[Op]string{
 	RecordPatOp:        "record_pat",
 	ConsPatOp:          "cons_pat",
 	AsPatOp:            "as_pat",
+
+	ValDeclOp:  "val",
+	ValBindOp:  "val_bind",
+	FunDeclOp:  "fun",
+	FunBindOp:  "fun_bind",
+	FunMatchOp: "fun_match",
+	LetOp:      "let",
 }
 
 func (o Op) String() string {
