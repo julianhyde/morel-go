@@ -338,7 +338,7 @@ Parser, type, and evaluator slices each end by pulling the stable
       `exception`/`handle` stay out of scope, as in java/rust.)
 - [x] 38. Datatype values: constructor application, `case`
       dispatch on constructors; `SOME`/`NONE` pattern matching.
-- [ ] 39. Pull stable hunks: `simple.smli`, `closure.smli`, basic
+- [x] 39. Pull stable hunks: `simple.smli`, `closure.smli`, basic
       `match.smli`, monomorphic `datatype.smli`.
 - [ ] 40. Cross-statement correctness pass (rust's largest bug
       farm, worth its own task): closures stored in `it`/`val`s
