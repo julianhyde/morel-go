@@ -311,7 +311,7 @@ Parser, type, and evaluator slices each end by pulling the stable
       ordinal) from day 1; span-carrying `MorelError`; curried,
       partial-application-safe builtin convention (generalizing
       task 10).
-- [ ] 30. `Code`/`Compiler` slice I: literals, vars, builtin
+- [x] 30. `Code`/`Compiler` slice I: literals, vars, builtin
       application; slot-indexed `Frame`; `val it = ...` statement
       output.
 - [ ] 31. Wadler-Leijen printing engine (morel#398, pulled
