@@ -235,7 +235,7 @@ Parser, type, and evaluator slices each end by pulling the stable
       application of a dotted name to a string literal, invoke the
       builtin, print `val it = "..." : string`. Establishes the
       curried, span-carrying builtin convention.
-- [ ] 11. Parse-test scaffold: java's corpus has `Sys.parseTree`
+- [x] 11. Parse-test scaffold: java's corpus has `Sys.parseTree`
       only in `attribute.smli` (45 uses, attribute-focused), so
       author a small **go-only** `parse.smli` — just a few
       expressions per parser slice — as the temporary test vehicle
