@@ -319,7 +319,7 @@ Parser, type, and evaluator slices each end by pulling the stable
       real formatting (compute in float64 — rust#44), so the
       first printed value already matches java's present-day
       format.
-- [ ] 32. `case`, `if`, `~`; pattern binding through a single
+- [x] 32. `case`, `if`, `~`; pattern binding through a single
       walk-all-pattern-names utility (rust's capture bugs came
       from three ad-hoc versions of this).
 - [ ] 33. Non-recursive functions: `fn`, multi-clause matches,
