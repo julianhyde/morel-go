@@ -260,7 +260,7 @@ Parser, type, and evaluator slices each end by pulling the stable
       annotations).
 - [x] 17. Queries I: `from` with `in`/`=`/unbounded scans,
       `where`, `yield`, `join ... on`.
-- [ ] 18. Queries II: `group`/`compute` (`over` syntax), `order`,
+- [x] 18. Queries II: `group`/`compute` (`over` syntax), `order`,
       `distinct`, `skip`/`take`, `union`/`intersect`/`except`,
       `into`/`through`, `exists`/`forall`/`require`, `current`,
       `ordinal`.
