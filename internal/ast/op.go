@@ -103,6 +103,13 @@ const (
 	RecordTypeOp
 	AnnotatedExpOp
 	AnnotatedPatOp
+
+	// Queries.
+
+	FromOp
+	ScanOp
+	WhereOp
+	YieldOp
 )
 
 var opNames = map[Op]string{
@@ -174,6 +181,11 @@ var opNames = map[Op]string{
 	RecordTypeOp:   "record_type",
 	AnnotatedExpOp: "annotated_exp",
 	AnnotatedPatOp: "annotated_pat",
+
+	FromOp:  "from",
+	ScanOp:  "scan",
+	WhereOp: "where",
+	YieldOp: "yield",
 }
 
 func (o Op) String() string {

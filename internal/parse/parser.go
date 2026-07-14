@@ -386,6 +386,8 @@ func (p *Parser) atom() (ast.Expr, error) {
 		return p.caseExpr()
 	case token.Fn:
 		return p.fnExpr()
+	case token.From:
+		return p.fromExpr()
 	case token.Ident:
 		err := p.next()
 		if err != nil {

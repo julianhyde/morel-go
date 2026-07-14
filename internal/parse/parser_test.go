@@ -379,3 +379,29 @@ func TestParseTypeDecl(t *testing.T) {
 	checkDecl(t, "type point = int * int",
 		"(type_decl type point = int * int)")
 }
+
+func TestParseFrom(t *testing.T) {
+	checkExpr(t, "from x in [1, 2]",
+		"(from from x in [1, 2])")
+	checkExpr(t, "from x in [1, 2] yield x + 1",
+		"(from from x in [1, 2] yield x + 1)")
+	checkExpr(t, "from x in xs where x > 1",
+		"(from from x in xs where x > 1)")
+	checkExpr(t, "from x in xs, y in ys",
+		"(from from x in xs, y in ys)")
+	checkExpr(t, "from x = 1", "(from from x = 1)")
+	checkExpr(t, "from x", "(from from x)")
+	checkExpr(t, "from (a, b) in ps",
+		"(from from (a, b) in ps)")
+	// A join unparses as a comma scan.
+	checkExpr(t, "from x in xs join y in ys on x = y",
+		"(from from x in xs, y in ys on x = y)")
+	checkExpr(t, "from x in xs where x > 1 yield x * 2",
+		"(from from x in xs where x > 1 yield x * 2)")
+	// An implicit record field unparses bare.
+	checkExpr(t, "from x in xs yield {x, y = x + 1}",
+		"(from from x in xs yield {x, y = x + 1})")
+	// A field selection unparses in selector form.
+	checkExpr(t, "from e in emps yield e.name",
+		"(from from e in emps yield #name e)")
+}
