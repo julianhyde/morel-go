@@ -20,13 +20,22 @@ License.
 -->
 # Development notes for Claude
 
-## Before every commit
+## Commit discipline
 
-Run `fullMake --no-clean` from the repository root and confirm it
-passes before you commit. For morel-go, `fullMake` builds
-(`go build`), lints (`go vet`), checks formatting (`gofmt`), and
-runs the tests (`go test`). Never commit if it fails; fix the code
-until it is green.
+**Every commit must pass `fullMake`.** Run `fullMake --no-clean`
+from the repository root and confirm it passes before you commit —
+including each commit of a multi-commit change, since commits are
+cherry-picked and squashed from work branches onto `main` and must
+be green independently. For morel-go, `fullMake` builds
+(`go build`), lints (`golangci-lint run`, which includes vet and
+formatting checks), and runs the tests (`go test`). Never commit
+if it fails; fix the code until it is green.
+
+**Never mix planning changes with code changes in one commit.**
+Planning changes (`plan.md`) and code changes (everything else,
+including `agents.md`) go in separate commits, so that either kind
+can be cherry-picked onto `main` without the other. If a piece of
+work updates both, make two commits.
 
 ## Repositories
 
