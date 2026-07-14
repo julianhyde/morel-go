@@ -333,7 +333,7 @@ Parser, type, and evaluator slices each end by pulling the stable
       on success).
 - [x] 36. List/string operators: `nil`, `::`, `@`, `^`; equality
       and comparison via type-directed comparators.
-- [ ] 37. Exceptions: raising built-in exceptions (`Div`, `Bind`,
+- [x] 37. Exceptions: raising built-in exceptions (`Div`, `Bind`,
       `Subscript`, ...) with java's report format. (User-defined
       `exception`/`handle` stay out of scope, as in java/rust.)
 - [ ] 38. Datatype values: constructor application, `case`
