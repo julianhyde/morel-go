@@ -137,6 +137,12 @@ func unparseNamedType(b *strings.Builder, n *NamedType) {
 	b.WriteString(n.Name)
 }
 
+// UnparseDatatypeDecl renders a datatype declaration as source
+// text; the shell echoes a datatype declaration this way.
+func UnparseDatatypeDecl(d *DatatypeDecl) string {
+	return unparseDatatype(d)
+}
+
 // unparseDatatype renders a datatype declaration, including its
 // keyword, as morel-java's fallback dump does.
 func unparseDatatype(d *DatatypeDecl) string {
