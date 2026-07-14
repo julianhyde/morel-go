@@ -253,7 +253,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 14. Expressions III: `if`/`then`/`else`, `fn`, `case` with
       match rules; patterns I (wildcard, literal, id, tuple,
       record, `::`, layered `as`).
-- [ ] 15. Declarations I: `val`, `val rec`, `fun` (multi-clause,
+- [x] 15. Declarations I: `val`, `val rec`, `fun` (multi-clause,
       multi-parameter), `let ... in ... end`.
 - [ ] 16. Declarations II: `datatype`, `type` aliases; type
       expressions (tyvars, arrow/tuple/record/list types, type
