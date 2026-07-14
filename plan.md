@@ -39,30 +39,54 @@ new features and built-in functions was routine.
 Out of scope (rust did these after `e0779b86`): tail-call
 optimization (#151; but see task 3.3 — frames are shaped for it),
 Datalog (#323), `raise` (#364), file reader and progressive types
-(#209), FBBT (#373), `Word` (#396), `PP` (#398), outer joins (#75),
-`yieldAll` (#257), `?.` (#378), binder syntax (#387), the
-interactive-shell phase (#45, morel#413/#414), and everything
-Calcite (hybrid plans stay in validate mode indefinitely; dual.smli
-runs local-only, as in rust).
+(#209), FBBT (#373), `Word` (#396), outer joins (#75), `yieldAll`
+(#257), `?.` (#378), binder syntax (#387), the interactive-shell
+phase (#45, morel#413/#414), and everything Calcite (dual.smli
+runs local-only, as in rust; Calcite-only hunks are simply not
+pulled). One deliberate exception: the Wadler-Leijen printing
+engine (#398) is pulled *forward* into phase 3, so that output
+matches java's present-day `.smli` format exactly; the `PP`
+structure's user-facing surface can come whenever.
 
 ## Method
 
-The strategy that worked for morel-rust, adopted wholesale:
+Component by component, going light on tests at first. The corpus
+grows incrementally rather than being imported up front — a
+whole-file import (with rust-style in-file disablement, or a
+ledger of expected failures) forces the port to track the java
+timeline everywhere at once.
 
-1. Import the **entire** morel-java `.smli` test corpus verbatim,
-   before implementing any of the language.
-2. Run it in progressively stronger modes — parse → validate
-   (type-check only) → evaluate — with unsupported regions disabled
-   by `set("mode","validate")` brackets or `(* ... *)` comments.
-3. Propagate morel-java commits in dependency order (not
-   java-chronological order), moving every changed `.smli` section
-   literally. See `agents.md` for the commit-message conventions.
-4. Gate every commit on `fullMake` and every propagation on
-   `check-convergence.py`.
+1. Build one component at a time: parser, then type inference,
+   then printing and evaluation, then the rest. For each feature,
+   pull in the hunks of `.smli` that were added to morel-java for
+   that feature and have not changed significantly since (check
+   the java file's history for stability).
+2. Pulled hunks are **verbatim** from java's present-day files —
+   never adapted for Go. Going light means pulling few hunks, not
+   editing them.
+3. **No in-file disablement.** Rust's `set("mode","validate")`
+   brackets and `(* ... *)` disablement made it very hard to tell
+   which sections were disabled (96 brackets across 19 files
+   remain there today). In morel-go, a section exists in a `.smli`
+   file only when it passes; "disabled" is simply "absent", and
+   what is absent is exactly what the divergence report shows.
+4. `etc/check-convergence.py` is the progress metric: per-file
+   divergence from morel-java must never increase, and trends
+   monotonically to zero. Its per-file report is the project
+   dashboard.
+5. Test cheaply before evaluation exists: `Sys.parseTree` verifies
+   ASTs from scripts (no Go unit tests for the parser); `:t` lines
+   verify type inference without evaluation (needing only builtin
+   *types* from `lib/*.sig`, no implementations); the
+   Wadler-Leijen printing engine (morel#398) comes in early so
+   output matches java's present-day format exactly and pulled
+   hunks pass without re-blessing.
+6. Once a file has caught up with java, ordinary propagation rules
+   apply: every changed section moves verbatim; see `agents.md`.
 
-The test scripts are implementation-independent and shared
-byte-for-byte across the three ports; matching them is the
-project's acceptance criterion.
+The test scripts are implementation-independent and shared across
+the three ports; matching them is the project's acceptance
+criterion.
 
 ## Lessons from morel-rust (day-1 rules)
 
@@ -77,6 +101,7 @@ implies for this port:
 | Output formats diverged from java (real printing, span format, ad-hoc pretty-printer) | Every `.smli` re-blessed repeatedly | Java-identical printing before enabling large test regions |
 | Recursion/closures/linking designed piecemeal; TCO retrofitted | Largest bug farm in the log | Frames, capture analysis, link table, let-rec, and TCO shape designed as one unit |
 | No convergence gate for the first 2 months of propagation | >= 5 propagations silently dropped test sections | Gate + propagation ledger active from the first propagation |
+| In-file disablement (`set("mode","validate")`, `(* ... *)`) | Hard to audit which sections were disabled; self-inflicted divergence | No disablement mechanism at all: a section enters a `.smli` file only when it passes; absence is the only disabled state, auditable via the divergence report |
 | Constructor representation churned 3x | Repeated rework | Constructors carry (datatype, ordinal) from day 1; comparators are type-directed |
 | Arity-encoded builtins broke on partial application | Special-case eta-expansion bolted on | Builtins uniformly curried, partial-application-safe |
 | Panics converted to catchable errors late | Span plumbing retrofitted everywhere | User-triggerable failures return span-carrying errors from day 1 |
@@ -97,14 +122,16 @@ slot-indexed frames.
 | Lint | golangci-lint v2, all linters minus a justified disable list; gofumpt + goimports |
 | Package layout | `internal/{ast, core, parse, types, compile, eval, shell}`, `cmd/morel` |
 | Embedding | Not a goal; everything under `internal/` until needed |
-| Test corpus | `testdata/script/`, imported verbatim from java |
+| Test corpus | `testdata/script/`, grown hunk-by-hunk from java's present-day files; every pulled hunk verbatim |
 | Parser | Hand-written recursive-descent lexer + parser; the lexer also drives the statement splitter (and later a highlighter) |
 | Type inference | Port java's Martelli-Montanari unifier, with constraint hooks from the start |
 | Values | `Val` interface, one concrete type per variant; constructors are (datatype, ordinal); performance work deferred until profiled |
 | Errors | Span-carrying `MorelError` via ordinary `error` returns; sentinel early-return for sinks; panic only for internal invariants |
 | Query execution | Push-based `RowSink` pipeline, java's binding model verbatim (canonical field order, single implicit-label helper, `current` as a rewrite); single-threaded — parallelism is not a goal |
 | TCO | Frames shaped for trampolining from day 1; implementation is a fast-follow after the endpoint (rust retrofitted it painfully one day after `e0779b86`) |
-| Convergence gate | Measured against morel-java (source of truth); informational diff against morel-rust (which carries ~6.4k divergent lines of its own) |
+| Test disablement | None — a section enters a `.smli` file only when it passes; absence is visible in the divergence report |
+| New tests | Written against morel-java first (upstream), then propagated back; go-only `.smli` files are a temporary escape hatch, flagged by the report tool |
+| Convergence gate | Per-file divergence from morel-java (source of truth) may never increase, and trends to zero; informational diff against morel-rust (which carries ~6.4k divergent lines of its own) |
 
 ## Phases and tasks
 
@@ -120,17 +147,24 @@ slot-indexed frames.
 - [ ] 0.5 `Kernel` (execute(stmt) -> output; owns `Config`,
       environment, session), `ScriptRunner` (line loop, echo,
       prompts), batch `main`.
-- [ ] 0.6 Import the full java `.smli` corpus, `data/` CSVs, and
-      all 27 `lib/*.sig` files; script-test harness with
-      parse/validate/evaluate modes; test list generated from the
-      directory.
-- [ ] 0.7 Port `etc/check-convergence.py` and
-      `etc/enable_queries.py`; start the propagation ledger.
+- [ ] 0.6 Minimal idempotent script harness (`> `-prefixed
+      expected output; file must reproduce itself); test list
+      generated from the directory. `.sig` files, `data/` CSVs,
+      and `.smli` hunks are pulled as components need them.
+- [ ] 0.7 Port `etc/check-convergence.py`: per-file divergence
+      from java may never increase; per-file report is the
+      project dashboard. Propagation ledger.
 
 ### Phase 1 — Parse
 
 - [ ] 1.1 AST (spans, node ids) and the full grammar.
-      **Milestone: the whole corpus parses.**
+- [ ] 1.2 `Sys.parseTree` (java 49c48703) plus the minimal
+      evaluation path needed to call a builtin from a script
+      (string literal -> curried builtin application -> string
+      result). Parser correctness is then verified by pulled
+      parse-tree hunks, not by Go unit tests; new parse tests are
+      added to morel-java first and propagated back.
+      **Milestone: full grammar; pulled parse-tree hunks pass.**
 
 ### Phase 2 — Types
 
@@ -138,8 +172,13 @@ slot-indexed frames.
       for builtin signatures.
 - [ ] 2.2 Unifier (Martelli-Montanari port) with constraint hooks.
 - [ ] 2.3 `TypeResolver`: Ast -> Core (typed IR from the start).
-- [ ] 2.4 `.sig`-driven builtin registry + signature checker.
-      **Milestone: corpus green in validate mode.**
+- [ ] 2.4 `.sig`-driven builtin registry (types only — `:t` needs
+      no implementations) + signature checker.
+- [ ] 2.5 `:t` support in the harness, and type printing in java's
+      exact format; pull stable `:t` hunks of
+      `type-inference.smli` and `type.smli` as inference grows.
+      **Milestone: pulled `:t` hunks pass — type inference tested
+      without evaluation.**
 
 ### Phase 3 — Evaluator core
 
@@ -148,20 +187,28 @@ slot-indexed frames.
 - [ ] 3.3 `Code`/`Compiler`; slot-indexed frames, capture analysis,
       link table, let-rec — designed as one unit, frames shaped for
       trampolining.
-- [ ] 3.4 Java-identical value printing (wrapping, real formatting,
-      SML-NJ span format).
+- [ ] 3.4 Wadler-Leijen printing engine (morel#398) — pulled
+      forward deliberately, so output matches java's present-day
+      format exactly (wrapping, real formatting, SML-NJ span
+      format) and pulled hunks never need re-blessing.
 - [ ] 3.5 Output matcher + `matchStrict` (morel#334).
-      **Milestone: `simple`, `closure`, `match`, `datatype`,
-      `exception` evaluate.**
+      **Milestone: hunks of `simple`, `closure`, `match`,
+      `datatype`, `exception` pulled and passing.**
 
 ### Phase 4 — Standard library (one structure per commit)
+
+Most functions in most structures are not load-bearing: implement
+the ones later hunks depend on first, and fill in breadth at any
+time — early, late, or opportunistically. The grouping below is a
+default order, not a commitment.
 
 - [ ] 4.1 General, Bool, Order, Option.
 - [ ] 4.2 Int, Math, Real.
 - [ ] 4.3 String, Char.
 - [ ] 4.4 List, Bag, ListPair, Vector, Either.
 - [ ] 4.5 Sys, Fn; environment compaction.
-      **Milestone: most of `built-in.smli` green.**
+      **Milestone: load-bearing functions in place; pulled
+      `built-in.smli` hunks pass.**
 
 ### Phase 5 — Relational
 
