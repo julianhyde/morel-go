@@ -204,7 +204,7 @@ Parser, type, and evaluator slices each end by pulling the stable
       trailing whitespace, newline at EOF. (Rust touched lint 8
       times in its first 45 commits — invest continuously, keep
       directives extensible.)
-- [ ] 3. Lexer v1: identifiers, keywords, int/real/string/char
+- [x] 3. Lexer v1: identifiers, keywords, int/real/string/char
       literals with escapes, symbols, line comments, nested block
       comments; positions/spans.
 - [ ] 4. Lexer v2: type variables (`'a`), backtick-quoted
