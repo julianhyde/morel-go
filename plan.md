@@ -324,9 +324,10 @@ Parser, type, and evaluator slices each end by pulling the stable
       from three ad-hoc versions of this).
 - [x] 33. Non-recursive functions: `fn`, multi-clause matches,
       closures.
-- [ ] 34. Recursive functions: session-owned link table
-      (top-level) + lexical capture (let-rec); frames shaped for
-      trampolining.
+- [x] 34. Recursive functions: recursion cells make references
+      correct however deeply captured, covering both top-level
+      and let-rec (no link table needed until `over`/`inst`);
+      frames shaped for trampolining.
 - [ ] 35. `fun` multi-parameter currying; `val` patterns;
       `let`/sequential declarations; `it` semantics (assigned only
       on success).
