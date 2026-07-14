@@ -34,4 +34,38 @@ General.exnMessage;
 General.exnName;
 > val it = fn : exn -> string
 
+(*) op o - function composition
+General.`o`;
+> val it = fn : ('a -> 'b) * ('c -> 'a) -> 'c -> 'b
+String.size;
+> val it = fn : string -> int
+Char.chr;
+> val it = fn : int -> char
+General.`o` (Char.chr, String.size);
+> val it = fn : string -> char
+General.`o` (Char.chr, String.size) "012345678901234567890123456789012";
+> val it = #"!" : char
+
+val plusOne = fn x => x + 1;
+> val plusOne = fn : int -> int
+val timesTwo = fn x => x * 2;
+> val timesTwo = fn : int -> int
+val plusThree = fn x => x + 3;
+> val plusThree = fn : int -> int
+plusOne o timesTwo;
+> val it = fn : int -> int
+(plusOne o timesTwo) 3;
+> val it = 7 : int
+plusOne o timesTwo o plusThree;
+> val it = fn : int -> int
+((plusOne o timesTwo) o plusThree) 3;
+> val it = 13 : int
+(plusOne o (timesTwo o plusThree)) 3;
+> val it = 13 : int
+
+General.ignore;
+> val it = fn : 'a -> unit
+General.ignore (1 + 2);
+> val it = () : unit
+
 (*) End general.smli

@@ -16,33 +16,39 @@
  * language governing permissions and limitations under the
  * License.
  *
- * Unit tests for the built-in `Fn` structure, defined
- * by the Standard ML Basis Library.
+ * Tests the "idempotent mode" for test scripts.
  *)
-Sys.set ("lineWidth", 78);
-> val it = () : unit
-Sys.set ("printLength", 999);
-> val it = () : unit
-Sys.set ("stringDepth", ~1);
-> val it = () : unit
 
-Fn.id;
-> val it = fn : 'a -> 'a
-Fn.const;
-> val it = fn : 'a -> 'b -> 'a
-Fn.apply;
-> val it = fn : ('a -> 'b) * 'a -> 'b
-Fn.curry;
-> val it = fn : ('a * 'b -> 'c) -> 'a -> 'b -> 'c
-Fn.uncurry;
-> val it = fn : ('a -> 'b -> 'c) -> 'a * 'b -> 'c
-Fn.flip;
-> val it = fn : ('a * 'b -> 'c) -> 'b * 'a -> 'c
-Fn.repeat;
-> val it = fn : int -> ('a -> 'a) -> 'a -> 'a
-Fn.equal;
-> val it = fn : 'a -> 'a -> bool
-Fn.notEqual;
-> val it = fn : 'a -> 'a -> bool
+"a string";
+> val it = "a string" : string
 
-(*) End fn.smli
+(*) In a declaration, don't print 'it' unless it is explicitly mentioned.
+val (x, y) = (5, 6);
+> val x = 5 : int
+> val y = 6 : int
+
+(*) Assigning to 'it' generates feedback, just like any other variable.
+val it = 3;
+> val it = 3 : int
+
+3;
+> val it = 3 : int
+
+(5, 6);
+> val it = (5,6) : int * int
+val it = (5, 6);
+> val it = (5,6) : int * int
+
+(*) An expression with '>' near the start of the line
+val gt = 3
+ > 2;
+> val gt = true : bool
+
+(* Output lines in comments should not be touched.
+   It's pretty important, because it allows us to comment out code
+   and expected results.
+val x = 10 - 1;
+> val x = 9 : int
+*)
+
+(*) End idempotent.smli
