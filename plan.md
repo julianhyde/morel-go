@@ -221,7 +221,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 7. Script harness: run a `.smli` file, echo statements,
       compare `> `-prefixed expected output, idempotency check;
       test list generated from the directory.
-- [ ] 8. Convergence tooling: port `etc/check-convergence.py`
+- [x] 8. Convergence tooling: port `etc/check-convergence.py`
       (three-way path mapping); divergence report as the project
       dashboard; propagation ledger file.
 
