@@ -336,7 +336,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 37. Exceptions: raising built-in exceptions (`Div`, `Bind`,
       `Subscript`, ...) with java's report format. (User-defined
       `exception`/`handle` stay out of scope, as in java/rust.)
-- [ ] 38. Datatype values: constructor application, `case`
+- [x] 38. Datatype values: constructor application, `case`
       dispatch on constructors; `SOME`/`NONE` pattern matching.
 - [ ] 39. Pull stable hunks: `simple.smli`, `closure.smli`, basic
       `match.smli`, monomorphic `datatype.smli`.
