@@ -67,7 +67,9 @@ use `set("mode","validate")` brackets or `(* ... *)` disablement
 (a morel-rust mistake — it was very hard to tell which sections
 were disabled, and every edit is divergence from java). A section
 exists in a morel-go `.smli` file only when it passes; what is
-missing is exactly what the divergence report shows.
+missing is exactly what the divergence report shows. Sole
+exception: `Sys.plan` output is matched best-effort, and a plan
+line that is infeasible to match may be commented out.
 
 ## Propagation process
 
@@ -98,7 +100,9 @@ which must pass before committing:
   commit should show it decreasing.
 
 New tests originate in morel-java: add them there first, then
-propagate back — do not grow a go-only test fork.
+propagate back — do not grow a go-only test fork. (Exception:
+`parse.smli`, temporary parser scaffolding; see `plan.md`
+task 11.)
 
 ### Commit message
 
