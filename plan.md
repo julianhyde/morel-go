@@ -307,7 +307,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 
 ### D. Evaluator, in slices (29-40)
 
-- [ ] 29. `Val` representation — constructors carry (datatype,
+- [x] 29. `Val` representation — constructors carry (datatype,
       ordinal) from day 1; span-carrying `MorelError`; curried,
       partial-application-safe builtin convention (generalizing
       task 10).
