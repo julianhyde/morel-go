@@ -282,7 +282,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 22. Core IR + `Resolver` skeleton (Ast -> Core from day 1);
       TypeResolver slice I: literals, ids, application, `if`,
       `fn`, `let val`; the `it` binding.
-- [ ] 23. `:t` support in the harness; type printing in java's
+- [x] 23. `:t` support in the harness; type printing in java's
       exact format (`'a` naming order, parenthesization). Pull the
       first `:t` hunks of `type-inference.smli`.
 - [ ] 24. TypeResolver slice II: tuples, records, selectors —
