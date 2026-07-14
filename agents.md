@@ -40,40 +40,56 @@ are ports of it. A common task is to propagate a change from one
 repository into another — usually from morel-java (or morel-rust)
 into morel-go.
 
-> morel-go is early-stage, so some paths referenced below (the
-> shared `.smli` script tests, `etc/check-convergence.py`) mirror
-> morel-rust and will appear here as the port matures. Follow the
-> same process and layout when you add them.
+> morel-go is early-stage, so some tooling referenced below (the
+> script harness, `etc/check-convergence.py`) is described by
+> `plan.md` and will appear as the port matures.
+
+## Growing the test corpus
+
+The `.smli` corpus (in `testdata/script/`) is grown
+component-by-component, not imported whole. When implementing a
+feature, pull in the hunks of `.smli` that morel-java added for
+that feature and that have not changed significantly since. Pulled
+hunks are verbatim from java's present-day files — never adapted
+for Go.
+
+Never disable a section inside a `.smli` file. morel-go does not
+use `set("mode","validate")` brackets or `(* ... *)` disablement
+(a morel-rust mistake — it was very hard to tell which sections
+were disabled, and every edit is divergence from java). A section
+exists in a morel-go `.smli` file only when it passes; what is
+missing is exactly what the divergence report shows.
 
 ## Propagation process
+
+Once a `.smli` file has caught up with morel-java, changes to it
+are propagated commit-by-commit.
 
 ### Reading the source change
 
 Read the commit message, the code changes, and especially the test
-changes in `src/test/resources/script/*.smli`. Those `.smli` tests
-are shared between the projects — the morel-go test files use the
-same `.smli` format and often the same content as morel-java and
-morel-rust.
+changes in the java repository's
+`src/test/resources/script/*.smli`.
 
 ### Implementing the feature
 
-Implement the feature in Go. Then enable any disabled test regions
-by either:
-
-- Removing the surrounding `(* ... *)` block-comment delimiters, or
-- Replacing `set("mode","validate")` / `set("mode","evaluate")`
-  brackets with ordinary enabled code.
-
-A propagation must move every changed `.smli` section literally,
-adding any that do not yet exist — do not adapt or skip a section
-because the implementation is hard.
+Move every changed `.smli` section from morel-java verbatim — all
+sections, always; never adapt, trim, or skip a section because the
+implementation is hard. (Dropping and adapting sections were
+costly mistakes in morel-rust.) Then implement the feature in Go.
 
 ### Verifying
 
-Run `fullMake --no-clean` and confirm it passes. Gate convergence
-with `etc/check-convergence.py HEAD`, which fails if any `.smli`
-file diverged further from morel-java. Both it and `fullMake` must
-pass before committing.
+Run `fullMake --no-clean` and confirm it passes. The gates, all of
+which must pass before committing:
+
+- `fullMake` (build, lint, tests);
+- `etc/check-convergence.py HEAD` — per-file divergence from
+  morel-java may never increase; a propagation or corpus-growth
+  commit should show it decreasing.
+
+New tests originate in morel-java: add them there first, then
+propagate back — do not grow a go-only test fork.
 
 ### Commit message
 
