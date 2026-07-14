@@ -294,7 +294,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 26. TypeResolver slice IV: monomorphic datatypes,
       constructor patterns. (Match-coverage analysis is NOT here —
       later, with morel#55.)
-- [ ] 27. `.sig` subset parser; builtin types loaded from
+- [x] 27. `.sig` subset parser; builtin types loaded from
       `lib/*.sig` (types only — no implementations needed for
       `:t`); signature checker.
 - [ ] 28. Pull stable `type.smli`/`type-inference.smli` hunks
