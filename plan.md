@@ -258,7 +258,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 16. Declarations II: `datatype`, `type` aliases; type
       expressions (tyvars, arrow/tuple/record/list types, type
       annotations).
-- [ ] 17. Queries I: `from` with `in`/`=`/unbounded scans,
+- [x] 17. Queries I: `from` with `in`/`=`/unbounded scans,
       `where`, `yield`, `join ... on`.
 - [ ] 18. Queries II: `group`/`compute` (`over` syntax), `order`,
       `distinct`, `skip`/`take`, `union`/`intersect`/`except`,
