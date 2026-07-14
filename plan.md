@@ -340,7 +340,7 @@ Parser, type, and evaluator slices each end by pulling the stable
       dispatch on constructors; `SOME`/`NONE` pattern matching.
 - [x] 39. Pull stable hunks: `simple.smli`, `closure.smli`, basic
       `match.smli`, monomorphic `datatype.smli`.
-- [ ] 40. Cross-statement correctness pass (rust's largest bug
+- [x] 40. Cross-statement correctness pass (rust's largest bug
       farm, worth its own task): closures stored in `it`/`val`s
       and applied in later statements; escaping lambdas calling
       sibling recursive functions; recursive functions called
