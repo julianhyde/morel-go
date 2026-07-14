@@ -227,7 +227,8 @@ Parser, type, and evaluator slices each end by pulling the stable
 
 ### B. Parser, in slices (9-19)
 
-- [ ] 9. AST scaffolding: node interfaces, spans, ids;
+- [x] 9. AST scaffolding: node interfaces, spans, ids (pointer
+      identity, in Go's case);
       parse-tree rendering framework whose text format matches
       java's `Sys.parseTree` output exactly.
 - [ ] 10. Micro-evaluator for `Sys.parseTree "..."`: parse an
