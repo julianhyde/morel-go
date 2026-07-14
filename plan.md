@@ -70,9 +70,12 @@ timeline everywhere at once.
    remain there today). In morel-go, a section exists in a `.smli`
    file only when it passes; "disabled" is simply "absent", and
    what is absent is exactly what the divergence report shows.
+   Sole exception: `Sys.plan` output is matched best-effort, and
+   a plan line that is infeasible to match may be commented out —
+   greppable, and still counted as divergence by the report.
 4. `etc/check-convergence.py` is the progress metric: per-file
    divergence from morel-java must never increase, and trends
-   monotonically to zero. Its per-file report is the project
+   monotonically downward. Its per-file report is the project
    dashboard.
 5. Test cheaply before evaluation exists: `Sys.parseTree` verifies
    ASTs from scripts (no Go unit tests for the parser); `:t` lines
@@ -129,9 +132,9 @@ slot-indexed frames.
 | Errors | Span-carrying `MorelError` via ordinary `error` returns; sentinel early-return for sinks; panic only for internal invariants |
 | Query execution | Push-based `RowSink` pipeline, java's binding model verbatim (canonical field order, single implicit-label helper, `current` as a rewrite); single-threaded — parallelism is not a goal |
 | TCO | Frames shaped for trampolining from day 1; implementation is a fast-follow after the endpoint (rust retrofitted it painfully one day after `e0779b86`) |
-| Test disablement | None — a section enters a `.smli` file only when it passes; absence is visible in the divergence report |
-| New tests | Written against morel-java first (upstream), then propagated back; go-only `.smli` files are a temporary escape hatch, flagged by the report tool |
-| Convergence gate | Per-file divergence from morel-java (source of truth) may never increase, and trends to zero; informational diff against morel-rust (which carries ~6.4k divergent lines of its own) |
+| Test disablement | None — a section enters a `.smli` file only when it passes; absence is visible in the divergence report. Sole exception: infeasible `Sys.plan` lines may be commented out (plans are matched best-effort) |
+| New tests | Written against morel-java first (upstream), then propagated back; go-only `.smli` files are a temporary escape hatch, flagged by the report tool; `parse.smli` (task 11) is the one sanctioned exception |
+| Convergence gate | Per-file divergence from morel-java (source of truth) may never increase, and trends monotonically downward; informational diff against morel-rust (which carries ~6.4k divergent lines of its own) |
 
 ## Components and data structures
 
@@ -151,8 +154,8 @@ guarantees, so three explicit disciplines replace them (below).
 | AST & Core | Class hierarchies + Visitor/Shuttle | Enums + `match` | Sealed interfaces (unexported marker method), one struct per node; `go/ast`-style `Walk`/rewrite funcs. Each node carries an `Op` tag (a `const iota` enum, as in java), so `switch n.Op()` is checked by the `exhaustive` linter — bare type switches are not |
 | Types & TypeSystem | `Type` hierarchy + central registry | `Rc<Type>` + interning pool (added late, under profiling pressure) | Sealed `Type` interface; `TypeSystem` interns by canonical key so pointer equality works from day 1 |
 | Unifier | Martelli-Montanari, mutable substitution, "action map" hooks | `Rc`-shared terms, `Copy` vars, one-action-per-var limitation (worked around, then redone) | Direct port: `*TypeVar` cells with mutable binding — plain pointers. Constraint hooks are a slice of closures per var (multi-action from day 1). The component where Go is most obviously simpler than rust |
-| Values (`Val`) | Bare `Object`; interpretation driven by static type | `enum Val`, "box less" | `type Val = any`, with documented concrete types: `int`, `float32` (real; computed via `float64`, per rust#44), `string`, `rune`, `bool`, unit struct, `[]Val` (lists, tuples, records in canonical field order), `*Closure`, constructor value carrying (datatype, ordinal). This is java's model, not a compromise: comparators, printers, and sinks are type-directed, so a runtime tag would duplicate what `Core` already knows |
-| Code (compiled form) | `Code` interface + `describe()` for `Sys.plan` | Tree of closures | `Code` interface with `Eval(*Frame) (Val, error)` and `Describe` — not bare funcs, because `Sys.plan` must reproduce java's plan text, which needs introspectable nodes |
+| Values (`Val`) | Bare `Object`; interpretation driven by static type | `enum Val`, "box less" | `type Val = any`, with documented concrete types: `int32` (java's ints are 32-bit; `uint32` awaits `Word`, morel#396), `float32` (real; computed via `float64`, per rust#44), `string`, `rune`, `bool`, unit struct, `[]Val` (lists, tuples, records in canonical field order), `*Closure`, constructor value carrying (datatype, ordinal). This is java's model, not a compromise: comparators, printers, and sinks are type-directed, so a runtime tag would duplicate what `Core` already knows |
+| Code (compiled form) | `Code` interface + `describe()` for `Sys.plan` | Tree of closures | `Code` interface with `Eval(*Frame) (Val, error)` and `Describe` — not bare funcs, because `Sys.plan` reproduces java's plan text best-effort, which needs introspectable nodes |
 | Frames, closures, recursion | Slot-indexed stack (morel#349, final design), `LinkCode` | `Frame` slots; `Arc<ClosureData>` + `Weak` self-refs (pain) | `Frame` = `[]Val` slots + captured-env pointer, shaped for trampolining. Self-referential closures: assign the field after construction — GC handles cycles. Top-level forward refs: session-owned link table of patchable cells |
 | Environments | Immutable compile-time `Environment` vs runtime slots | Same split + lifetime friction | Same two-layer split, zero friction: compile-time `*Environment` parent-linked and persistent; runtime is slots only, indices resolved at compile time |
 | Builtin registry | `BuiltIn` enum (479 constants) + `Codes` map + `.sig` cross-check | strum-props metadata (retrofit after 2 latent bugs in a hand-written table) | One package-level table `[]builtin{structure, name, typeString, impl}`, alphabetical (lint-enforced), keyed lookups built at init, validated against `lib/*.sig`. Every impl uniformly curried and partial-application-safe |
@@ -166,7 +169,9 @@ Trade-offs accepted, and the disciplines that back them:
 
 * **Exhaustiveness** is Go's weak spot (rust checks it at compile
   time). The `Op`-tag pattern recovers it for op switches; type
-  switches keep a `default: panic("unreachable")` convention.
+  switches keep a `default: panic("unreachable")` convention. The
+  `exhaustive` linter runs with `default-signifies-exhaustive:
+  false`, so a `default` arm does not silence the check.
 * **`Val = any`** trades a compile-time check for fidelity to
   java's type-directed model.
 * **Immutability is by convention, not enforcement.** Three
@@ -233,8 +238,9 @@ Parser, type, and evaluator slices each end by pulling the stable
       only in `attribute.smli` (45 uses, attribute-focused), so
       author a small **go-only** `parse.smli` — just a few
       expressions per parser slice — as the temporary test vehicle
-      for tasks 12-18. It is scaffolding, not corpus: the
-      divergence report flags it as go-only, and it is deleted
+      for tasks 12-18. It is scaffolding, not corpus — the one
+      sanctioned exception to the tests-originate-upstream rule:
+      the divergence report flags it as go-only, and it is deleted
       once real corpus hunks cover the parser and momentum is
       built.
 - [ ] 12. Expressions I: literals, identifiers, application,
@@ -257,8 +263,10 @@ Parser, type, and evaluator slices each end by pulling the stable
       `distinct`, `skip`/`take`, `union`/`intersect`/`except`,
       `into`/`through`, `exists`/`forall`/`require`, `current`,
       `ordinal`.
-- [ ] 19. Parser hardening: error messages with spans in java's
-      format; precedence/associativity corners; the last 20%.
+- [ ] 19. Parser hardening: error messages and spans must match
+      the `.smli` corpus exactly, whether or not the java text is
+      JavaCC-shaped ("Encountered ...", expected-token lists);
+      precedence/associativity corners; the last 20%.
       **Milestone: pulled parse-tree hunks pass.**
 
 ### C. Type inference, in slices (20-28)
