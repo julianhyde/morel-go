@@ -255,7 +255,7 @@ Parser, type, and evaluator slices each end by pulling the stable
       record, `::`, layered `as`).
 - [x] 15. Declarations I: `val`, `val rec`, `fun` (multi-clause,
       multi-parameter), `let ... in ... end`.
-- [ ] 16. Declarations II: `datatype`, `type` aliases; type
+- [x] 16. Declarations II: `datatype`, `type` aliases; type
       expressions (tyvars, arrow/tuple/record/list types, type
       annotations).
 - [ ] 17. Queries I: `from` with `in`/`=`/unbounded scans,
