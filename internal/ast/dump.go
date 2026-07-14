@@ -64,7 +64,7 @@ func dump(b *strings.Builder, node Node) {
 		dump(b, n.Result)
 		b.WriteString(")")
 	case *From:
-		b.WriteString("(from ")
+		b.WriteString("(" + n.Kind.String() + " ")
 		unparseFrom(b, n)
 		b.WriteString(")")
 	case *FunBind:

@@ -405,3 +405,49 @@ func TestParseFrom(t *testing.T) {
 	checkExpr(t, "from e in emps yield e.name",
 		"(from from e in emps yield #name e)")
 }
+
+func TestParseQuerySteps(t *testing.T) {
+	checkExpr(t, "from x in xs group x mod 2",
+		"(from from x in xs group x mod 2)")
+	checkExpr(t, "from x in xs group {}",
+		"(from from x in xs group {})")
+	checkExpr(t,
+		"from x in xs group {a = x} compute {c = count over ()}",
+		"(from from x in xs group {a = x} "+
+			"compute {c = count over ()})")
+	checkExpr(t,
+		"from x in xs group g = {a = x} compute {c = count over ()}",
+		"(from from x in xs group g = {a = x} "+
+			"compute {c = count over ()})")
+	checkExpr(t, "from k in ks order DESC k",
+		"(from from k in ks order DESC k)")
+	checkExpr(t, "from k in ks order k",
+		"(from from k in ks order k)")
+	checkExpr(t, "from i in xs distinct",
+		"(from from i in xs distinct)")
+	checkExpr(t, "from x in xs unorder",
+		"(from from x in xs unorder)")
+	checkExpr(t, "from i in xs union ys",
+		"(from from i in xs union ys)")
+	checkExpr(t, "from i in xs intersect ys except zs",
+		"(from from i in xs intersect ys except zs)")
+	checkExpr(t, "from i in xs union distinct ys",
+		"(from from i in xs union distinct ys)")
+	checkExpr(t, "from i in xs skip 2 take 3",
+		"(from from i in xs skip 2 take 3)")
+	checkExpr(t, "from i in xs into f",
+		"(from from i in xs into f)")
+	checkExpr(t, "from i in xs through p in f",
+		"(from from i in xs through p in f)")
+	checkExpr(t, "from x in xs yield ordinal",
+		"(from from x in xs yield ordinal)")
+	checkExpr(t, "from x in xs yield current + 1",
+		"(from from x in xs yield current + 1)")
+}
+
+func TestParseQuantifiers(t *testing.T) {
+	checkExpr(t, "exists e in emps where e > 1",
+		"(exists exists e in emps where e > 1)")
+	checkExpr(t, "forall e in emps require e > 1",
+		"(forall forall e in emps require e > 1)")
+}

@@ -254,12 +254,14 @@ var unparseOps = map[Op]opInfo{
 	NeOp:      {" <> ", 4, false},
 	NotElemOp: {" notelem ", 4, false},
 	OrelseOp:  {" orelse ", 1, false},
+	OverOp:    {" over ", 8, false},
 	PlusOp:    {" + ", 6, false},
 	TimesOp:   {" * ", 7, false},
 }
 
-// applyPrec is the precedence of function application.
-const applyPrec = 8
+// applyPrec is the precedence of function application; "over"
+// sits between the multiplicative level and application.
+const applyPrec = 9
 
 // UnparseExpr renders an expression as source text,
 // parenthesizing by operator precedence.
@@ -350,15 +352,34 @@ func unparseExprList(b *strings.Builder, open string,
 	b.WriteString(closer)
 }
 
-// unparseFrom renders a from expression, including its keyword.
-// Every scan after the first renders with a comma, so a join
-// unparses as ", pat in exp on cond".
+// unparseFrom renders a query expression, including its keyword
+// (from, exists, or forall). Every scan after the first renders
+// with a comma, so a join unparses as ", pat in exp on cond".
 func unparseFrom(b *strings.Builder, f *From) {
-	b.WriteString("from")
+	b.WriteString(f.Kind.String())
 	first := true
 	for _, step := range f.Steps {
 		// lint: sort until '^\t\t}' where '^\t\tcase '
 		switch n := step.(type) {
+		case *ComputeStep:
+			b.WriteString(" compute ")
+			unparseBinder(b, n.Binder)
+			unparseExpr(b, n.Exp, 0)
+		case *DistinctStep:
+			b.WriteString(" distinct")
+		case *GroupStep:
+			b.WriteString(" group ")
+			unparseBinder(b, n.Binder)
+			unparseExpr(b, n.Exp, 0)
+		case *IntoStep:
+			b.WriteString(" into ")
+			unparseExpr(b, n.Exp, 0)
+		case *OrderStep:
+			b.WriteString(" order ")
+			unparseExpr(b, n.Exp, 0)
+		case *RequireStep:
+			b.WriteString(" require ")
+			unparseExpr(b, n.Exp, 0)
 		case *Scan:
 			if first {
 				b.WriteString(" ")
@@ -367,6 +388,25 @@ func unparseFrom(b *strings.Builder, f *From) {
 				b.WriteString(", ")
 			}
 			unparseScan(b, n)
+		case *SetOpStep:
+			b.WriteString(" " + n.Kind.String() + " ")
+			if n.Distinct {
+				b.WriteString("distinct ")
+			}
+			unparseExpr(b, n.Exp, 0)
+		case *SkipStep:
+			b.WriteString(" skip ")
+			unparseExpr(b, n.Exp, 0)
+		case *TakeStep:
+			b.WriteString(" take ")
+			unparseExpr(b, n.Exp, 0)
+		case *ThroughStep:
+			b.WriteString(" through ")
+			unparsePat(b, n.Pat)
+			b.WriteString(" in ")
+			unparseExpr(b, n.Exp, 0)
+		case *UnorderStep:
+			b.WriteString(" unorder")
 		case *WhereStep:
 			b.WriteString(" where ")
 			unparseExpr(b, n.Exp, 0)
@@ -374,6 +414,12 @@ func unparseFrom(b *strings.Builder, f *From) {
 			b.WriteString(" yield ")
 			unparseExpr(b, n.Exp, 0)
 		}
+	}
+}
+
+func unparseBinder(b *strings.Builder, binder string) {
+	if binder != "" {
+		b.WriteString(binder + " = ")
 	}
 }
 

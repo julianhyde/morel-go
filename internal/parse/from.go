@@ -22,9 +22,9 @@ import (
 	"github.com/hydromatic/morel-go/internal/token"
 )
 
-// fromExpr parses "from scan, ... step ...": comma-separated
-// scans, then where/yield/join steps in any order.
-func (p *Parser) fromExpr() (ast.Expr, error) {
+// fromExpr parses a query of the given kind (from, exists, or
+// forall): comma-separated scans, then steps in any order.
+func (p *Parser) fromExpr(kind ast.Op) (ast.Expr, error) {
 	start := p.tok.Span.Start
 	err := p.next()
 	if err != nil {
@@ -46,37 +46,174 @@ func (p *Parser) fromExpr() (ast.Expr, error) {
 	}
 	last := steps[len(steps)-1]
 	span := token.Span{Start: start, End: last.Span().End}
-	return ast.NewFrom(span, steps), nil
+	return ast.NewFrom(span, kind, steps), nil
+}
+
+// exprStepKinds maps a step keyword to its op, for steps of the
+// form "keyword exp".
+var exprStepKinds = map[token.Kind]ast.Op{
+	token.Compute: ast.ComputeOp,
+	token.Group:   ast.GroupOp,
+	token.Into:    ast.IntoOp,
+	token.Order:   ast.OrderOp,
+	token.Require: ast.RequireOp,
+	token.Skip:    ast.SkipOp,
+	token.Take:    ast.TakeOp,
+	token.Where:   ast.WhereOp,
+	token.Yield:   ast.YieldOp,
+}
+
+var setOpKinds = map[token.Kind]ast.Op{
+	token.Except:    ast.ExceptOp,
+	token.Intersect: ast.IntersectOp,
+	token.Union:     ast.UnionOp,
 }
 
 // fromStep parses one pipeline step, or returns nil at the end
 // of the query.
 func (p *Parser) fromStep() ([]ast.FromStep, error) {
+	if kind, ok := exprStepKinds[p.tok.Kind]; ok {
+		return p.exprStep(kind)
+	}
+	if kind, ok := setOpKinds[p.tok.Kind]; ok {
+		return p.setOpStep(kind)
+	}
 	// lint: sort until '^\t}' where '^\tcase '
 	switch p.tok.Kind {
+	case token.Distinct:
+		span := p.tok.Span
+		err := p.next()
+		if err != nil {
+			return nil, err
+		}
+		return []ast.FromStep{ast.NewBareStep(span,
+			ast.DistinctOp)}, nil
 	case token.Join:
 		err := p.next()
 		if err != nil {
 			return nil, err
 		}
 		return p.scanList()
-	case token.Where:
-		exp, err := p.keywordExpr(token.Where)
+	case token.Through:
+		return p.throughStep()
+	case token.Unorder:
+		span := p.tok.Span
+		err := p.next()
 		if err != nil {
 			return nil, err
 		}
-		return []ast.FromStep{ast.NewWhereStep(exp.Span(),
-			exp)}, nil
-	case token.Yield:
-		exp, err := p.keywordExpr(token.Yield)
-		if err != nil {
-			return nil, err
-		}
-		return []ast.FromStep{ast.NewYieldStep(exp.Span(),
-			exp)}, nil
+		return []ast.FromStep{ast.NewBareStep(span,
+			ast.UnorderOp)}, nil
 	default:
 		return nil, nil
 	}
+}
+
+// exprStep parses "keyword [binder =] exp"; only group and
+// compute may have a binder.
+func (p *Parser) exprStep(kind ast.Op) ([]ast.FromStep, error) {
+	err := p.next()
+	if err != nil {
+		return nil, err
+	}
+	binder := ""
+	if kind == ast.GroupOp || kind == ast.ComputeOp {
+		binder, err = p.stepBinder()
+		if err != nil {
+			return nil, err
+		}
+	}
+	exp, err := p.expr()
+	if err != nil {
+		return nil, err
+	}
+	step := ast.NewStep(exp.Span(), kind, exp)
+	// lint: sort until '^\t}' where '^\tcase '
+	switch st := step.(type) {
+	case *ast.ComputeStep:
+		st.Binder = binder
+	case *ast.GroupStep:
+		st.Binder = binder
+	default:
+	}
+	return []ast.FromStep{step}, nil
+}
+
+// stepBinder recognizes "name =" before a group or compute
+// expression.
+func (p *Parser) stepBinder() (string, error) {
+	if p.tok.Kind != token.Ident {
+		return "", nil
+	}
+	kind, err := p.peek()
+	if err != nil {
+		return "", err
+	}
+	if kind != token.Eq {
+		return "", nil
+	}
+	binder := p.tok.Text
+	err = p.next()
+	if err != nil {
+		return "", err
+	}
+	err = p.next()
+	if err != nil {
+		return "", err
+	}
+	return binder, nil
+}
+
+// setOpStep parses "union|intersect|except [distinct] exp".
+func (p *Parser) setOpStep(kind ast.Op) ([]ast.FromStep, error) {
+	err := p.next()
+	if err != nil {
+		return nil, err
+	}
+	distinct := false
+	if p.tok.Kind == token.Distinct {
+		distinct = true
+		err = p.next()
+		if err != nil {
+			return nil, err
+		}
+	}
+	exp, err := p.expr()
+	if err != nil {
+		return nil, err
+	}
+	return []ast.FromStep{ast.NewSetOpStep(exp.Span(), kind,
+		distinct, exp)}, nil
+}
+
+// throughStep parses "through pat in exp".
+func (p *Parser) throughStep() ([]ast.FromStep, error) {
+	err := p.next()
+	if err != nil {
+		return nil, err
+	}
+	pat, err := p.pat()
+	if err != nil {
+		return nil, err
+	}
+	err = p.expect(token.In)
+	if err != nil {
+		return nil, err
+	}
+	err = p.next()
+	if err != nil {
+		return nil, err
+	}
+	exp, err := p.expr()
+	if err != nil {
+		return nil, err
+	}
+	span := token.Span{
+		Start: pat.Span().Start,
+		End:   exp.Span().End,
+	}
+	return []ast.FromStep{ast.NewThroughStep(span, pat,
+		exp)}, nil
 }
 
 // scanList parses "scan [, scan ...]".

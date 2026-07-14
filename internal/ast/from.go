@@ -99,17 +99,180 @@ func NewYieldStep(span token.Span, exp Expr) *YieldStep {
 // Op implements Node.
 func (*YieldStep) Op() Op { return YieldOp }
 
-// From is a query expression: "from scan, ... step ...".
+// exprStep is a step that holds one expression.
+type exprStep struct {
+	stepBase
+
+	Exp Expr
+}
+
+// GroupStep is "group [binder =] exp".
+type GroupStep struct {
+	exprStep
+
+	Binder string
+}
+
+// Op implements Node.
+func (*GroupStep) Op() Op { return GroupOp }
+
+// ComputeStep is "compute [binder =] exp".
+type ComputeStep struct {
+	exprStep
+
+	Binder string
+}
+
+// Op implements Node.
+func (*ComputeStep) Op() Op { return ComputeOp }
+
+// OrderStep is "order exp".
+type OrderStep struct{ exprStep }
+
+// Op implements Node.
+func (*OrderStep) Op() Op { return OrderOp }
+
+// SkipStep is "skip exp".
+type SkipStep struct{ exprStep }
+
+// Op implements Node.
+func (*SkipStep) Op() Op { return SkipOp }
+
+// TakeStep is "take exp".
+type TakeStep struct{ exprStep }
+
+// Op implements Node.
+func (*TakeStep) Op() Op { return TakeOp }
+
+// IntoStep is "into exp".
+type IntoStep struct{ exprStep }
+
+// Op implements Node.
+func (*IntoStep) Op() Op { return IntoOp }
+
+// RequireStep is "require exp".
+type RequireStep struct{ exprStep }
+
+// Op implements Node.
+func (*RequireStep) Op() Op { return RequireOp }
+
+// DistinctStep is the bare "distinct" step.
+type DistinctStep struct{ stepBase }
+
+// Op implements Node.
+func (*DistinctStep) Op() Op { return DistinctOp }
+
+// UnorderStep is the bare "unorder" step.
+type UnorderStep struct{ stepBase }
+
+// Op implements Node.
+func (*UnorderStep) Op() Op { return UnorderOp }
+
+// SetOpStep is "union|intersect|except [distinct] exp".
+type SetOpStep struct {
+	exprStep
+
+	Kind     Op
+	Distinct bool
+}
+
+// NewSetOpStep returns a union, intersect, or except step.
+func NewSetOpStep(span token.Span, kind Op, distinct bool,
+	exp Expr,
+) *SetOpStep {
+	return &SetOpStep{
+		exprStep: exprStep{
+			stepBase: stepBase{base{span}},
+			Exp:      exp,
+		},
+		Kind:     kind,
+		Distinct: distinct,
+	}
+}
+
+// Op implements Node.
+func (s *SetOpStep) Op() Op { return s.Kind }
+
+// ThroughStep is "through pat in exp".
+type ThroughStep struct {
+	exprStep
+
+	Pat Pat
+}
+
+// NewThroughStep returns a through step.
+func NewThroughStep(span token.Span, pat Pat,
+	exp Expr,
+) *ThroughStep {
+	return &ThroughStep{
+		exprStep: exprStep{
+			stepBase: stepBase{base{span}},
+			Exp:      exp,
+		},
+		Pat: pat,
+	}
+}
+
+// Op implements Node.
+func (*ThroughStep) Op() Op { return ThroughOp }
+
+// NewStep returns a query step of the given kind holding one
+// expression: where, yield, group, compute, order, skip, take,
+// into, or require.
+func NewStep(span token.Span, kind Op, exp Expr) FromStep {
+	es := exprStep{stepBase: stepBase{base{span}}, Exp: exp}
+	// lint: sort until '^\t}' where '^\tcase '
+	switch kind {
+	case ComputeOp:
+		return &ComputeStep{exprStep: es}
+	case GroupOp:
+		return &GroupStep{exprStep: es}
+	case IntoOp:
+		return &IntoStep{exprStep: es}
+	case OrderOp:
+		return &OrderStep{exprStep: es}
+	case RequireOp:
+		return &RequireStep{exprStep: es}
+	case SkipOp:
+		return &SkipStep{exprStep: es}
+	case TakeOp:
+		return &TakeStep{exprStep: es}
+	case WhereOp:
+		return &WhereStep{stepBase: es.stepBase, Exp: exp}
+	case YieldOp:
+		return &YieldStep{stepBase: es.stepBase, Exp: exp}
+	default:
+		panic("NewStep: unknown step kind")
+	}
+}
+
+// NewBareStep returns a step with no operands: distinct or
+// unorder.
+func NewBareStep(span token.Span, kind Op) FromStep {
+	sb := stepBase{base{span}}
+	if kind == DistinctOp {
+		return &DistinctStep{stepBase: sb}
+	}
+	return &UnorderStep{stepBase: sb}
+}
+
+// From is a query expression: "from scan, ... step ...". Kind is
+// FromOp, ExistsOp, or ForallOp.
 type From struct {
 	exprBase
 
 	Steps []FromStep
+	Kind  Op
 }
 
-// NewFrom returns a from expression.
-func NewFrom(span token.Span, steps []FromStep) *From {
-	return &From{exprBase: exprBase{base{span}}, Steps: steps}
+// NewFrom returns a query expression of the given kind.
+func NewFrom(span token.Span, kind Op, steps []FromStep) *From {
+	return &From{
+		exprBase: exprBase{base{span}},
+		Steps:    steps,
+		Kind:     kind,
+	}
 }
 
 // Op implements Node.
-func (*From) Op() Op { return FromOp }
+func (f *From) Op() Op { return f.Kind }
