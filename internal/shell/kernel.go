@@ -18,6 +18,7 @@
 package shell
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -111,6 +112,12 @@ func (k *Kernel) Config() *Config {
 // they are built-in calls of the shape `A.b arg;`; anything else
 // is lexically validated, producing no output.
 func (k *Kernel) Execute(stmt string) string {
+	// Positions in error reports are relative to the statement's
+	// first token: java's parser renumbers that token's line to 1
+	// but keeps raw columns. Blank out everything before the
+	// first token (comments become spaces, so columns survive)
+	// and drop the resulting blank lines.
+	stmt = normalizeLeading(stmt)
 	if rest, ok := typeOnlyRest(stmt); ok {
 		return k.executeTypeOnly(rest)
 	}
@@ -154,19 +161,23 @@ func (k *Kernel) executeStatement(n ast.Node) string {
 	}
 	resolved, err := compile.Deduce(k.sys, k.bindings, decl)
 	if err != nil {
-		return ""
+		return formatCompileError(err)
 	}
 	coreDecl, err := compile.Resolve(resolved)
 	if err != nil {
-		return ""
+		return formatCompileError(err)
 	}
 	compiled, err := compile.Statement(coreDecl, k.values)
 	if err != nil {
-		return ""
+		return formatCompileError(err)
 	}
 	frame := eval.NewFrame(compiled.Slots)
 	_, err = compiled.Code.Eval(frame)
 	if err != nil {
+		var morelErr *eval.MorelError
+		if errors.As(err, &morelErr) {
+			return morelErr.Describe()
+		}
 		return err.Error()
 	}
 	var lines []string
@@ -178,6 +189,42 @@ func (k *Kernel) executeStatement(n ast.Node) string {
 			k.config.prettyBinding(b.Pat.Name, v, b.Pat.T))
 	}
 	return strings.Join(lines, "\n")
+}
+
+// formatCompileError renders a compilation error as java does:
+//
+//	stdIn:1.1-1.11 Error: literal '9999999999' is too large ...
+//	  raised at: stdIn:1.1-1.11
+//
+// An error that means "not implemented yet" produces no output,
+// so unpulled corpus statements stay silent.
+func formatCompileError(err error) string {
+	var compileErr *compile.Error
+	if !errors.As(err, &compileErr) ||
+		compileErr.Span == (token.Span{}) ||
+		unsupported(compileErr.Msg) {
+		return ""
+	}
+	pos := "stdIn:" + compileErr.Span.String()
+	return pos + " Error: " + compileErr.Msg +
+		"\n  raised at: " + pos
+}
+
+// unsupported reports whether a compile error means that a
+// feature is not implemented yet, rather than that the user's
+// statement is wrong.
+func unsupported(msg string) bool {
+	for _, prefix := range []string{
+		"cannot compile",
+		"cannot convert to core",
+		"cannot deduce type for",
+		"cannot derive label",
+	} {
+		if strings.HasPrefix(msg, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // setProp handles `Sys.set ("name", value)` for the integer
@@ -355,6 +402,47 @@ func escapeString(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// normalizeLeading replaces the whitespace and comments before a
+// statement's first token with spaces and removes the blank
+// lines that result, so the first token is on line 1 at its
+// original column.
+func normalizeLeading(stmt string) string {
+	i, n := 0, len(stmt)
+scan:
+	for i < n {
+		switch {
+		case stmt[i] == ' ' || stmt[i] == '\t' ||
+			stmt[i] == '\r' || stmt[i] == '\n':
+			i++
+		case strings.HasPrefix(stmt[i:], "(*)"):
+			j := strings.IndexByte(stmt[i:], '\n')
+			if j < 0 {
+				i = n
+				break scan
+			}
+			i += j + 1
+		case strings.HasPrefix(stmt[i:], "(*"):
+			i = skipBlockComment(stmt, i+len("(*"))
+		default:
+			break scan
+		}
+	}
+	prefix := []byte(stmt[:i])
+	for j, c := range prefix {
+		if c != '\n' {
+			prefix[j] = ' '
+		}
+	}
+	s := string(prefix) + stmt[i:]
+	for {
+		j := strings.IndexByte(s, '\n')
+		if j < 0 || strings.TrimSpace(s[:j]) != "" {
+			return s
+		}
+		s = s[j+1:]
+	}
 }
 
 // typeOnlyRest looks for the ":t" marker that makes a statement
