@@ -353,7 +353,7 @@ Most functions in most structures are not load-bearing: implement
 what later hunks depend on first; fill in breadth early, late, or
 opportunistically.
 
-- [ ] 41. Builtin registry mechanics: structure-as-record values,
+- [x] 41. Builtin registry mechanics: structure-as-record values,
       one table mapping builtin -> implementation, alphabetical
       order enforced by lint.
 - [ ] 42. `General`, `Bool`, `Order`, `Option`.
