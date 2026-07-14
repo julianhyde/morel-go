@@ -244,7 +244,7 @@ Parser, type, and evaluator slices each end by pulling the stable
       the divergence report flags it as go-only, and it is deleted
       once real corpus hunks cover the parser and momentum is
       built.
-- [ ] 12. Expressions I: literals, identifiers, application,
+- [x] 12. Expressions I: literals, identifiers, application,
       parentheses, tuples, lists, records, selectors (`#label`,
       `e.field`).
 - [ ] 13. Expressions II: infix/prefix operators with java's
