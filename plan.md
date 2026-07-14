@@ -314,7 +314,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 30. `Code`/`Compiler` slice I: literals, vars, builtin
       application; slot-indexed `Frame`; `val it = ...` statement
       output.
-- [ ] 31. Wadler-Leijen printing engine (morel#398, pulled
+- [x] 31. Wadler-Leijen printing engine (morel#398, pulled
       forward): primitive/list/tuple/record values, wrapping,
       real formatting (compute in float64 — rust#44), so the
       first printed value already matches java's present-day
