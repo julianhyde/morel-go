@@ -247,7 +247,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 12. Expressions I: literals, identifiers, application,
       parentheses, tuples, lists, records, selectors (`#label`,
       `e.field`).
-- [ ] 13. Expressions II: infix/prefix operators with java's
+- [x] 13. Expressions II: infix/prefix operators with java's
       precedence table (`+ - * / div mod`, comparisons, `::`, `@`,
       `^`, `o`, `andalso`, `orelse`, unary `~`).
 - [ ] 14. Expressions III: `if`/`then`/`else`, `fn`, `case` with
