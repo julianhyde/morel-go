@@ -133,6 +133,48 @@ slot-indexed frames.
 | New tests | Written against morel-java first (upstream), then propagated back; go-only `.smli` files are a temporary escape hatch, flagged by the report tool |
 | Convergence gate | Per-file divergence from morel-java (source of truth) may never increase, and trends to zero; informational diff against morel-rust (which carries ~6.4k divergent lines of its own) |
 
+## Components and data structures
+
+Java uses object-oriented class hierarchies with visitors; rust
+uses sum types with pattern matching, under an ownership model
+that disallows shared mutable data. Go should not force one
+pattern everywhere: use sealed interfaces (Go's sum type) where
+variants carry genuinely different payloads, and bare `any` where
+the static type already determines interpretation — which is
+exactly how java's evaluator works. Where rust's borrow checker
+forced ceremony (`Weak` refs, `Rc<RefCell<>>`, lifetime splits),
+Go's GC deletes the problem — but also deletes rust's immutability
+guarantees, so three explicit disciplines replace them (below).
+
+| Component | java | rust | Go design |
+| --- | --- | --- | --- |
+| AST & Core | Class hierarchies + Visitor/Shuttle | Enums + `match` | Sealed interfaces (unexported marker method), one struct per node; `go/ast`-style `Walk`/rewrite funcs. Each node carries an `Op` tag (a `const iota` enum, as in java), so `switch n.Op()` is checked by the `exhaustive` linter — bare type switches are not |
+| Types & TypeSystem | `Type` hierarchy + central registry | `Rc<Type>` + interning pool (added late, under profiling pressure) | Sealed `Type` interface; `TypeSystem` interns by canonical key so pointer equality works from day 1 |
+| Unifier | Martelli-Montanari, mutable substitution, "action map" hooks | `Rc`-shared terms, `Copy` vars, one-action-per-var limitation (worked around, then redone) | Direct port: `*TypeVar` cells with mutable binding — plain pointers. Constraint hooks are a slice of closures per var (multi-action from day 1). The component where Go is most obviously simpler than rust |
+| Values (`Val`) | Bare `Object`; interpretation driven by static type | `enum Val`, "box less" | `type Val = any`, with documented concrete types: `int`, `float32` (real; computed via `float64`, per rust#44), `string`, `rune`, `bool`, unit struct, `[]Val` (lists, tuples, records in canonical field order), `*Closure`, constructor value carrying (datatype, ordinal). This is java's model, not a compromise: comparators, printers, and sinks are type-directed, so a runtime tag would duplicate what `Core` already knows |
+| Code (compiled form) | `Code` interface + `describe()` for `Sys.plan` | Tree of closures | `Code` interface with `Eval(*Frame) (Val, error)` and `Describe` — not bare funcs, because `Sys.plan` must reproduce java's plan text, which needs introspectable nodes |
+| Frames, closures, recursion | Slot-indexed stack (morel#349, final design), `LinkCode` | `Frame` slots; `Arc<ClosureData>` + `Weak` self-refs (pain) | `Frame` = `[]Val` slots + captured-env pointer, shaped for trampolining. Self-referential closures: assign the field after construction — GC handles cycles. Top-level forward refs: session-owned link table of patchable cells |
+| Environments | Immutable compile-time `Environment` vs runtime slots | Same split + lifetime friction | Same two-layer split, zero friction: compile-time `*Environment` parent-linked and persistent; runtime is slots only, indices resolved at compile time |
+| Builtin registry | `BuiltIn` enum (479 constants) + `Codes` map + `.sig` cross-check | strum-props metadata (retrofit after 2 latent bugs in a hand-written table) | One package-level table `[]builtin{structure, name, typeString, impl}`, alphabetical (lint-enforced), keyed lookups built at init, validated against `lib/*.sig`. Every impl uniformly curried and partial-application-safe |
+| RowSink pipeline | `RowSink`/`RowSinks`, push | Push, `EarlyReturn` advisory error | `RowSink` interface { `Accept(row []Val) error`; `Finish() error` } with sentinel `errEarlyReturn` (the `io.EOF` idiom) |
+| Session/Config | `Session` + `Prop` enum | `Rc<RefCell<Session>>` + a config-duplication bug | Plain `*Session` owned by `Kernel`, passed freely; one config by construction |
+| Errors/spans | Positioned exceptions | Spans smuggled as strings at first, fixed later | `*MorelError{Span, Kind, Msg}` through ordinary `error` returns from day 1; `Span` a value struct on every node; panic only for internal invariants |
+| Pretty printer | Wadler-Leijen (morel#398) | Same, late | Small sealed `Doc` interface (text/line/concat/nest/group) — a tiny closed set where classic sum-type style fits perfectly |
+| Lexer/parser | JavaCC grammar | Pest PEG (+ LALRPOP for Datalog) | Hand-written: lexer as a struct with `Next() Token` (shared by splitter and, later, highlighter); recursive-descent parser with precedence table; `go/parser` as the stylistic model |
+
+Trade-offs accepted, and the disciplines that back them:
+
+* **Exhaustiveness** is Go's weak spot (rust checks it at compile
+  time). The `Op`-tag pattern recovers it for op switches; type
+  switches keep a `default: panic("unreachable")` convention.
+* **`Val = any`** trades a compile-time check for fidelity to
+  java's type-directed model.
+* **Immutability is by convention, not enforcement.** Three
+  load-bearing disciplines: types are immutable after interning;
+  values are immutable after construction (`[]Val` is shared,
+  never mutated; `::` copies); environments are never mutated
+  (extension allocates).
+
 ## The first 50 tasks
 
 Not locked in — tasks will change as we learn. Each task is sized
@@ -187,11 +229,14 @@ Parser, type, and evaluator slices each end by pulling the stable
       application of a dotted name to a string literal, invoke the
       builtin, print `val it = "..." : string`. Establishes the
       curried, span-carrying builtin convention.
-- [ ] 11. Parse-test corpus: check how much `Sys.parseTree`
-      coverage java's corpus has for core constructs (most known
-      usage is attribute-heavy `attribute.smli`); author a
-      `parse.smli` in morel-java where coverage is thin, and pull
-      it. This is the test vehicle for tasks 12-18.
+- [ ] 11. Parse-test scaffold: java's corpus has `Sys.parseTree`
+      only in `attribute.smli` (45 uses, attribute-focused), so
+      author a small **go-only** `parse.smli` — just a few
+      expressions per parser slice — as the temporary test vehicle
+      for tasks 12-18. It is scaffolding, not corpus: the
+      divergence report flags it as go-only, and it is deleted
+      once real corpus hunks cover the parser and momentum is
+      built.
 - [ ] 12. Expressions I: literals, identifiers, application,
       parentheses, tuples, lists, records, selectors (`#label`,
       `e.field`).
@@ -244,7 +289,10 @@ Parser, type, and evaluator slices each end by pulling the stable
       `lib/*.sig` (types only — no implementations needed for
       `:t`); signature checker.
 - [ ] 28. Pull stable `type.smli`/`type-inference.smli` hunks
-      broadly.
+      broadly. (`type-inference.smli` has 230 `:t` statements;
+      skip for now the hunks whose expected output includes
+      match-coverage warnings — that analysis arrives with
+      morel#55, after task 50.)
       **Milestone: pulled `:t` hunks pass — type inference tested
       without evaluation.**
 
