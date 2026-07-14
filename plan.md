@@ -211,7 +211,7 @@ Parser, type, and evaluator slices each end by pulling the stable
       identifiers, `~` negation vs negative literals, scientific
       notation. Go unit tests (internal infrastructure — the
       `.smli` corpus can't test the lexer directly).
-- [ ] 5. `StatementSplitter` driven by the lexer. Regression tests
+- [x] 5. `StatementSplitter` driven by the lexer. Regression tests
       for every case in rust's fix cascade: `;` inside comments
       and strings, `*)` inside `(*)` line comments, `(op *)`,
       nested block comments.
