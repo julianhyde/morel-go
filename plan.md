@@ -207,7 +207,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 - [x] 3. Lexer v1: identifiers, keywords, int/real/string/char
       literals with escapes, symbols, line comments, nested block
       comments; positions/spans.
-- [ ] 4. Lexer v2: type variables (`'a`), backtick-quoted
+- [x] 4. Lexer v2: type variables (`'a`), backtick-quoted
       identifiers, `~` negation vs negative literals, scientific
       notation. Go unit tests (internal infrastructure — the
       `.smli` corpus can't test the lexer directly).
