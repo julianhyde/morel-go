@@ -314,3 +314,68 @@ func TestUnquote(t *testing.T) {
 		}
 	}
 }
+
+func TestParseTypeAnnotations(t *testing.T) {
+	checkExpr(t, "1 : int",
+		"(annotatedExp (int_literal 1) (named int))")
+	// ":" binds loosest.
+	checkExpr(t, "1 + 2 : int",
+		"(annotatedExp (plus (int_literal 1) (int_literal 2)) "+
+			"(named int))")
+	checkExpr(t, "x : int list",
+		"(annotatedExp (id x) (named list (named int)))")
+	//nolint:dupword // "list list" is a Morel type
+	checkExpr(t, "x : int list list",
+		"(annotatedExp (id x) "+
+			"(named list (named list (named int))))")
+	checkExpr(t, "f : int -> int -> int",
+		"(annotatedExp (id f) (fnType (named int) "+
+			"(fnType (named int) (named int))))")
+	checkExpr(t, "x : int * bool * int",
+		"(annotatedExp (id x) (tupleType (named int) "+
+			"(named bool) (named int)))")
+	checkExpr(t, "x : {a: int, b: string}",
+		"(annotatedExp (id x) (record_type {a: int, b: string}))")
+	checkExpr(t, "x : 'a",
+		"(annotatedExp (id x) (tyVar 'a))")
+	checkExpr(t, "x : ('a, 'b) pair",
+		"(annotatedExp (id x) (named pair (tyVar 'a) "+
+			"(tyVar 'b)))")
+	checkExpr(t, "x : (int -> int) list",
+		"(annotatedExp (id x) (named list "+
+			"(fnType (named int) (named int))))")
+	checkExpr(t, "x : unit",
+		"(annotatedExp (id x) (named unit))")
+}
+
+func TestParseAnnotatedPatterns(t *testing.T) {
+	checkExpr(t, "fn (x : int) => x",
+		"(fn (match (annotatedPat (idPat x) (named int)) "+
+			"(id x)))")
+	checkDecl(t, "val x : int = 1",
+		"(val (valBind (annotatedPat (idPat x) (named int)) "+
+			"(int_literal 1)))")
+	checkDecl(t, "fun f (x : int) : int = x",
+		"(fun (funBind (funMatch f "+
+			"(annotatedPat (idPat x) (named int)) (named int) "+
+			"(id x))))")
+}
+
+func TestParseDatatypeDecl(t *testing.T) {
+	checkDecl(t, "datatype color = RED | GREEN",
+		"(datatype_decl datatype color = RED | GREEN)")
+	checkDecl(t, "datatype tree = LEAF of int | NODE of tree * tree",
+		"(datatype_decl datatype tree = LEAF of int "+
+			"| NODE of tree * tree)")
+	checkDecl(t, "datatype 'a opt = N | S of 'a",
+		"(datatype_decl datatype 'a opt = N | S of 'a)")
+	checkDecl(t, "datatype ('a, 'b) pair = P of 'a * 'b",
+		"(datatype_decl datatype ('a, 'b) pair = P of 'a * 'b)")
+	checkDecl(t, "datatype d = A | B and e = C",
+		"(datatype_decl datatype d = A | B and e = C)")
+}
+
+func TestParseTypeDecl(t *testing.T) {
+	checkDecl(t, "type point = int * int",
+		"(type_decl type point = int * int)")
+}

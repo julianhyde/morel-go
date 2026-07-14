@@ -66,20 +66,22 @@ func (*ValDecl) Op() Op { return ValDeclOp }
 type FunMatch struct {
 	base
 
-	Name string
-	Pats []Pat
-	Exp  Expr
+	Name       string
+	Pats       []Pat
+	ReturnType Type
+	Exp        Expr
 }
 
 // NewFunMatch returns a function clause.
 func NewFunMatch(span token.Span, name string, pats []Pat,
-	exp Expr,
+	returnType Type, exp Expr,
 ) *FunMatch {
 	return &FunMatch{
-		base: base{span},
-		Name: name,
-		Pats: pats,
-		Exp:  exp,
+		base:       base{span},
+		Name:       name,
+		Pats:       pats,
+		ReturnType: returnType,
+		Exp:        exp,
 	}
 }
 

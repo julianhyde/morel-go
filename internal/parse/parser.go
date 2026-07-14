@@ -190,6 +190,30 @@ var (
 )
 
 func (p *Parser) expr() (ast.Expr, error) {
+	e, err := p.expr0()
+	if err != nil {
+		return nil, err
+	}
+	// A type annotation, "e : t", binds loosest of all.
+	for p.tok.Kind == token.Colon {
+		err = p.next()
+		if err != nil {
+			return nil, err
+		}
+		t, err := p.typeExpr()
+		if err != nil {
+			return nil, err
+		}
+		span := token.Span{
+			Start: e.Span().Start,
+			End:   t.Span().End,
+		}
+		e = ast.NewAnnotatedExp(span, e, t)
+	}
+	return e, nil
+}
+
+func (p *Parser) expr0() (ast.Expr, error) {
 	return p.leftChain(level0Ops, func() (ast.Expr, error) {
 		return p.leftChain(level1Ops, func() (ast.Expr, error) {
 			return p.leftChain(level2Ops,
@@ -619,33 +643,7 @@ func (p *Parser) exprList(closer token.Kind) ([]ast.Expr,
 // recordExpr parses "{a = e1, b = e2, ...}"; a field without
 // "label =" has an implicit label, filled in during resolution.
 func (p *Parser) recordExpr() (ast.Expr, error) {
-	start := p.tok.Span.Start
-	err := p.next()
-	if err != nil {
-		return nil, err
-	}
-	var fields []ast.Field
-	for p.tok.Kind != token.RBrace {
-		var f ast.Field
-		f, err = p.recordField()
-		if err != nil {
-			return nil, err
-		}
-		fields = append(fields, f)
-		if p.tok.Kind != token.Comma {
-			break
-		}
-		err = p.next()
-		if err != nil {
-			return nil, err
-		}
-	}
-	err = p.expect(token.RBrace)
-	if err != nil {
-		return nil, err
-	}
-	span := token.Span{Start: start, End: p.tok.Span.End}
-	err = p.next()
+	fields, span, err := braceFields(p, p.recordField)
 	if err != nil {
 		return nil, err
 	}
