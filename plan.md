@@ -200,7 +200,7 @@ Parser, type, and evaluator slices each end by pulling the stable
 
 - [x] 1. Repo skeleton: license files, CI, golangci-lint,
       `cmd/morel`.
-- [ ] 2. Project lint test v1: license headers, long lines,
+- [x] 2. Project lint test v1: license headers, long lines,
       trailing whitespace, newline at EOF. (Rust touched lint 8
       times in its first 45 commits — invest continuously, keep
       directives extensible.)
