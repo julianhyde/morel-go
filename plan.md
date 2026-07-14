@@ -279,7 +279,7 @@ Parser, type, and evaluator slices each end by pulling the stable
       action hooks. Constraint-hook interfaces (overloads,
       default-to-int, collection kind) designed now, even though
       their first users come later. Go unit tests.
-- [ ] 22. Core IR + `Resolver` skeleton (Ast -> Core from day 1);
+- [x] 22. Core IR + `Resolver` skeleton (Ast -> Core from day 1);
       TypeResolver slice I: literals, ids, application, `if`,
       `fn`, `let val`; the `it` binding.
 - [ ] 23. `:t` support in the harness; type printing in java's
