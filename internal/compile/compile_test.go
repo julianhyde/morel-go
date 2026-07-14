@@ -54,13 +54,13 @@ func deduce(t *testing.T, src string) (*compile.Resolved, error) {
 	option := sys.Named("option", a)
 	sys.DeclareTyCon("NONE", nil, option)
 	sys.DeclareTyCon("SOME", a, option)
-	bindings := []compile.Binding{
-		{Name: "true", Type: sys.Bool},
-		{Name: "false", Type: sys.Bool},
-		{Name: "id", Type: idType},
-		{Name: "NONE", Type: option},
-		{Name: "SOME", Type: sys.Fn(a, option)},
-	}
+	bindings := compile.TopBindings(sys)
+	bindings = append(bindings,
+		compile.Binding{Name: "true", Type: sys.Bool},
+		compile.Binding{Name: "false", Type: sys.Bool},
+		compile.Binding{Name: "id", Type: idType},
+		compile.Binding{Name: "NONE", Type: option},
+		compile.Binding{Name: "SOME", Type: sys.Fn(a, option)})
 	return compile.Deduce(sys, bindings, decl)
 }
 
@@ -177,6 +177,28 @@ func TestDeduce(t *testing.T) {
 				" in fn c => case c of RED => 1 | GREEN => 2 end",
 			"color -> int",
 		},
+		{"1 + 2", "int"},
+		{"1.0 + 2.0", "real"},
+		{"~2", "int"},
+		{"~1.5", "real"},
+		{"fn x => x + 1", "int -> int"},
+		{"fn (x, y) => x + y", "int * int -> int"},
+		{"fn (x, y) => x / y", "real * real -> real"},
+		{"fn (x, y) => x < y", "'a * 'a -> bool"},
+		{"fn (x, y) => x = y", "'a * 'a -> bool"},
+		{"\"a\" ^ \"b\"", "string"},
+		{"true andalso false", "bool"},
+		{"1 :: [2]", "int list"},
+		{"[1] @ [2]", "int list"},
+		{"fn (x :: xs) => x", "'a list -> 'a"},
+		{
+			"fun sum (x :: xs) = x + sum xs | sum _ = 0",
+			"int list -> int",
+		},
+		{"hd [\"abc\"]", "string"},
+		{"map (fn x => x + 1) [1, 2]", "int list"},
+		{"abs ~3", "int"},
+		{"let val x = 1.0 in x + 2.0 end", "real"},
 	} {
 		t.Run(tc.src, func(t *testing.T) {
 			resolved, err := deduce(t, tc.src)
@@ -202,6 +224,7 @@ func TestDeduceError(t *testing.T) {
 		want string
 	}{
 		{"y", "unbound variable or constructor: y"},
+		{"2 + 3.0", "Cannot deduce type: conflict"},
 		{
 			"if 1 then 2 else 3",
 			"Cannot deduce type: conflict: int vs bool",

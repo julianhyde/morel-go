@@ -64,19 +64,38 @@ func Deduce(sys *types.System, bindings []Binding,
 	if err != nil {
 		return nil, err
 	}
-	subst, err := r.u.Unify(r.pairs, r.actions, r.constraints)
-	if err != nil {
-		return nil, &Error{
-			Span: decl.Span(),
-			Msg:  "Cannot deduce type: " + err.Error(),
+	// Unify; if an operator's type is undetermined and it has a
+	// preferred type (e.g. int for "+"), apply the preference and
+	// unify again.
+	for {
+		subst, err := r.u.Unify(r.pairs, r.actions,
+			r.constraints)
+		if err != nil {
+			return nil, &Error{
+				Span: decl.Span(),
+				Msg:  "Cannot deduce type: " + err.Error(),
+			}
 		}
+		again := false
+		for len(r.preferred) > 0 {
+			pt := r.preferred[0]
+			r.preferred = r.preferred[1:]
+			if _, isVar := subst.Resolve(pt.v).(*unify.Var); isVar {
+				r.equiv(pt.v, r.primTerm(pt.prim))
+				again = true
+				break
+			}
+		}
+		if again {
+			continue
+		}
+		typeMap := &TypeMap{
+			sys:      sys,
+			nodeTerm: r.nodeTerm,
+			subst:    subst,
+		}
+		return &Resolved{Decl: decl2, TypeMap: typeMap}, nil
 	}
-	typeMap := &TypeMap{
-		sys:      sys,
-		nodeTerm: r.nodeTerm,
-		subst:    subst,
-	}
-	return &Resolved{Decl: decl2, TypeMap: typeMap}, nil
 }
 
 // patTerm records that a declaration binds a name to a term; the
@@ -96,6 +115,15 @@ type typeResolver struct {
 	nodeTerm    map[ast.Node]unify.Term
 	actions     []unify.VarAction
 	constraints []unify.Constraint
+	preferred   []preferredType
+}
+
+// preferredType records that, if unification leaves v
+// undetermined, it should be unified with a primitive type and
+// unification retried; this resolves "1 + 2" to int.
+type preferredType struct {
+	v    *unify.Var
+	prim string
 }
 
 // equiv declares that a term is equivalent to a variable.
@@ -314,6 +342,21 @@ func (r *typeResolver) deducePat(pat ast.Pat,
 	switch p := pat.(type) {
 	case *ast.ConPat:
 		return r.deduceConPat(p, termMap, v)
+	case *ast.ConsPat:
+		vElem := r.u.Variable()
+		vList := r.u.Variable()
+		err := r.deducePat(p.A0, termMap, nil, vElem)
+		if err != nil {
+			return err
+		}
+		err = r.deducePat(p.A1, termMap, nil, vList)
+		if err != nil {
+			return err
+		}
+		listTerm := unify.Apply(listTyCon, vElem)
+		r.equiv(vList, listTerm)
+		r.regEquiv(pat, v, listTerm)
+		return nil
 	case *ast.IDPat:
 		if tc, ok := r.sys.LookupTyCon(p.Name); ok {
 			// A constant constructor, e.g. NONE; it binds
@@ -393,6 +436,8 @@ func (r *typeResolver) deduceExp(env typeEnv, exp ast.Expr,
 		return nil
 	case *ast.If:
 		return r.deduceIf(env, e, v)
+	case *ast.InfixCall:
+		return r.deduceInfix(env, e, v)
 	case *ast.Let:
 		env2 := env
 		for i, d := range e.Decls {
@@ -422,6 +467,9 @@ func (r *typeResolver) deduceExp(env typeEnv, exp ast.Expr,
 		return nil
 	case *ast.Literal:
 		return r.deduceLiteral(exp, e.Kind, e.Value, v)
+	case *ast.PrefixCall:
+		return r.deduceOpCall(env, "op ~", e,
+			[]ast.Expr{e.A}, v)
 	case *ast.Record:
 		return r.deduceRecord(env, e, v)
 	case *ast.RecordSelector:
@@ -468,9 +516,9 @@ func (r *typeResolver) deduceLiteral(node ast.Node, kind ast.Op,
 		if err != nil {
 			return err
 		}
-		name = "int"
+		name = intName
 	case ast.RealLiteralOp, ast.RealLiteralPatOp:
-		name = "real"
+		name = realName
 	case ast.StringLiteralOp, ast.StringLiteralPatOp:
 		name = "string"
 	case ast.UnitLiteralOp:
@@ -495,7 +543,7 @@ func checkIntRange(node ast.Node, value string) error {
 		return &Error{
 			Span: node.Span(),
 			Msg: "literal '" + value +
-				"' is too large for type int",
+				"' is too large for type " + intName,
 		}
 	}
 	return nil
@@ -529,6 +577,13 @@ func (r *typeResolver) deduceApply(env typeEnv, apply *ast.Apply,
 		err := r.deduceExp(env, apply.Fn, vFn)
 		if err != nil {
 			return err
+		}
+	}
+	if id, ok := apply.Fn.(*ast.ID); ok {
+		if b, isBuiltin := topBuiltins[id.Name]; isBuiltin &&
+			b.preferred != "" {
+			r.preferred = append(r.preferred,
+				preferredType{v: v, prim: b.preferred})
 		}
 	}
 	r.reg(apply, v)
@@ -695,6 +750,60 @@ func (r *typeResolver) deduceRecordPat(pat *ast.RecordPat,
 		},
 	})
 	r.reg(pat, v)
+	return nil
+}
+
+// deduceInfix handles an infix operator application. The logical
+// connectives type as bool directly; any other operator desugars
+// to the application of its top-level binding, "a + b" becoming
+// "(op +) (a, b)".
+func (r *typeResolver) deduceInfix(env typeEnv, call *ast.InfixCall,
+	v *unify.Var,
+) error {
+	switch call.Kind {
+	case ast.AndalsoOp, ast.ImpliesOp, ast.OrelseOp:
+		err := r.deduceExp(env, call.A0, v)
+		if err != nil {
+			return err
+		}
+		err = r.deduceExp(env, call.A1, v)
+		if err != nil {
+			return err
+		}
+		r.regEquiv(call, v, r.primTerm("bool"))
+		return nil
+	default:
+		name, ok := infixOpNames[call.Kind]
+		if !ok {
+			return &Error{
+				Span: call.Span(),
+				Msg: "cannot deduce type for " +
+					call.Kind.String(),
+			}
+		}
+		return r.deduceOpCall(env, name, call,
+			[]ast.Expr{call.A0, call.A1}, v)
+	}
+}
+
+// deduceOpCall types an operator call as the application of the
+// operator's top-level binding to its operands.
+func (r *typeResolver) deduceOpCall(env typeEnv, name string,
+	call ast.Expr, args []ast.Expr, v *unify.Var,
+) error {
+	span := call.Span()
+	var arg ast.Expr
+	if len(args) == 1 {
+		arg = args[0]
+	} else {
+		arg = ast.NewTuple(span, args)
+	}
+	apply := ast.NewApply(span, ast.NewID(span, name), arg)
+	err := r.deduceApply(env, apply, v)
+	if err != nil {
+		return err
+	}
+	r.reg(call, v)
 	return nil
 }
 
