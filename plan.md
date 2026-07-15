@@ -440,7 +440,7 @@ makes stale. Tasks inserted before continuing:
 - [x] 44. `String`, `Char`.
 - [x] 45. `List` — the heavily-used core: `map`, `filter`, `foldl`,
       `foldr`, `length`, `rev`, `hd`, `tl`, `nth`, ...
-- [ ] 46. `Sys`: `env`, `set`/`show`/`unset`; properties
+- [x] 46. `Sys`: `env`, `set`/`show`/`unset`; properties
       `lineWidth`, `printDepth`, `printLength`, `stringDepth`,
       `output`.
       **Milestone: pulled `built-in.smli` hunks pass for these
