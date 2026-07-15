@@ -357,7 +357,7 @@ opportunistically.
       one table mapping builtin -> implementation, alphabetical
       order enforced by lint.
 - [x] 42. `General`, `Bool`, `Order`, `Option`.
-- [ ] 43. `Int`, `Real`, `Math` (float computed in float64).
+- [x] 43. `Int`, `Real`, `Math` (float computed in float64).
 - [ ] 44. `String`, `Char`.
 - [ ] 45. `List` — the heavily-used core: `map`, `filter`, `foldl`,
       `foldr`, `length`, `rev`, `hd`, `tl`, `nth`, ...
