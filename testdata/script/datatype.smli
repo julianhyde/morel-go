@@ -167,6 +167,31 @@ height it;
 height (Node(Empty, 1, Empty));
 > val it = 1 : int
 
+(*) A recursive type, without generics
+datatype inttree = Empty | Node of inttree * int * inttree;
+> datatype inttree = Empty | Node of inttree * int * inttree
+fun greater (x, y) = if x < y then y + 0 else x;
+> val greater = fn : int * int -> int
+fun height Empty = 0
+  | height (Node (lft, _, rht)) = 1 + greater (height lft, height rht);
+> val height = fn : inttree -> int
+Empty;
+> val it = Empty : inttree
+height it;
+> val it = 0 : int
+height Empty;
+> val it = 0 : int
+Node(Empty, 1, Empty);
+> val it = Node (Empty,1,Empty) : inttree
+height it;
+> val it = 1 : int
+height (Node(Empty, 1, Empty));
+> val it = 1 : int
+Node(Empty, 2, Node(Node(Empty, 3, Empty), 4, Empty));
+> val it = Node (Empty,2,Node (Node (Empty,3,Empty),4,Empty)) : inttree
+height it;
+> val it = 3 : int
+
 (*) Recursive
 fun greater (x, y) = if x < y then y else x;
 > val greater = fn : 'a * 'a -> 'a

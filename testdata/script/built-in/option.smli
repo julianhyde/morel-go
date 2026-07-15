@@ -38,6 +38,26 @@ Option.isSome (SOME 1);
 Option.isSome NONE;
 > val it = false : bool
 
+(*) val valOf : 'a option -> 'a
+Option.valOf (SOME 1);
+> val it = 1 : int
+(* sml-nj gives:
+    stdIn:6.1-6.18 Warning: type vars not generalized because of
+       value restriction are instantiated to dummy types (X1,X2,...)
+ *)
+Option.valOf NONE;
+> uncaught exception Option
+>   raised at: stdIn:1.1-1.18
+Sys.set ("inlinePassCount", 0);
+> val it = () : unit
+val noneInt = if true then NONE else SOME 0;
+> val noneInt = NONE : int option
+Sys.unset "inlinePassCount";
+> val it = () : unit
+Option.valOf noneInt;
+> uncaught exception Option
+>   raised at: stdIn:1.1-1.21
+
 (*) val filter : ('a -> bool) -> 'a -> 'a option
 Option.filter (fn x => x mod 2 = 0) 1;
 > val it = NONE : int option

@@ -158,4 +158,13 @@ Int.toString;
 Int.toString ~345;
 > val it = "~345" : string
 
+(* Side-by-side comparison of how each Int.fmt radix renders a range of
+ * values. To run in SML, prepend `open StringCvt;` (Morel exposes the
+ * radix constructors at the top level). `Sys.set` is Morel-only; SML
+ * users will see the record list in non-tabular notation. *)
+Sys.set ("output", "tabular");
+> val it = () : unit
+Sys.unset "output";
+> val it = () : unit
+
 (*) End int.smli

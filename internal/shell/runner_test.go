@@ -134,9 +134,14 @@ func TestKernelParseTree(t *testing.T) {
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
-	// An unknown builtin falls back to validation.
-	if got := k.Execute(`Sys.nope "x";`); got != "" {
-		t.Errorf("got %q", got)
+	// An unknown member is a type error. (Java also reports "no
+	// field", though its wording differs until
+	// checkNoUnresolvedFieldRefs is ported.)
+	got = k.Execute(`Sys.nope "x";`)
+	want = "stdIn:1.5-1.9 Error: no field nope\n" +
+		"  raised at: stdIn:1.5-1.9"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }
 

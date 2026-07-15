@@ -361,4 +361,13 @@ Real.fromString "-inf";
 Real.fromString "nan";
 > val it = NONE : real option
 
+(* Side-by-side comparison of how each format handles a range of values.
+ * To run in SML, prepend `open StringCvt;` (Morel exposes the constructors
+ * at the top level). `Sys.set` is Morel-only; SML users will see the
+ * record list in non-tabular notation. *)
+Sys.set ("output", "tabular");
+> val it = () : unit
+Sys.unset "output";
+> val it = () : unit
+
 (*) End real.smli
