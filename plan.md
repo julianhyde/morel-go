@@ -437,6 +437,17 @@ makes stale. Tasks inserted before continuing:
       column-offset quirk (the `(*TYPE_ONLY*)` marker shifts
       line-1 columns by 10).
 
+- [x] 43f. Port java's `checkNoUnresolvedFieldRefs` (the other
+      post-unification check, sibling to 43d): a field reference
+      `#f x` whose argument type is still a variable is an
+      unresolved flex record; a non-record argument gives
+      "reference to field f of non-record type ..."; a record or
+      tuple lacking the field gives "no field 'f' in type '...'".
+      The first two report the argument's span, the last the
+      selector's, matching java. Replaces go's flat "no field f"
+      (which fired later, during ast→core). Unblocks the
+      field-error hunks in `simple.smli` and `type-inference.smli`.
+
 - [x] 44. `String`, `Char`.
 - [x] 45. `List` — the heavily-used core: `map`, `filter`, `foldl`,
       `foldr`, `length`, `rev`, `hd`, `tl`, `nth`, ...
