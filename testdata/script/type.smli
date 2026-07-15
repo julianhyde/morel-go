@@ -305,6 +305,31 @@ end;
 [INR(true,1),INL "x"];
 > val it = [INR (true,1),INL "x"] : (string,bool * int) either list
 
+(*) Highly curried function with lots of type variables returns record type.
+fun r0 a b c d e f g h i j k l m n p q r s = {a=a,b=b,c=c};
+> val r0 = fn
+>   : 'a
+>      -> 'b
+>          -> 'c
+>              -> 'd
+>                  -> 'e
+>                      -> 'f
+>                          -> 'g
+>                              -> 'h
+>                                  -> 'i
+>                                      -> 'j
+>                                          -> 'k
+>                                              -> 'l
+>                                                  -> 'm
+>                                                      -> 'n
+>                                                          -> 'o
+>                                                              -> 'p
+>                                                                  -> 'q
+>                                                                      -> 'r
+>                                                                          -> {a:'a,
+>                                                                               b:'b,
+>                                                                               c:'c}
+
 (* When printing a type, 'forall' is omitted. Sometimes that eliminates
  * type variables. The following tests make sure that type variables are
  * contiguous and numbered left-to-right. *)
@@ -430,6 +455,30 @@ fun snd (_, y) = y;
 > val snd = fn : 'a * 'b -> 'b
 datatype 'a tree = LEAF of 'a | NODE of 'a tree * 'a * 'a tree;
 > datatype 'a tree = LEAF of 'a | NODE of 'a tree * 'a * 'a tree
+
+(* Cross-chain dependencies for even more complexity. *)
+fun cross_chain () =
+  let
+    val h0 = chain0 (chain10 (fn x => x))
+    val h1 = chain1 (chain9 (fn x => (x, x)))
+    val h2 = chain2 (chain8 (fn x => [x]))
+    val h3 = chain3 (chain7 (fn x => SOME x))
+    val h4 = chain4 (chain6 (fn x => (x, x, x)))
+    val h5 = chain5 (chain5 (fn x => fn y => (x, y)))
+    val h6 = chain6 (chain4 (fn x => {field = x}))
+    val h7 = chain7 (chain3 (fn x => if true then x else x))
+    val h8 = chain8 (chain2 (fn x => apply (fn y => (x, y)) x))
+    val h9 = chain9 (chain1 (fn x => apply (fn y => apply (fn z => (x, y, z)) y) x))
+    val h10 = chain10 (chain0 (fn x => LEAF x))
+  in
+    (h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10)
+  end;
+> val cross_chain = fn
+>   : unit
+>      -> ('a -> 'a) * ('b -> 'b * 'b) * ('c -> 'c list) * ('d -> 'd option)
+>          * ('e -> 'e * 'e * 'e) * ('f -> 'g -> 'f * 'g) * ('h -> {field:'h})
+>          * ('i -> 'i) * ('j -> 'j * 'j) * ('k -> 'k * 'k * 'k)
+>          * ('l -> 'l tree)
 
 let
   val v01 = 1

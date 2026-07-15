@@ -39,6 +39,16 @@ Sys.set ("stringDepth", ~1);
 val nan = abs(Real.posInf / Real.posInf);
 > val nan = nan : real
 
+Math;
+> val it =
+>   {acos=fn,asin=fn,atan=fn,atan2=fn,cos=fn,cosh=fn,e=2.7182817,exp=fn,ln=fn,
+>    log10=fn,pi=3.1415927,pow=fn,sin=fn,sinh=fn,sqrt=fn,tan=fn,tanh=fn}
+>   : {acos:real -> real, asin:real -> real, atan:real -> real,
+>       atan2:real * real -> real, cos:real -> real, cosh:real -> real, e:real,
+>       exp:real -> real, ln:real -> real, log10:real -> real, pi:real,
+>       pow:real * real -> real, sin:real -> real, sinh:real -> real,
+>       sqrt:real -> real, tan:real -> real, tanh:real -> real}
+
 (* "acos x" returns the arc cosine of x. acos is the inverse of cos.
    Its result is guaranteed to be in the closed interval [0, pi]. If
    the magnitude of x exceeds 1.0, returns NaN. *)
