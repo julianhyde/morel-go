@@ -479,7 +479,7 @@ cells), `--foreign` (no foreign datasets yet), `--maxUseDepth`
       as it completes, ctrl-D ends the session. Plain line
       reading only; editing, history (`~/.morel/history`), and
       highlighting are post-endpoint polish.
-- [ ] 46d. Lint: port java's testStructureScripts — every
+- [x] 46d. Lint: port java's testStructureScripts — every
       structure in the model (a `lib/*.sig` file) must have a
       `testdata/script/built-in/<name>.smli` test script. (The
       companion guarantee, that every `.smli` file runs, holds
@@ -496,6 +496,8 @@ cells), `--foreign` (no foreign datasets yet), `--maxUseDepth`
       `output`/`timeZone` sections need the real `Sys`.
       `order.smli`, which no sig demands, comes along as a bonus.
       Verify every replayed commit fullMake-green.
+      **Milestone: 28 built-in structure scripts pass; the
+      check gates every structure hereafter.**
 
 ### F. Relational, first slices (47-50)
 
