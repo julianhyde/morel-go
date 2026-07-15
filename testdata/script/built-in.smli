@@ -173,6 +173,10 @@ Char.chr;
 (* "val compare : 'a * 'a -> order" maps to "String.compare" *)
 String.compare;
 > val it = fn : string * string -> order
+String.compare ("abc", "xyz");
+> val it = LESS : order
+String.compare ("abc", "");
+> val it = GREATER : order
 
 (* "val concat : string list -> string" maps to "String.concat" *)
 concat;
@@ -297,6 +301,10 @@ str;
 > val it = fn : char -> string
 String.str;
 > val it = fn : char -> string
+
+(* "val substring : string * int * int -> string" maps to "String.substring" *)
+substring;
+> val it = fn : string * int * int -> string
 String.substring;
 > val it = fn : string * int * int -> string
 
@@ -329,6 +337,10 @@ Relational.count;
 > val it = fn : 'a bag -> int
 Relational.empty;
 > val it = fn : 'a bag -> bool
+
+(* "fields" is a Morel alias for "String.fields". *)
+fields;
+> val it = fn : (char -> bool) -> string -> string list
 String.fields;
 > val it = fn : (char -> bool) -> string -> string list
 Relational.iterate;
@@ -341,6 +353,10 @@ Relational.nonEmpty;
 > val it = fn : 'a bag -> bool
 Relational.only;
 > val it = fn : 'a bag -> 'a
+
+(* "tokens" is a Morel alias for "String.tokens". *)
+tokens;
+> val it = fn : (char -> bool) -> string -> string list
 String.tokens;
 > val it = fn : (char -> bool) -> string -> string list
 Interact.useSilently;

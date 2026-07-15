@@ -419,6 +419,11 @@ fun wc_mapper line =
   end;
 > val wc_mapper = fn : string -> (string * int) list
 
+(*) Check that they work on discrete values
+wc_mapper "a skunk sat on a stump";
+> val it = [("a",1),("skunk",1),("sat",1),("on",1),("a",1),("stump",1)]
+>   : (string * int) list
+
 (*) WordCount in Morel
 val lines = ["a skunk sat on a stump",
   "and thunk the stump stunk",
