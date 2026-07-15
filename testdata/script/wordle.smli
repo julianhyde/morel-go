@@ -75,6 +75,8 @@ fun maskToString m =
     maskToString2 (m, "", 5)
   end;
 > val maskToString = fn : int -> string
+Sys.unset "matchCoverageEnabled";
+> val it = () : unit
 
 maskToString 0;
 > val it = "bbbbb" : string
