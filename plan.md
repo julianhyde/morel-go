@@ -395,17 +395,39 @@ is monomorphic at let; plan amended), TCO (application is a
 single choke point; `tail-recursion.smli` waits), type-doc
 wrapping (31), the provisional printer in 30.
 
-Tasks inserted before continuing:
+Since the branch has not been pushed, the findings are being
+reworked into their proper places in the history rather than
+landing as late fix-ups. Each rework is one task: rewrite with
+`git rebase`, verify every replayed commit fullMake-green with
+`-x fullMake`, and reword any later commit message that the move
+makes stale. Tasks inserted before continuing:
 
-- [ ] 43a. Parser: structure members named by symbolic
+- [ ] 43a. Rework history: fold the recursion-cell commit
+      (task 40, "Make recursive references correct however
+      deeply captured") into task 34's "Evaluate recursive
+      functions", so LetRec is born with cells and the patching
+      mechanism never existed. Task 40's commit keeps the
+      cross-statement stress tests. Re-amend task 34's plan
+      wording.
+- [ ] 43b. Rework history: move the compile-error framing and
+      position normalization out of task 39's corpus-pull commit
+      into task 37's "Report runtime exceptions in java's
+      format", which becomes "report runtime and compile errors".
+      Task 39's commit keeps the corpus pull and the recover()
+      net.
+- [ ] 43c. Parser: structure members named by symbolic
       identifiers and keywords after `.` (`Int.+`, `Int.div`,
-      `Option.join`), verified against java parse-tree dumps.
-      Re-pull the corpus after.
-- [ ] 43b. Port java's `checkNumericOperators` (post-unification
-      check that `+`-family operands are numeric); pull the
-      `true + true`-class error hunks it produces.
-- [ ] 43c. Pull the `type-inference.smli` error hunks that the
-      task-39 error framing supports; first probe java's `:t`
+      `Option.join`), verified against java parse-tree dumps;
+      insert the commit into the parser phase, after task 19's
+      hardening commit. Reword the task 41-43 messages that
+      mention the gap; re-pull the corpus at the tip.
+- [ ] 43d. Port java's `checkNumericOperators` (post-unification
+      check that `+`-family operands are numeric); insert the
+      commit after task 27's operator commit, so the evaluator
+      phase never sees ill-typed arithmetic. Pull the
+      `true + true`-class error hunks at the tip.
+- [ ] 43e. Pull the `type-inference.smli` error hunks that the
+      error framing supports; first probe java's `:t`
       column-offset quirk (the `(*TYPE_ONLY*)` marker shifts
       line-1 columns by 10).
 
