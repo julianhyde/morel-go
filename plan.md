@@ -409,7 +409,7 @@ makes stale. Tasks inserted before continuing:
       mechanism never existed. Task 40's commit keeps the
       cross-statement stress tests. Re-amend task 34's plan
       wording.
-- [ ] 43b. Rework history: move the compile-error framing and
+- [x] 43b. Rework history: move the compile-error framing and
       position normalization out of task 39's corpus-pull commit
       into task 37's "Report runtime exceptions in java's
       format", which becomes "report runtime and compile errors".
