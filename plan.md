@@ -458,15 +458,19 @@ cells), `--foreign` (no foreign datasets yet), `--maxUseDepth`
 (needs `use`), `--system=false`, and `--color-scheme`
 (highlighting arrives with the post-endpoint shell polish).
 
-- [ ] 46a. CLI arguments: java's surface — `execute` (the
-      default command), `-h`/`--help` printing usage in java's
-      shape, `-e <expr>`/`--eval <expr>`/`--eval=<expr>`
-      (evaluate and exit), `--echo`, `--idempotent` (implicit
-      when the first file ends in `.smli`), `--directory=DIR`,
-      `--banner=false`, `--terminal=dumb`, and file arguments
-      with `-` for stdin; `--build`/`--no-build` are accepted
-      no-ops (there is nothing to build). Errors for unknown
-      arguments and missing files report as java's do.
+- [x] 46a. CLI arguments: java's surface — `execute` (the
+      default command), `-h`/`--help` printing usage, `-e
+      <expr>`/`--eval <expr>`/`--eval=<expr>` (evaluate and
+      exit), `--echo`, `--idempotent` (implicit when the first
+      file ends in `.smli`), `--directory=DIR`, `--banner=false`,
+      `--terminal=dumb`, and file arguments with `-` for stdin;
+      `--build`/`--no-build` are accepted no-ops (there is
+      nothing to build). Two deviations from java, both faithful
+      to it or better: an unrecognized flag is ignored, as java's
+      Shell does, so the out-of-scope options (`--foreign`,
+      `--color-scheme`, `--maxUseDepth`, `--system`) are
+      tolerated rather than fatal; and a missing file reports a
+      clean error rather than java's uncaught stack trace.
 - [ ] 46b. Script execution: `.sml` files and stdin run as
       batches (today's only mode, kept); `.smli` files run
       through the same `RunScript` that the test harness uses,
