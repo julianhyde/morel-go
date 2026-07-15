@@ -402,7 +402,7 @@ landing as late fix-ups. Each rework is one task: rewrite with
 `-x fullMake`, and reword any later commit message that the move
 makes stale. Tasks inserted before continuing:
 
-- [ ] 43a. Rework history: fold the recursion-cell commit
+- [x] 43a. Rework history: fold the recursion-cell commit
       (task 40, "Make recursive references correct however
       deeply captured") into task 34's "Evaluate recursive
       functions", so LetRec is born with cells and the patching
