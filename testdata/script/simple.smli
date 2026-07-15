@@ -782,12 +782,37 @@ tup .1;
 > val it = () : unit
 {};
 > val it = () : unit
+().1;
+> stdIn:1.1-1.3 Error: reference to field 1 of non-record type unit
+>   raised at: stdIn:1.1-1.3
+{}.1;
+> stdIn:1.1-1.3 Error: reference to field 1 of non-record type unit
+>   raised at: stdIn:1.1-1.3
 
 (*) Singleton record with numeric field name (not a tuple)
 {1 = "hello"};
 > val it = {1="hello"} : {1:string}
 {1 = "hello"}.1;
 > val it = "hello" : string
+{1 = "hello"}.2;
+> stdIn:1.15 Error: no field '2' in type '{1:string}'
+>   raised at: stdIn:1.15
+
+(*) Space disambiguates: '3 . 1' applies '.1' to integer 3 (type error)
+3 . 1;
+> stdIn:1.1 Error: reference to field 1 of non-record type int
+>   raised at: stdIn:1.1
+
+(*) Error: field does not exist
+(1, 2, 3).4;
+> stdIn:1.11 Error: no field '4' in type 'int * int * int'
+>   raised at: stdIn:1.11
+
+(* Field of a non-record value whose type is not yet known (e.g. a 'let'-bound
+ * variable) is a type error, not an internal exception. *)
+let val n = 5 in n.x end;
+> stdIn:1.18 Error: reference to field x of non-record type int
+>   raised at: stdIn:1.18
 
 (* Arithmetic operators are not defined for non-numeric types; the error is a
  * positioned type error, not an internal exception. *)
