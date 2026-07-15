@@ -528,16 +528,90 @@ cells), `--foreign` (no foreign datasets yet), `--maxUseDepth`
       (morel#334) for unordered results.
       **Milestone: first `relational.smli` hunks pass.**
 
+### G. Standard-library breadth (51-61)
+
+Fill in the standard library so the `built-in/*.smli` files grow
+from their task-41 skeletons toward java's present-day coverage,
+shrinking the divergence report. One task and commit per
+structure; each pulls its file's remaining hunks at the tip.
+Genuinely-unimplementable hunks (a member that needs an
+out-of-scope feature, or `Sys.plan` output) are omitted and left
+for the report to track — there should be few.
+
+This phase is independent of the query slices (48-50); it may run
+before or between them. Ordered biggest-delta-first, so
+convergence moves fast.
+
+The ten already-implemented structures (`Bool`, `Char`,
+`General`, `Int`, `List`, `Math`, `Option`, `Real`, `String`,
+`Sys`) are *function*-complete; their remaining delta is almost
+all printing, not missing members — hence task 51 leads.
+
+- [ ] 51. Printing (the convergence lever, not a structure):
+      wrap long types and record *values* across lines at
+      `lineWidth`, as java's Wadler-Leijen printer does (the
+      `Doc` engine already has group/nest; extend type printing
+      and record-value printing to use them), and show an
+      empty-record value as `{}` rather than `()`. Unlocks the
+      bulk of `real` (+944 lines), `math` (+334), and `sys`
+      (+~260) at once, plus spillover wherever a long type or
+      record printed on one line.
+- [ ] 52. `Vector` — the `'a vector` value type; `fromList`,
+      `tabulate`, `sub`, `update`, `length`, `concat`, `map`/
+      `mapi`, `foldl`/`foldr`/`foldli`/`foldri`, `app`/`appi`,
+      `find`/`findi`, `exists`, `all`, `collate`, `maxLen`.
+- [ ] 53. `ListPair` — `zip`, `unzip`, `map`, `app`, `all`,
+      `exists`, `foldl`/`foldr`, and the `*Eq` variants that
+      raise `UnequalLengths`.
+- [ ] 54. `Date` — the `date` type over Go's `time` (morel#278);
+      `date`, `year`/`month`/`day`/`hour`/`minute`/`second`/
+      `weekDay`/`yearDay`, `compare`, `toString`/`fromString`,
+      `fmt`, `toTime`/`fromTime*`. The corpus fixes `now` and
+      `timeZone` via `Sys.set`, so tests are deterministic.
+- [ ] 55. `Time` — the `time` type (morel#351, #352);
+      `fromReal`/`toReal`, `to`/`fromSeconds`…`Nanoseconds`,
+      `compare`, `now`, `fmt`, `toString`/`fromString`,
+      `zeroTime`.
+- [ ] 56. `Either` — the `('a, 'b) either` datatype (`INL`/
+      `INR`); `isLeft`/`isRight`, `asLeft`/`asRight`, `map`/
+      `mapLeft`/`mapRight`, `app`/`appLeft`/`appRight`, `fold`,
+      `proj`, `partition`.
+- [ ] 57. `Fn` — combinators `id`, `const`, `apply`, `o`,
+      `curry`, `uncurry`, `flip`, `repeat`, `equal`, `notEqual`.
+- [ ] 58. `Range` — range values (morel#338); `contains`,
+      `toList`/`toBag`, `discreteSetOf`/`continuousSetOf`,
+      `flatten`, `ranges`, `complement`.
+- [ ] 59. `Variant` — variant values (morel#324); `parse`,
+      `print`.
+- [ ] 60. `StringCvt` — `padLeft`, `padRight` (a small file;
+      the scanner-based members stay omitted until reader types
+      exist).
+- [ ] 61. `Bag` — the `'a bag` unordered-collection value type
+      and its List-like surface (`nil`, `null`, `fromList`,
+      `toList`, `length`, `hd`, `tl`, `getItem`, `take`, `drop`,
+      `concat`, `app`, `map`, `mapPartial`, `find`, `filter`,
+      `partition`, `fold`, `exists`, `all`, `tabulate`, `nth`,
+      `only`). Depends on bag typing from the collection work
+      (morel#273), so it interleaves with the query engine
+      rather than standing fully alone.
+
+The remaining skeletons stay out of this phase: `datalog`
+(morel#323), `word` (morel#396), and `pp` (morel#398 user
+surface) are post-endpoint; `relational` is the query engine
+(48-50 and beyond); `ieee-real`, `int-inf`, and `interact` are
+already at java's coverage (their java files are type-references
+only).
+
 ### Beyond task 50 (to the endpoint)
 
 In rough order: `order`/`distinct`/`take`/`skip` evaluation;
-set-op steps; quantifiers; `Bag`/`Vector`/`ListPair`/`Either`
-structures; in-heap scott dataset (morel#255); ordered/unordered
-queries + aggregate adaptation (morel#273, #271, #282, #328); full
-`over`/`inst` overloading surface (morel#237); polymorphic
-datatypes (morel#70, #205); cross-unit inlining (morel#223, #330);
-`Range`, `Variant`, `Time`, `Date` structures (morel#338, #324,
-#351, #278, #352); surface conveniences — postfix method calls,
+set-op steps; quantifiers; the standard-library structures
+(phase G, 51-61); in-heap scott dataset (morel#255);
+ordered/unordered queries + aggregate adaptation (morel#273,
+#271, #282, #328); full `over`/`inst` overloading surface
+(morel#237); polymorphic datatypes (morel#70, #205); cross-unit
+inlining (morel#223, #330); surface conveniences — postfix
+method calls,
 `op` sections, unparser, tabular output, `-e`/`--eval`, `use`
 (morel#346, #311, #293, #259, #333, #198); match-coverage analysis
 (morel#55); predicate inversion (morel#217).
