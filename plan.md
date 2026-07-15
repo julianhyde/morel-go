@@ -517,29 +517,7 @@ cells), `--foreign` (no foreign datasets yet), `--maxUseDepth`
       **Milestone: 28 built-in structure scripts pass; the
       check gates every structure hereafter.**
 
-### F. Relational, first slices (47-50)
-
-- [x] 47. Typing for scan (`in`, `=`), `where`, `yield` over
-      lists: a query's rows carry named fields, the element type
-      is the sole field or a record of them, `yield` of a record
-      literal exposes its fields. The list-scan `:t` hunks pass.
-      (`Core.From` + `FromBuilder` land with the evaluator in
-      task 48, rather than as an unused IR node now — no
-      speculative infrastructure. The collection-kind constraint
-      hook from task 21 is ready for bags.)
-- [ ] 48. `RowSink` push pipeline: scan/where/yield sinks; java's
-      binding model verbatim — canonical field-name-ordered rows,
-      one implicit-label helper, `current` as a rewrite, one
-      shared row read/write helper (rust's row-layout bugs took a
-      15-commit tail).
-- [ ] 49. Joins: comma joins and `join ... on`; nested and
-      dependent scans; pattern scans.
-- [ ] 50. `group`/`compute` with the basic aggregates (`count`,
-      `sum`, `min`, `max`); output matcher + `matchStrict`
-      (morel#334) for unordered results.
-      **Milestone: first `relational.smli` hunks pass.**
-
-### G. Standard-library breadth (51-61)
+### F. Standard-library breadth (51-61)
 
 Fill in the standard library so the `built-in/*.smli` files grow
 from their task-41 skeletons toward java's present-day coverage,
@@ -549,9 +527,15 @@ Genuinely-unimplementable hunks (a member that needs an
 out-of-scope feature, or `Sys.plan` output) are omitted and left
 for the report to track — there should be few.
 
-This phase is independent of the query slices (48-50); it may run
-before or between them. Ordered biggest-delta-first, so
-convergence moves fast.
+Each structure's functions live in a snake_case file named for
+the structure — `list_pair.go` for `ListPair`, `string_cvt.go`
+for `StringCvt` — following the `str.go`/`real.go` precedent.
+
+This phase runs before the query slices (G), the query engine
+being independent of it. Ordered biggest-delta-first, so
+convergence moves fast. `Bag` (61) is the exception: its typing
+needs the collection work in G, so it runs after that phase, not
+with the rest of this one.
 
 The ten already-implemented structures (`Bool`, `Char`,
 `General`, `Int`, `List`, `Math`, `Option`, `Real`, `String`,
@@ -606,8 +590,8 @@ all printing, not missing members — hence task 51 leads.
       `concat`, `app`, `map`, `mapPartial`, `find`, `filter`,
       `partition`, `fold`, `exists`, `all`, `tabulate`, `nth`,
       `only`). Depends on bag typing from the collection work
-      (morel#273), so it interleaves with the query engine
-      rather than standing fully alone.
+      (morel#273), so it runs after phase G rather than with the
+      rest of this phase.
 
 The remaining skeletons stay out of this phase: `datalog`
 (morel#323), `word` (morel#396), and `pp` (morel#398 user
@@ -616,11 +600,35 @@ surface) are post-endpoint; `relational` is the query engine
 already at java's coverage (their java files are type-references
 only).
 
+### G. Relational, first slices (47-50)
+
+Runs after phase F. `Bag` (61) folds in here, once bag typing
+lands with the collection work.
+
+- [x] 47. Typing for scan (`in`, `=`), `where`, `yield` over
+      lists: a query's rows carry named fields, the element type
+      is the sole field or a record of them, `yield` of a record
+      literal exposes its fields. The list-scan `:t` hunks pass.
+      (`Core.From` + `FromBuilder` land with the evaluator in
+      task 48, rather than as an unused IR node now — no
+      speculative infrastructure. The collection-kind constraint
+      hook from task 21 is ready for bags.)
+- [ ] 48. `RowSink` push pipeline: scan/where/yield sinks; java's
+      binding model verbatim — canonical field-name-ordered rows,
+      one implicit-label helper, `current` as a rewrite, one
+      shared row read/write helper (rust's row-layout bugs took a
+      15-commit tail).
+- [ ] 49. Joins: comma joins and `join ... on`; nested and
+      dependent scans; pattern scans.
+- [ ] 50. `group`/`compute` with the basic aggregates (`count`,
+      `sum`, `min`, `max`); output matcher + `matchStrict`
+      (morel#334) for unordered results.
+      **Milestone: first `relational.smli` hunks pass.**
+
 ### Beyond task 50 (to the endpoint)
 
 In rough order: `order`/`distinct`/`take`/`skip` evaluation;
-set-op steps; quantifiers; the standard-library structures
-(phase G, 51-61); in-heap scott dataset (morel#255);
+set-op steps; quantifiers; in-heap scott dataset (morel#255);
 ordered/unordered queries + aggregate adaptation (morel#273,
 #271, #282, #328); full `over`/`inst` overloading surface
 (morel#237); polymorphic datatypes (morel#70, #205); cross-unit
