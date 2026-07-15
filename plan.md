@@ -358,6 +358,57 @@ opportunistically.
       order enforced by lint.
 - [x] 42. `General`, `Bool`, `Order`, `Option`.
 - [x] 43. `Int`, `Real`, `Math` (float computed in float64).
+
+### Retrospective after completing task 43
+
+Reviewed the full commit log; every commit verified
+fullMake-green by `git rebase -x`.
+
+What should have come earlier:
+
+- **Recursion design (task 34, rewritten in task 40).** The one
+  real rework. Task 34 patched captures after closure creation;
+  task 40 found the patch cannot reach a closure created inside
+  the init expression and replaced it with indirection cells.
+  Root cause: the design-table row "assign the field after
+  construction" presumed value capture, but java's closures
+  capture an environment. Lesson: design-table rows deserve the
+  same probe-first skepticism as output formats.
+- **Error framing (deferred at 28, trivial at 39).** Deferred as
+  "probe-heavy"; turned out to be ~25 lines once corpus diffs
+  revealed java's convention (first token's line renumbers to 1,
+  columns keep), and was the largest single corpus unlock.
+- **Parser member-name gap (hid in task 19's failure tail).**
+  `Int.+`, `Int.div`, `Option.join` cannot be parsed (symbolic
+  and keyword names after `.`). Surfaced as unwritable tests in
+  tasks 41-43 and now gates `built-in.smli` and the numeric
+  hunks — task 43 added ~70 built-ins but moved the corpus only
+  4 lines. Now task 43a.
+- **`checkNumericOperators` (deferred at 27).** Its absence let
+  `true + true` panic the evaluator during the task-39 pull; the
+  recover() net contains it, but the corpus error hunks need the
+  real check. Now task 43b.
+
+Deferrals that were right: the session link table (34 — patched
+closures sufficed; plan amended), let-generalization (25 — java
+is monomorphic at let; plan amended), TCO (application is a
+single choke point; `tail-recursion.smli` waits), type-doc
+wrapping (31), the provisional printer in 30.
+
+Tasks inserted before continuing:
+
+- [ ] 43a. Parser: structure members named by symbolic
+      identifiers and keywords after `.` (`Int.+`, `Int.div`,
+      `Option.join`), verified against java parse-tree dumps.
+      Re-pull the corpus after.
+- [ ] 43b. Port java's `checkNumericOperators` (post-unification
+      check that `+`-family operands are numeric); pull the
+      `true + true`-class error hunks it produces.
+- [ ] 43c. Pull the `type-inference.smli` error hunks that the
+      task-39 error framing supports; first probe java's `:t`
+      column-offset quirk (the `(*TYPE_ONLY*)` marker shifts
+      line-1 columns by 10).
+
 - [ ] 44. `String`, `Char`.
 - [ ] 45. `List` — the heavily-used core: `map`, `filter`, `foldl`,
       `foldr`, `length`, `rev`, `hd`, `tl`, `nth`, ...
