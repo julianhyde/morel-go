@@ -134,11 +134,21 @@ func TestKernelParseTree(t *testing.T) {
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
-	// An unknown member is a type error. (Java also reports "no
-	// field", though its wording differs until
-	// checkNoUnresolvedFieldRefs is ported.)
+	// An unknown member is a type error, worded as java words it
+	// (java abbreviates the recursive "file" field as "{...}",
+	// where go, lacking progressive records, types it as "unit").
 	got = k.Execute(`Sys.nope "x";`)
-	want = "stdIn:1.5-1.9 Error: no field nope\n" +
+	want = "stdIn:1.5-1.9 Error: no field 'nope' in type " +
+		"'{clearEnv:unit -> unit, colorSchemes:unit -> " +
+		"{comment:string, constant:string, error:string, " +
+		"identifier:string, keyword:string, name:string, " +
+		"numeric:string, string:string, symbol:string, " +
+		"typeVar:string} list, deduceColorScheme:unit -> string, " +
+		"env:unit -> (string * string) list, file:unit, " +
+		"parseTree:string -> string, plan:unit -> string, " +
+		"planEx:string -> string, set:string * 'a -> unit, " +
+		"show:string -> string option, showAll:unit -> " +
+		"(string * string option) list, unset:string -> unit}'\n" +
 		"  raised at: stdIn:1.5-1.9"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
