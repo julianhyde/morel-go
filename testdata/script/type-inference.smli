@@ -272,6 +272,11 @@ end;
 > stdIn:1.28 Error: duplicate field 'a' in record
 >   raised at: stdIn:1.28
 
+(*) Incomplete record type
+:t fn (e, job) => e.job = job;
+> stdIn:1.29 Error: unresolved flex record (can't tell what fields there are besides #job)
+>   raised at: stdIn:1.29
+
 (* A bare record selector cannot determine the record type either, and
  * the error position is the selector itself. *)
 #a;
@@ -440,6 +445,17 @@ from d in [{a=1,b=true}], i in [2] yield {d} yield a;
 > val it : {a:int, b:bool} list
 :t from d in [{a=1,b=true}], i in [2] yield i yield 3.0;
 > val it : real list
+
+(*) Records in queries
+:t
+from d in [{a=1,b=true}] yield d.x;
+> stdIn:1.34 Error: no field 'x' in type '{a:int, b:bool}'
+>   raised at: stdIn:1.34
+
+:t
+from d in [{a=1,b=true}] yield #x d;
+> stdIn:1.32-1.34 Error: no field 'x' in type '{a:int, b:bool}'
+>   raised at: stdIn:1.32-1.34
 
 (*) with
 :t from d in [{a=1,b=true}], i in [2] yield {d with b=false};
