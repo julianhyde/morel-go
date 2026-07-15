@@ -41,7 +41,9 @@ optimization (#151; but see task 3.3 — frames are shaped for it),
 Datalog (#323), `raise` (#364), file reader and progressive types
 (#209), FBBT (#373), `Word` (#396), outer joins (#75), `yieldAll`
 (#257), `?.` (#378), binder syntax (#387), the interactive-shell
-phase (#45, morel#413/#414), and everything Calcite (dual.smli
+polish phase (#45, morel#413/#414 — line editing, history,
+highlighting; the basic terminal shell itself comes early, tasks
+46a-46c), and everything Calcite (dual.smli
 runs local-only, as in rust; Calcite-only hunks are simply not
 pulled). One deliberate exception: the Wadler-Leijen printing
 engine (#398) is pulled *forward* into phase 3, so that output
@@ -444,6 +446,40 @@ makes stale. Tasks inserted before continuing:
       **Milestone: pulled `built-in.smli` hunks pass for these
       structures.**
 
+### E2. Shell (46a-46c)
+
+The `morel` command takes on java's command-line surface — the
+same commands, options, and help text — so scripts and muscle
+memory transfer between the ports. `Kernel`, `ScriptRunner`,
+and `StatementSplitter` already exist as separate units (a
+day-1 rule), so these tasks only add the terminal front end.
+Still out of scope: the `darn-*` commands (documentation
+cells), `--foreign` (no foreign datasets yet), `--maxUseDepth`
+(needs `use`), `--system=false`, and `--color-scheme`
+(highlighting arrives with the post-endpoint shell polish).
+
+- [ ] 46a. CLI arguments: java's surface — `execute` (the
+      default command), `-h`/`--help` printing usage in java's
+      shape, `-e <expr>`/`--eval <expr>`/`--eval=<expr>`
+      (evaluate and exit), `--echo`, `--idempotent` (implicit
+      when the first file ends in `.smli`), `--directory=DIR`,
+      `--banner=false`, `--terminal=dumb`, and file arguments
+      with `-` for stdin; `--build`/`--no-build` are accepted
+      no-ops (there is nothing to build). Errors for unknown
+      arguments and missing files report as java's do.
+- [ ] 46b. Script execution: `.sml` files and stdin run as
+      batches (today's only mode, kept); `.smli` files run
+      through the same `RunScript` that the test harness uses,
+      idempotent-format output to stdout, `--echo` as in java.
+      One code path for the harness and the CLI.
+- [ ] 46c. Interactive shell: a REPL when stdin is a terminal —
+      a banner in java's shape (suppressed by `--banner=false`),
+      SML-NJ prompts ("- " primary, "= " continuation) driven
+      by the statement splitter, each statement's result printed
+      as it completes, ctrl-D ends the session. Plain line
+      reading only; editing, history (`~/.morel/history`), and
+      highlighting are post-endpoint polish.
+
 ### F. Relational, first slices (47-50)
 
 - [ ] 47. `Core.From` + `FromBuilder`; typing for scan (`in`),
@@ -481,5 +517,6 @@ datatypes (morel#70, #205); cross-unit inlining (morel#223, #330);
 Fast-follows, in rough order: TCO (morel#151 — frames are already
 shaped for it), `raise` (#364), Word (#396), PP (#398), outer joins
 (#75), `yieldAll` (#257), `?.` (#378), file reader (#209), FBBT
-(#373), Datalog (#323), interactive shell (line editing, history,
-highlighting). Calcite/hybrid remains deferred indefinitely.
+(#373), Datalog (#323), shell polish (line editing, history,
+highlighting, morel#413/#414). Calcite/hybrid remains deferred
+indefinitely.
