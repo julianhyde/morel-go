@@ -479,7 +479,7 @@ cells), `--foreign` (no foreign datasets yet), `--maxUseDepth`
       java uses it to force output to stdout when it would
       otherwise rewrite the script in place, and morel-go always
       writes to stdout and never rewrites files.
-- [ ] 46c. Interactive shell: a REPL when stdin is a terminal —
+- [x] 46c. Interactive shell: a REPL when stdin is a terminal —
       a banner in java's shape (suppressed by `--banner=false`),
       SML-NJ prompts ("- " primary, "= " continuation) driven
       by the statement splitter, each statement's result printed
