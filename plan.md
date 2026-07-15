@@ -425,7 +425,7 @@ makes stale. Tasks inserted before continuing:
       sections (morel#311) and `over`/`inst` overloading
       (morel#237), both already scheduled. No parser commit, no
       corpus re-pull.
-- [ ] 43d. Port java's `checkNumericOperators` (post-unification
+- [x] 43d. Port java's `checkNumericOperators` (post-unification
       check that `+`-family operands are numeric); insert the
       commit after task 27's operator commit, so the evaluator
       phase never sees ill-typed arithmetic. Pull the
