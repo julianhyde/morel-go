@@ -508,9 +508,14 @@ cells), `--foreign` (no foreign datasets yet), `--maxUseDepth`
 
 ### F. Relational, first slices (47-50)
 
-- [ ] 47. `Core.From` + `FromBuilder`; typing for scan (`in`),
-      `where`, `yield` (lists first; the collection-kind
-      constraint hook from task 21 is ready for bags).
+- [x] 47. Typing for scan (`in`, `=`), `where`, `yield` over
+      lists: a query's rows carry named fields, the element type
+      is the sole field or a record of them, `yield` of a record
+      literal exposes its fields. The list-scan `:t` hunks pass.
+      (`Core.From` + `FromBuilder` land with the evaluator in
+      task 48, rather than as an unused IR node now — no
+      speculative infrastructure. The collection-kind constraint
+      hook from task 21 is ready for bags.)
 - [ ] 48. `RowSink` push pipeline: scan/where/yield sinks; java's
       binding model verbatim — canonical field-name-ordered rows,
       one implicit-label helper, `current` as a rewrite, one
