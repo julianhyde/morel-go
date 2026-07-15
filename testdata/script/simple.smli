@@ -184,6 +184,23 @@ String.size "\v";
 String.size "\^@";
 > val it = 1 : int
 
+(* Identifiers ---------------------------------------------------- *)
+
+val x = 1
+and x' = 2
+and x'' = 3
+and x'y = 4
+and ABC123 = 5
+and Abc_123 = 6
+and Abc_ = 7;
+> val x = 1 : int
+> val x' = 2 : int
+> val x'' = 3 : int
+> val x'y = 4 : int
+> val ABC123 = 5 : int
+> val Abc_123 = 6 : int
+> val Abc_ = 7 : int
+
 fun foo x
   x'
   x''
