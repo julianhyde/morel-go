@@ -547,15 +547,18 @@ The ten already-implemented structures (`Bool`, `Char`,
 `Sys`) are *function*-complete; their remaining delta is almost
 all printing, not missing members — hence task 51 leads.
 
-- [ ] 51. Printing (the convergence lever, not a structure):
-      wrap long types and record *values* across lines at
-      `lineWidth`, as java's Wadler-Leijen printer does (the
-      `Doc` engine already has group/nest; extend type printing
-      and record-value printing to use them), and show an
-      empty-record value as `{}` rather than `()`. Unlocks the
-      bulk of `real` (+944 lines), `math` (+334), and `sys`
-      (+~260) at once, plus spillover wherever a long type or
-      record printed on one line.
+- [x] 51. Printing (the convergence lever, not a structure):
+      types now render through the `Doc` engine like values, so
+      long record/function/tuple/collection types wrap at
+      `lineWidth` (ported from java's `Pretty.typeDoc`).
+      Record *values* already wrapped (task 31). The single
+      biggest convergence step: the built-in scripts grew ~1050
+      lines — `real` 373→1048, `math` 50→322, plus char, date,
+      option, string, relational, datalog, string-cvt. Deferred:
+      showing an empty-record *value* as `{}` rather than `()`
+      (only `Sys.file` needs it, and go interns `{}` as unit, so
+      it wants a small type-tag change) — `sys`'s remaining delta
+      is mostly `Sys.plan`/`showAll`, not this.
 - [ ] 52. `Vector` — the `'a vector` value type; `fromList`,
       `tabulate`, `sub`, `update`, `length`, `concat`, `map`/
       `mapi`, `foldl`/`foldr`/`foldli`/`foldri`, `app`/`appi`,
