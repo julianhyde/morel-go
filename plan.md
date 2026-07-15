@@ -435,7 +435,7 @@ makes stale. Tasks inserted before continuing:
       column-offset quirk (the `(*TYPE_ONLY*)` marker shifts
       line-1 columns by 10).
 
-- [ ] 44. `String`, `Char`.
+- [x] 44. `String`, `Char`.
 - [ ] 45. `List` — the heavily-used core: `map`, `filter`, `foldl`,
       `foldr`, `length`, `rev`, `hd`, `tl`, `nth`, ...
 - [ ] 46. `Sys`: `env`, `set`/`show`/`unset`; properties
