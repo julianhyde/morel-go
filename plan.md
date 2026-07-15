@@ -554,10 +554,16 @@ all printing, not missing members — hence task 51 leads.
       (only `Sys.file` needs it, and go interns `{}` as unit, so
       it wants a small type-tag change) — `sys`'s remaining delta
       is mostly `Sys.plan`/`showAll`, not this.
-- [ ] 52. `Vector` — the `'a vector` value type; `fromList`,
+- [x] 52. `Vector` — the `'a vector` value type; `fromList`,
       `tabulate`, `sub`, `update`, `length`, `concat`, `map`/
       `mapi`, `foldl`/`foldr`/`foldli`/`foldri`, `app`/`appi`,
       `find`/`findi`, `exists`, `all`, `collate`, `maxLen`.
+      Values print as `#[...]`; the element-wise members reuse
+      the List code. `vector.smli` grew 109→174. Deferred (each a
+      broader gap, not Vector-specific): the `Vector;` structure
+      dump (keyword-quoted record labels + cross-field type-var
+      numbering), the `op +` first-class-operator foldl, and the
+      `vector` top-level shorthand (sig-typed alias binding).
 - [ ] 53. `ListPair` — `zip`, `unzip`, `map`, `app`, `all`,
       `exists`, `foldl`/`foldr`, and the `*Eq` variants that
       raise `UnequalLengths`.
