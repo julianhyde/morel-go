@@ -134,14 +134,19 @@ func (k *Kernel) Config() *Config {
 // they are built-in calls of the shape `A.b arg;`; anything else
 // is lexically validated, producing no output.
 func (k *Kernel) Execute(stmt string) string {
+	// A ":t" marker becomes the "(*TYPE_ONLY*)" comment before
+	// anything looks at positions, as in java's script harness —
+	// so a type-only statement's line-1 columns are shifted by
+	// the ten extra characters.
+	stmt, typeOnly := rewriteTypeOnly(stmt)
 	// Positions in error reports are relative to the statement's
 	// first token: java's parser renumbers that token's line to 1
 	// but keeps raw columns. Blank out everything before the
 	// first token (comments become spaces, so columns survive)
 	// and drop the resulting blank lines.
 	stmt = normalizeLeading(stmt)
-	if rest, ok := typeOnlyRest(stmt); ok {
-		return k.executeTypeOnly(rest)
+	if typeOnly {
+		return k.executeTypeOnly(stmt)
 	}
 	n, err := parse.Stmt(k.name, stmt)
 	if err != nil {
@@ -342,7 +347,7 @@ func (k *Kernel) executeTypeOnly(src string) string {
 	}
 	resolved, err := compile.Deduce(k.sys, k.bindings, decl)
 	if err != nil {
-		return err.Error()
+		return formatCompileError(err)
 	}
 	valDecl, ok := resolved.Decl.(*ast.ValDecl)
 	if !ok {
@@ -494,11 +499,14 @@ scan:
 	}
 }
 
-// typeOnlyRest looks for the ":t" marker that makes a statement
-// type-only: at the start of a line, preceded only by whitespace
-// and comments, and followed by a space or newline. It returns
-// the statement text after the marker.
-func typeOnlyRest(stmt string) (string, bool) {
+// rewriteTypeOnly looks for the ":t" marker that makes a
+// statement type-only: at the start of a line, preceded only by
+// whitespace and comments, and followed by a space or newline.
+// As in java's script harness, the marker (and a following
+// space) becomes the "(*TYPE_ONLY*)" comment, so positions in
+// the statement's error reports count the comment's characters.
+func rewriteTypeOnly(stmt string) (string, bool) {
+	const marker = "(*TYPE_ONLY*)"
 	const markerLen = len(":t")
 	i, n := 0, len(stmt)
 	for i < n {
@@ -510,26 +518,29 @@ func typeOnlyRest(stmt string) (string, bool) {
 			// A "(*)" comment runs to the end of the line.
 			j := strings.IndexByte(stmt[i:], '\n')
 			if j < 0 {
-				return "", false
+				return stmt, false
 			}
 			i += j + 1
 		case strings.HasPrefix(stmt[i:], "(*"):
 			i = skipBlockComment(stmt, i+len("(*"))
 		default:
 			if !strings.HasPrefix(stmt[i:], ":t") {
-				return "", false
+				return stmt, false
 			}
 			if i > 0 && stmt[i-1] != '\n' {
-				return "", false
+				return stmt, false
 			}
 			j := i + markerLen
 			if j < n && stmt[j] != ' ' && stmt[j] != '\n' {
-				return "", false
+				return stmt, false
 			}
-			return stmt[j:], true
+			if j < n && stmt[j] == ' ' {
+				j++
+			}
+			return stmt[:i] + marker + stmt[j:], true
 		}
 	}
-	return "", false
+	return stmt, false
 }
 
 // skipBlockComment returns the position after the "*)" that
