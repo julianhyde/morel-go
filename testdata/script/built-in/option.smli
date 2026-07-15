@@ -64,6 +64,25 @@ Option.mapPartial (fn s => if s = "" then NONE else (SOME (String.size s))) NONE
 Option.mapPartial (fn s => if s = "" then NONE else (SOME (String.size s))) (SOME "");
 > val it = NONE : int option
 
+(*) val compose : ('a -> 'b) * ('c -> 'a option) -> 'c -> 'b option
+Option.compose;
+> val it = fn : ('a -> 'b) * ('c -> 'a option) -> 'c -> 'b option
+Option.compose (String.size,
+                (fn s => if s = "" then NONE
+                 else SOME (String.substring (s, 1, String.size s))))
+               "";
+> val it = NONE : int option
+Option.compose (String.size,
+                (fn s => if s = "" then NONE
+                 else SOME (String.substring (s, 0, String.size s))))
+               "a";
+> val it = SOME 1 : int option
+Option.compose (String.size,
+                (fn s => if s = "" then NONE
+                 else SOME (String.substring (s, 0, String.size s))))
+               "";
+> val it = NONE : int option
+
 (*) val composePartial : ('a -> 'b option) * ('c -> 'a option) -> 'c -> 'b option
 Option.composePartial (fn i => if i = 0 then NONE else (SOME i),
                        fn s => if s = "" then NONE else SOME (String.size s))

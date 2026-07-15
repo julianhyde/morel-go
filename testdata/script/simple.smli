@@ -140,6 +140,22 @@ fun foo x
 val `val` = "yes, you can use keywords as identifiers";
 > val val = "yes, you can use keywords as identifiers" : string
 
+(* Identifiers ---------------------------------------------------- *)
+
+fun foo x
+  x'
+  x''
+  x'y
+  ABC123
+  Abc_123
+  Abc_
+  `a b` = 1;
+> val foo = fn : 'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> int
+
+(*) Quoted identifiers
+val `val` = "yes, you can use keywords as identifiers";
+> val val = "yes, you can use keywords as identifiers" : string
+
 (* Comments ------------------------------------------------------- *)
 
 1 + (* 2 + *) 3;
@@ -690,5 +706,36 @@ val a = pqr + 1;
 
 fun f n = String.substring ("hello", 1, n);
 > val f = fn : int -> string
+
+(* The first is printed as '1.9', the second as '1.9-1.11', and the
+ * third as '1.9-1.12'. *)
+"a string literal to reset the line counter after the comment";
+> val it = "a string literal to reset the line counter after the comment"
+>   : string
+val a = p + 1;
+> stdIn:1.9 Error: unbound variable or constructor: p
+>   raised at: stdIn:1.9
+val a = pq + 1;
+> stdIn:1.9-1.11 Error: unbound variable or constructor: pq
+>   raised at: stdIn:1.9-1.11
+val a = pqr + 1;
+> stdIn:1.9-1.12 Error: unbound variable or constructor: pqr
+>   raised at: stdIn:1.9-1.12
+
+fun f n = String.substring ("hello", 1, n);
+> val f = fn : int -> string
+f 2;
+> val it = "el" : string
+f 6;
+> uncaught exception Subscript [subscript out of bounds]
+>   raised at: stdIn:1.11-1.43
+f ~1;
+> uncaught exception Subscript [subscript out of bounds]
+>   raised at: stdIn:1.11-1.43
+
+(* Bag printing with various data types ------------------------------
+ * Tests that the BagPrinter reordering handles various element
+ * types, whitespace, and line breaks in expected output.
+ *)
 
 (*) End simple.smli
