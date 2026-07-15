@@ -137,8 +137,14 @@ Y (1, true);
 > val it = Y (1,true) : bar
 Z;
 > val it = Z : bar
+
+(* A datatype's body may not use a type variable that is not in the head;
+ * declare it, e.g. `datatype 'a my_option = ...`. *)
 datatype 'a my_option = MY_NONE | MY_SOME of 'a;
 > datatype 'a my_option = MY_NONE | MY_SOME of 'a
+(*) The body uses 'b, which is not in the head.
+(* A head type variable need not be used in the body; here 'b is a phantom
+ * type, used in the head but not the body. Standard ML allows this. *)
 
 (*) A recursive type, without generics
 datatype inttree = Empty | Node of inttree * int * inttree;
@@ -160,8 +166,14 @@ height it;
 > val it = 1 : int
 height (Node(Empty, 1, Empty));
 > val it = 1 : int
+
+(*) Recursive
 fun greater (x, y) = if x < y then y else x;
 > val greater = fn : 'a * 'a -> 'a
+
+(* Parentheses are required for 2 or more type parameters,
+ * optional for 1 type parameter,
+ * not allowed for 0 type parameters. *)
 (* disabled; should throw
 datatype 'a, 'b pair = Pair of 'a * 'b; (*) not valid
 *)

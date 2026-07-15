@@ -365,3 +365,5 @@ stdIn:1.37-1.42 Error: operator and operand do not agree [tycon mismatch]
 > val it : string
 :t map (fn x => String.size x) ["abc", "de"];
 > val it : int list
+
+(*) End type-inference.smli
