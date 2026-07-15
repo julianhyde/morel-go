@@ -58,6 +58,8 @@ Sys.set ("lineWidth", 78);
 > val it = 1E10 : real
 1.5e9;
 > val it = 1.5E9 : real
+(Real.posInf / Real.posInf, Real.posInf, Real.negInf, 0.0, ~0.0);
+> val it = (nan,inf,~inf,0,~0) : real * real * real * real * real
 "a string";
 > val it = "a string" : string
 "a \"quoted\" string\\with backslash";
@@ -477,6 +479,8 @@ end;
 fun distance (x, y) (x', y') =
   Math.sqrt ((x - x') * (x - x') + (y - y') * (y - y'));
 > val distance = fn : real * real -> real * real -> real
+distance (0.0, 1.0) (4.0, 4.0);
+> val it = 5 : real
 
 (*) Composite declarations
 let

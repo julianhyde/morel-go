@@ -19,6 +19,7 @@ package shell
 
 import (
 	"errors"
+	"maps"
 	"strconv"
 	"strings"
 
@@ -89,9 +90,7 @@ func NewKernel(name string) *Kernel {
 	bindings := compile.TopBindings(sys)
 	bindings = append(bindings, result.Bindings...)
 	values := make(map[string]eval.Val, len(eval.Builtins))
-	for name, fn := range eval.Builtins {
-		values[name] = fn
-	}
+	maps.Copy(values, eval.Builtins)
 	// A structure is a record value whose fields are its
 	// members' implementations. A member without one gets a
 	// placeholder that fails if it is ever applied, so unpulled
@@ -420,8 +419,8 @@ func builtinCall(e ast.Expr) (string, ast.Expr, bool) {
 
 // callString invokes a built-in whose result is a string, and
 // formats the result as the shell prints it.
-func callString(f eval.Fn, arg string) string {
-	v, err := f(arg)
+func callString(f eval.Val, arg string) string {
+	v, err := eval.ApplyVal(f, arg)
 	if err != nil {
 		return err.Error()
 	}
