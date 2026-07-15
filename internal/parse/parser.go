@@ -747,7 +747,7 @@ func (p *Parser) recordExpr() (ast.Expr, error) {
 }
 
 func (p *Parser) recordField() (ast.Field, error) {
-	if p.tok.Kind == token.Ident || p.tok.Kind == token.IntLit {
+	if p.labelStart() {
 		kind, err := p.peek()
 		if err != nil {
 			return ast.Field{}, err
@@ -763,8 +763,28 @@ func (p *Parser) recordField() (ast.Field, error) {
 	return ast.Field{Exp: e}, nil
 }
 
+// labelStart reports whether the current token can begin a record
+// field's label: a name, a backtick-quoted identifier, or a
+// canonical positive integer ("1", "2", ...). A numeric label
+// with a leading zero ("0", "007") is not a label, so "{0 = 0}"
+// parses as a record over the expression "0 = 0".
+func (p *Parser) labelStart() bool {
+	// lint: sort until '^	}' where '^	case '
+	switch p.tok.Kind {
+	case token.Ident, token.QuotedIdent:
+		return true
+	case token.IntLit:
+		return p.tok.Text[0] != '0'
+	default:
+		return false
+	}
+}
+
 func (p *Parser) labeledField() (ast.Field, error) {
 	label := p.tok.Text
+	if p.tok.Kind == token.QuotedIdent {
+		label = unquoteIdent(label)
+	}
 	labelSpan := p.tok.Span
 	err := p.next()
 	if err != nil {
