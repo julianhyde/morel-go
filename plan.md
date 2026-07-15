@@ -415,12 +415,16 @@ makes stale. Tasks inserted before continuing:
       format", which becomes "report runtime and compile errors".
       Task 39's commit keeps the corpus pull and the recover()
       net.
-- [ ] 43c. Parser: structure members named by symbolic
-      identifiers and keywords after `.` (`Int.+`, `Int.div`,
-      `Option.join`), verified against java parse-tree dumps;
-      insert the commit into the parser phase, after task 19's
-      hardening commit. Reword the task 41-43 messages that
-      mention the gap; re-pull the corpus at the tip.
+- [x] 43c. Parser: probing java showed the member-name gap does
+      not exist. Java itself rejects symbolic and keyword names
+      after `.` unless backtick-quoted; the corpus writes them
+      quoted, and go parses those identically to java's
+      parse-tree dumps (verified back to task 41, whose commit
+      message wrongly noted the gap and was reworded). What
+      gates `built-in.smli` and the numeric hunks is `op`
+      sections (morel#311) and `over`/`inst` overloading
+      (morel#237), both already scheduled. No parser commit, no
+      corpus re-pull.
 - [ ] 43d. Port java's `checkNumericOperators` (post-unification
       check that `+`-family operands are numeric); insert the
       commit after task 27's operator commit, so the evaluator
