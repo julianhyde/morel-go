@@ -479,6 +479,23 @@ cells), `--foreign` (no foreign datasets yet), `--maxUseDepth`
       as it completes, ctrl-D ends the session. Plain line
       reading only; editing, history (`~/.morel/history`), and
       highlighting are post-endpoint polish.
+- [ ] 46d. Lint: port java's testStructureScripts — every
+      structure in the model (a `lib/*.sig` file) must have a
+      `testdata/script/built-in/<name>.smli` test script. (The
+      companion guarantee, that every `.smli` file runs, holds
+      by construction: the harness walks the directory.) The
+      check and the initial scripts enter with task 41 —
+      structures become record values there, so bare member
+      references print their types even without implementations.
+      Each file holds the largest subset of java's present-day
+      built-in file that passes at its commit's tree (run the
+      file, keep only the lines that work); every structure task,
+      42 through 46, grows its own files as it implements their
+      members, and the files converge to java's coverage by
+      task 46. `int`/`real`/`sys` finish at task 46, since their
+      `output`/`timeZone` sections need the real `Sys`.
+      `order.smli`, which no sig demands, comes along as a bonus.
+      Verify every replayed commit fullMake-green.
 
 ### F. Relational, first slices (47-50)
 
