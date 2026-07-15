@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/hydromatic/morel-go/internal/ast"
+	"github.com/hydromatic/morel-go/internal/token"
 	"github.com/hydromatic/morel-go/internal/types"
 	"github.com/hydromatic/morel-go/internal/unify"
 )
@@ -853,8 +854,12 @@ func (r *typeResolver) deduceRecord(env typeEnv,
 			label = id.Name
 		}
 		if _, dup := byLabel[label]; dup {
+			span := f.LabelSpan
+			if span == (token.Span{}) {
+				span = f.Exp.Span()
+			}
 			return &Error{
-				Span: record.Span(),
+				Span: span,
 				Msg: "duplicate field '" + label +
 					"' in record",
 			}
