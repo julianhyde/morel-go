@@ -28,6 +28,35 @@ Sys.set ("stringDepth", ~1);
 val nan = Real.posInf / Real.posInf;
 > val nan = nan : real
 
+Real;
+> val it =
+>   {*=fn,+=fn,-=fn,/=fn,<=fn,<==fn,<>=fn,==fn,>=fn,>==fn,abs=fn,ceil=fn,
+>    checkFloat=fn,compare=fn,copySign=fn,floor=fn,fmt=fn,fromInt=fn,
+>    fromManExp=fn,fromString=fn,isFinite=fn,isNan=fn,isNormal=fn,max=fn,
+>    maxFinite=3.4028235E38,min=fn,minNormalPos=1.1754944E~38,minPos=1.4E~45,
+>    negInf=~inf,posInf=inf,precision=24,radix=2,realCeil=fn,realFloor=fn,
+>    realMod=fn,realRound=fn,realTrunc=fn,rem=fn,round=fn,sameSign=fn,sign=fn,
+>    signBit=fn,split=fn,toManExp=fn,toString=fn,trunc=fn,unordered=fn,~=fn}
+>   : {*:real * real -> real, +:real * real -> real, -:real * real -> real,
+>       /:real * real -> real, <:real * real -> bool, <=:real * real -> bool,
+>       <>:real * real -> bool, =:real * real -> bool, >:real * real -> bool,
+>       >=:real * real -> bool, abs:real -> real, ceil:real -> int,
+>       checkFloat:real -> real, compare:real * real -> order,
+>       copySign:real * real -> real, floor:real -> int,
+>       fmt:realfmt -> real -> string, fromInt:int -> real,
+>       fromManExp:{exp:int, man:real} -> real,
+>       fromString:string -> real option, isFinite:real -> bool,
+>       isNan:real -> bool, isNormal:real -> bool, max:real * real -> real,
+>       maxFinite:real, min:real * real -> real, minNormalPos:real,
+>       minPos:real, negInf:real, posInf:real, precision:int, radix:int,
+>       realCeil:real -> real, realFloor:real -> real, realMod:real -> real,
+>       realRound:real -> real, realTrunc:real -> real,
+>       rem:real * real -> real, round:real -> int,
+>       sameSign:real * real -> bool, sign:real -> int, signBit:real -> bool,
+>       split:real -> {frac:real, whole:real},
+>       toManExp:real -> {exp:int, man:real}, toString:real -> string,
+>       trunc:real -> int, unordered:real * real -> bool, ~:real -> real}
+
 (*) val radix : int
 Real.radix;
 > val it = 2 : int

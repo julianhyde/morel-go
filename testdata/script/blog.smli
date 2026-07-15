@@ -227,6 +227,31 @@ val depts =
 >    {deptno=30,name="Engineering"},{deptno=40,name="Support"}]
 >   : {deptno:int, name:string} list
 
+(* That's all, folks!
+ * To recap, Morel has:
+ *  * expressions of int, string, boolean, float, char, list,
+ *    tuple and record types;
+ *  * lambda expressions and recursive functions;
+ *  * algebraic datatypes and pattern-matching;
+ *  * polymorphism and powerful type-inference;
+ *  * relational expressions (an extension to Standard ML).
+ *
+ * Follow our progress at https://github.com/hydromatic/morel.
+ * This is only release 0.1, so there's more to come! *)
+
+(* --- 2020/02/25: Morel: A functional language for data ---------- *)
+
+(*) Auxiliary declarations
+val hr = {
+  emps = [
+    {id = 100, deptno = 10, name = "SCOTT"}],
+  depts = [
+    {deptno = 10, name = "SALES"}]};
+> val hr =
+>   {depts=[{deptno=10,name="SALES"}],emps=[{deptno=10,id=100,name="SCOTT"}]}
+>   : {depts:{deptno:int, name:string} list,
+>       emps:{deptno:int, id:int, name:string} list}
+
 (* --- 2020/03/03: Morel: The basic language ---------------------- *)
 
 (* As a functional language, everything in Morel is an expression.
