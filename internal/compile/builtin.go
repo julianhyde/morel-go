@@ -53,12 +53,15 @@ const (
 // aliases of common functions (as in java's BuiltIn).
 var topBuiltins = map[string]topBuiltin{
 	"abs":       {"'a -> 'a", intName},
+	"app":       {"('a -> unit) -> 'a list -> unit", ""},
 	"ceil":      {realToInt, ""},
 	"chr":       {"int -> char", ""},
 	"concat":    {"string list -> string", ""},
 	"explode":   {"string -> char list", ""},
 	"fields":    {"(char -> bool) -> string -> string list", ""},
 	"floor":     {realToInt, ""},
+	"foldl":     {"('a * 'b -> 'b) -> 'b -> 'a list -> 'b", ""},
+	"foldr":     {"('a * 'b -> 'b) -> 'b -> 'a list -> 'b", ""},
 	"getOpt":    {"'a option * 'a -> 'a", ""},
 	"hd":        {"'a list -> 'a", ""},
 	"implode":   {"char list -> string", ""},
