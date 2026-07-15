@@ -30,5 +30,21 @@
  * the behavior of a function in special cases, the first matching
  * rule defines the semantics.
  *)
+Sys.set ("lineWidth", 78);
+> val it = () : unit
+Sys.set ("printLength", 999);
+> val it = () : unit
+Sys.set ("stringDepth", ~1);
+> val it = () : unit
+val nan = Real.posInf / Real.posInf;
+> val nan = nan : real
+
+(* "val e : real" The base e (2.718281828...) of the natural logarithm. *)
+Math.e;
+> val it = 2.7182817 : real
+
+(* "val pi : real" The constant pi (3.141592653...). *)
+Math.pi;
+> val it = 3.1415927 : real
 
 (*) End math.smli
