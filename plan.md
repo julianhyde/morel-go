@@ -430,7 +430,7 @@ makes stale. Tasks inserted before continuing:
       commit after task 27's operator commit, so the evaluator
       phase never sees ill-typed arithmetic. Pull the
       `true + true`-class error hunks at the tip.
-- [ ] 43e. Pull the `type-inference.smli` error hunks that the
+- [x] 43e. Pull the `type-inference.smli` error hunks that the
       error framing supports; first probe java's `:t`
       column-offset quirk (the `(*TYPE_ONLY*)` marker shifts
       line-1 columns by 10).
