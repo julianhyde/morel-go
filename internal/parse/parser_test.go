@@ -62,11 +62,11 @@ func TestParseExprErrors(t *testing.T) {
 		// "~" is rejected where morel-java rejects it.
 		{
 			"~a * ~b",
-			"stdIn:1.6-1.7: expected expression, found ~",
+			"stdIn:1.6: expected expression, found ~",
 		},
 		{
 			"f ~x",
-			"stdIn:1.3-1.4: expected EOF, found ~",
+			"stdIn:1.3: expected EOF, found ~",
 		},
 	} {
 		_, err := parse.Expr("stdIn", tc.src)
