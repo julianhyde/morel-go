@@ -471,11 +471,14 @@ cells), `--foreign` (no foreign datasets yet), `--maxUseDepth`
       `--color-scheme`, `--maxUseDepth`, `--system`) are
       tolerated rather than fatal; and a missing file reports a
       clean error rather than java's uncaught stack trace.
-- [ ] 46b. Script execution: `.sml` files and stdin run as
+- [x] 46b. Script execution: `.sml` files and stdin run as
       batches (today's only mode, kept); `.smli` files run
       through the same `RunScript` that the test harness uses,
-      idempotent-format output to stdout, `--echo` as in java.
-      One code path for the harness and the CLI.
+      idempotent-format output to stdout. One code path for the
+      harness and the CLI. `--echo` is accepted but inert:
+      java uses it to force output to stdout when it would
+      otherwise rewrite the script in place, and morel-go always
+      writes to stdout and never rewrites files.
 - [ ] 46c. Interactive shell: a REPL when stdin is a terminal —
       a banner in java's shape (suppressed by `--banner=false`),
       SML-NJ prompts ("- " primary, "= " continuation) driven
