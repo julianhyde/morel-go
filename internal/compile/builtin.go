@@ -35,6 +35,12 @@ type topBuiltin struct {
 // Types shared by several built-ins.
 const (
 	numPair    = "'a * 'a -> 'a"
+	opTimes    = "op *"
+	opPlus     = "op +"
+	opMinus    = "op -"
+	opDiv      = "op div"
+	opMod      = "op mod"
+	opNegate   = "op ~"
 	comparison = "'a * 'a -> bool"
 	realToInt  = "real -> int"
 	intName    = "int"
@@ -57,9 +63,9 @@ var topBuiltins = map[string]topBuiltin{
 	"map":     {"('a -> 'b) -> 'a list -> 'b list", ""},
 	"not":     {"bool -> bool", ""},
 	"null":    {"'a list -> bool", ""},
-	"op *":    {numPair, intName},
-	"op +":    {numPair, intName},
-	"op -":    {numPair, intName},
+	opTimes:   {numPair, intName},
+	opPlus:    {numPair, intName},
+	opMinus:   {numPair, intName},
 	"op /":    {numPair, realName},
 	"op ::":   {"'a * 'a list -> 'a list", ""},
 	"op <":    {comparison, ""},
@@ -70,10 +76,10 @@ var topBuiltins = map[string]topBuiltin{
 	"op >=":   {comparison, ""},
 	"op @":    {"'a list * 'a list -> 'a list", ""},
 	"op ^":    {"string * string -> string", ""},
-	"op div":  {numPair, intName},
-	"op mod":  {numPair, intName},
+	opDiv:     {numPair, intName},
+	opMod:     {numPair, intName},
 	"op o":    {"('b -> 'c) * ('a -> 'b) -> 'a -> 'c", ""},
-	"op ~":    {"'a -> 'a", intName},
+	opNegate:  {"'a -> 'a", intName},
 	"ord":     {"char -> int", ""},
 	"real":    {"int -> real", ""},
 	"rev":     {"'a list -> 'a list", ""},
@@ -91,18 +97,18 @@ var infixOpNames = map[ast.Op]string{
 	ast.CaretOp:   "op ^",
 	ast.ComposeOp: "op o",
 	ast.ConsOp:    "op ::",
-	ast.DivOp:     "op div",
+	ast.DivOp:     opDiv,
 	ast.DivideOp:  "op /",
 	ast.EqOp:      "op =",
 	ast.GeOp:      "op >=",
 	ast.GtOp:      "op >",
 	ast.LeOp:      "op <=",
 	ast.LtOp:      "op <",
-	ast.MinusOp:   "op -",
-	ast.ModOp:     "op mod",
+	ast.MinusOp:   opMinus,
+	ast.ModOp:     opMod,
 	ast.NeOp:      "op <>",
-	ast.PlusOp:    "op +",
-	ast.TimesOp:   "op *",
+	ast.PlusOp:    opPlus,
+	ast.TimesOp:   opTimes,
 }
 
 // TopBindings returns the bindings of the top-level built-in

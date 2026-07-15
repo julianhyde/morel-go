@@ -94,8 +94,68 @@ func Deduce(sys *types.System, bindings []Binding,
 			nodeTerm: r.nodeTerm,
 			subst:    subst,
 		}
+		err = r.checkNumericOperators(typeMap)
+		if err != nil {
+			return nil, err
+		}
 		return &Resolved{Decl: decl2, TypeMap: typeMap}, nil
 	}
+}
+
+// numericCall is an application of an overloaded numeric
+// operator, to be checked against the operator's overload class
+// once unification has resolved its type.
+type numericCall struct {
+	name  string
+	apply *ast.Apply
+}
+
+// numericOpDomain gives the types for which each overloaded
+// numeric operator is defined (its SML overload class). 'div'
+// and 'mod' are int-only until 'Word' arrives (morel#396); '/'
+// is absent because it is real-only, so a bad operand is a
+// unification conflict, not an excluded class member.
+var numericOpDomain = map[string]map[string]bool{
+	"abs":    {intName: true, realName: true},
+	opTimes:  {intName: true, realName: true},
+	opPlus:   {intName: true, realName: true},
+	opMinus:  {intName: true, realName: true},
+	opDiv:    {intName: true},
+	opMod:    {intName: true},
+	opNegate: {intName: true, realName: true},
+}
+
+// checkNumericOperators checks that every application of an
+// overloaded numeric operator has a type in the operator's
+// overload class, as java's TypeResolver does after resolving:
+// the check is by name (a rebinding is still checked), the
+// outermost bad application reports first, '~' reports its
+// operand's span, and a type that is still a variable passes.
+func (r *typeResolver) checkNumericOperators(m *TypeMap) error {
+	for _, call := range r.numericCalls {
+		t, err := m.TypeOf(call.apply)
+		if err != nil {
+			return err
+		}
+		if _, isVar := t.(*types.Var); isVar {
+			continue
+		}
+		if numericOpDomain[call.name][t.String()] {
+			continue
+		}
+		span := call.apply.Span()
+		if call.name == opNegate {
+			span = call.apply.Arg.Span()
+		}
+		return &Error{
+			Span: span,
+			Msg: "operator '" +
+				strings.TrimPrefix(call.name, "op ") +
+				"' is not defined for type '" +
+				t.String() + "'",
+		}
+	}
+	return nil
 }
 
 // patTerm records that a declaration binds a name to a term; the
@@ -109,13 +169,14 @@ type patTerm struct {
 // generates term equivalences from the structure of the tree,
 // and hands them to the unifier.
 type typeResolver struct {
-	sys         *types.System
-	u           *unify.Unifier
-	pairs       []unify.TermPair
-	nodeTerm    map[ast.Node]unify.Term
-	actions     []unify.VarAction
-	constraints []unify.Constraint
-	preferred   []preferredType
+	sys          *types.System
+	u            *unify.Unifier
+	pairs        []unify.TermPair
+	nodeTerm     map[ast.Node]unify.Term
+	actions      []unify.VarAction
+	constraints  []unify.Constraint
+	preferred    []preferredType
+	numericCalls []numericCall
 }
 
 // preferredType records that, if unification leaves v
@@ -468,7 +529,7 @@ func (r *typeResolver) deduceExp(env typeEnv, exp ast.Expr,
 	case *ast.Literal:
 		return r.deduceLiteral(exp, e.Kind, e.Value, v)
 	case *ast.PrefixCall:
-		return r.deduceOpCall(env, "op ~", e,
+		return r.deduceOpCall(env, opNegate, e,
 			[]ast.Expr{e.A}, v)
 	case *ast.Record:
 		return r.deduceRecord(env, e, v)
@@ -552,6 +613,12 @@ func checkIntRange(node ast.Node, value string) error {
 func (r *typeResolver) deduceApply(env typeEnv, apply *ast.Apply,
 	v *unify.Var,
 ) error {
+	if id, ok := apply.Fn.(*ast.ID); ok {
+		if _, isNumeric := numericOpDomain[id.Name]; isNumeric {
+			r.numericCalls = append(r.numericCalls,
+				numericCall{name: id.Name, apply: apply})
+		}
+	}
 	vFn := r.u.Variable()
 	vArg := r.u.Variable()
 	r.equiv(vFn, r.fnTerm(vArg, v))

@@ -257,6 +257,40 @@ func TestDeduceError(t *testing.T) {
 		},
 		{"3000000000", "literal '3000000000' is too large" +
 			" for type int"},
+		// Overloaded numeric operators are only defined for
+		// types in their overload class; each case probed
+		// against java.
+		{"true + true", "operator '+' is not defined" +
+			" for type 'bool'"},
+		{`"a" + "b"`, "operator '+' is not defined" +
+			" for type 'string'"},
+		{"true - false", "operator '-' is not defined" +
+			" for type 'bool'"},
+		{`"a" * "b"`, "operator '*' is not defined" +
+			" for type 'string'"},
+		{"~ true", "operator '~' is not defined" +
+			" for type 'bool'"},
+		{"abs true", "operator 'abs' is not defined" +
+			" for type 'bool'"},
+		{"1.0 div 2.0", "operator 'div' is not defined" +
+			" for type 'real'"},
+		{"true mod false", "operator 'mod' is not defined" +
+			" for type 'bool'"},
+		// The check runs on resolved types, so it sees through
+		// a lambda whose parameter the argument determines ...
+		{"(fn x => x + x) true", "operator '+' is not defined" +
+			" for type 'bool'"},
+		// ... it is by name, like java's, so a rebinding of
+		// 'abs' is still checked ...
+		{
+			"let val abs = fn b => b in abs true end",
+			"operator 'abs' is not defined for type 'bool'",
+		},
+		// ... and the outermost bad application reports first.
+		{
+			"(true + true) + (false + false)",
+			"operator '+' is not defined for type 'bool'",
+		},
 	} {
 		t.Run(tc.src, func(t *testing.T) {
 			_, err := deduce(t, tc.src)
