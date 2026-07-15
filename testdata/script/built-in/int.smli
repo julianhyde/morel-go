@@ -38,6 +38,14 @@ Int.`~` 2;
 > val it = ~2 : int
 Int.`~` ~3;
 > val it = 3 : int
+Int.`<` (3, 5);
+> val it = true : bool
+Int.`<=` (5, 5);
+> val it = true : bool
+Int.`>` (3, 5);
+> val it = false : bool
+Int.`>=` (5, 5);
+> val it = true : bool
 
 Int.abs;
 > val it = fn : int -> int
@@ -47,6 +55,8 @@ Int.abs ~3;
 > val it = 3 : int
 Int.compare;
 > val it = fn : int * int -> order
+Int.compare (4, 3);
+> val it = GREATER : order
 Int.`div`;
 > val it = fn : int * int -> int
 Int.`div` (14, 3);
@@ -61,16 +71,28 @@ Int.`div` (0, ~3);
 > val it = 0 : int
 Int.fromInt;
 > val it = fn : int -> int
+Int.fromInt 3;
+> val it = 3 : int
 Int.fmt;
 > val it = fn : radix -> int -> string
 Int.fromLarge;
 > val it = fn : int -> int
+Int.fromLarge 3;
+> val it = 3 : int
 Int.fromString;
 > val it = fn : string -> int option
+Int.fromString "~345";
+> val it = SOME ~345 : int option
 Int.max;
 > val it = fn : int * int -> int
+Int.max (4, 3);
+> val it = 4 : int
+Int.maxInt;
+> val it = SOME 2147483647 : int option
 Int.min;
 > val it = fn : int * int -> int
+Int.min (4, 3);
+> val it = 3 : int
 Int.`mod`;
 > val it = fn : int * int -> int
 Int.`mod` (14, 3);
@@ -85,18 +107,56 @@ Int.`mod` (0, ~3);
 > val it = 0 : int
 Int.quot;
 > val it = fn : int * int -> int
+Int.quot (14, 3);
+> val it = 4 : int
+Int.quot (~14, 3);
+> val it = ~4 : int
+Int.quot (14, ~3);
+> val it = ~4 : int
+Int.quot (~14, ~3);
+> val it = 4 : int
+Int.quot (0, ~3);
+> val it = 0 : int
+Int.precision;
+> val it = SOME 32 : int option
 Int.rem;
 > val it = fn : int * int -> int
+Int.rem (14, 3);
+> val it = 2 : int
+Int.rem (~14, 3);
+> val it = ~2 : int
+Int.rem (14, ~3);
+> val it = 2 : int
+Int.rem (~14, ~3);
+> val it = ~2 : int
+Int.rem (0, ~3);
+> val it = 0 : int
 Int.sameSign;
 > val it = fn : int * int -> bool
+Int.sameSign (3, ~2);
+> val it = false : bool
+Int.sameSign (0, ~2);
+> val it = false : bool
+Int.sameSign (2, 345);
+> val it = true : bool
+Int.sameSign (0, 0);
+> val it = true : bool
 Int.sign;
 > val it = fn : int -> int
+Int.sign ~3;
+> val it = ~1 : int
 Int.toInt;
 > val it = fn : int -> int
+Int.toInt 3;
+> val it = 3 : int
 Int.toLarge;
 > val it = fn : int -> int
+Int.toLarge 3;
+> val it = 3 : int
 Int.toString;
 > val it = fn : int -> string
+Int.toString ~345;
+> val it = "~345" : string
 
 (* Side-by-side comparison of how each Int.fmt radix renders a range of
  * values. To run in SML, prepend `open StringCvt;` (Morel exposes the
