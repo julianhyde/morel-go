@@ -356,7 +356,7 @@ opportunistically.
 - [x] 41. Builtin registry mechanics: structure-as-record values,
       one table mapping builtin -> implementation, alphabetical
       order enforced by lint.
-- [ ] 42. `General`, `Bool`, `Order`, `Option`.
+- [x] 42. `General`, `Bool`, `Order`, `Option`.
 - [ ] 43. `Int`, `Real`, `Math` (float computed in float64).
 - [ ] 44. `String`, `Char`.
 - [ ] 45. `List` — the heavily-used core: `map`, `filter`, `foldl`,
