@@ -348,6 +348,8 @@ var Builtins = map[string]Val{
 	"String.substring":   Fn(stringSubstringFn),
 	"String.tokens":      stringSplit(false),
 	"String.translate":   Fn(stringTranslateFn),
+	"StringCvt.padLeft":  Curry3(stringCvtPadLeftFn),
+	"StringCvt.padRight": Curry3(stringCvtPadRightFn),
 	"Sys.parseTree":      parseTree,
 	"Vector.all":         Fn(allFn),
 	"Vector.app":         Fn(appFn),
