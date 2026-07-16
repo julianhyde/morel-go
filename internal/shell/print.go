@@ -96,6 +96,10 @@ func (c *Config) valueDoc(t types.Type, v eval.Val,
 			return c.seqDoc("#[", "]",
 				c.elementDocs(t.Args[0], v, depth))
 		}
+		if t.Name == "bag" && len(t.Args) == 1 {
+			return c.seqDoc("[", "]",
+				c.elementDocs(t.Args[0], v, depth))
+		}
 		return c.conDoc(t, v, depth)
 	case *types.Primitive:
 		return pp.Text(c.primitiveString(t, v))
