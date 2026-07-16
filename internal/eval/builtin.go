@@ -189,6 +189,7 @@ var Builtins = map[string]Val{
 	"List.map":              mapFn,
 	"List.mapPartial":       Fn(mapPartialFn),
 	"List.mapi":             Fn(mapiFn),
+	"List.nil":              []Val{},
 	"List.nth":              Fn(nthFn),
 	"List.null":             nullFn,
 	"List.only":             Fn(onlyFn),
