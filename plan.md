@@ -722,6 +722,25 @@ method calls,
 (morel#55); predicate inversion (morel#217).
 **Endpoint milestone: parity with morel-rust `e0779b86`.**
 
+## Commit-history maintenance
+
+Deferred history surgery: fold or re-order commits so the final
+history reads as if each fact were known from the start. Do these
+in a quiet moment, replaying with `git rebase -f -x 'fullMake
+--no-clean'` so every rewritten commit stays green.
+
+- [ ] H1. Fold the type-variable naming fix into its origin.
+      Commit `26addc9` ("Name type variables beyond 'z as java
+      does") corrected `varName` to number the 27th variable and
+      beyond `'ba`, `'bb`, ..., `'zz`, `'baa`, matching java's
+      `TypeVar.name`. Cleave the code change (the `varName` rewrite
+      and its `types_test.go` cases) from its corpus regenerations
+      and squash it into `4f64aef` ("Add interned type
+      representations and the type-from-string bootstrap"), which
+      first generated type-variable names, so the base-26 scheme is
+      correct from the start. Re-regenerate any earlier corpus whose
+      wide dumps this shifts.
+
 ## After the endpoint
 
 Fast-follows, in rough order: TCO (morel#151 — frames are already
