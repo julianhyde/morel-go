@@ -740,6 +740,14 @@ in a quiet moment, replaying with `git rebase -f -x 'fullMake
       first generated type-variable names, so the base-26 scheme is
       correct from the start. Re-regenerate any earlier corpus whose
       wide dumps this shifts.
+- [ ] H2. Strip provenance and process from code comments. Sweep
+      the Go source for comments that reference java ("as java
+      does", "matching java's ...", "like java"), tasks, bug or
+      issue numbers, or anything else ephemeral or about how the
+      work was done, and reword them to describe only the behavior.
+      Comments should read as if the code had always been this way.
+      Prefer folding each edit into the commit that introduced the
+      comment.
 
 ## After the endpoint
 
