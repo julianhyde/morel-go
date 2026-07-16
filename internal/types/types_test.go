@@ -77,7 +77,9 @@ func TestDescriptions(t *testing.T) {
 		},
 		{s.Var(0), "'a"},
 		{s.Var(1), "'b"},
-		{s.Var(26), "'a1"},
+		{s.Var(26), "'ba"},
+		{s.Var(51), "'bz"},
+		{s.Var(52), "'ca"},
 		{s.Record([]types.Field{
 			{Label: "b", Type: s.String},
 			{Label: "a", Type: s.Int},
