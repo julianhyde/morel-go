@@ -601,7 +601,7 @@ G. This phase runs before the query slices (G).
       dump (keyword-quoted record labels + cross-field type-var
       numbering), the `op +` first-class-operator foldl, and the
       `vector` top-level shorthand (sig-typed alias binding).
-- [ ] 53. `op` sections — an operator used as a first-class
+- [x] 53. `op` sections — an operator used as a first-class
       value: `(op @)`, `op +` passed to a fold, `List.foldl
       (op +)`. First, before any structure, so a structure's `op`
       tests count toward its completeness.
