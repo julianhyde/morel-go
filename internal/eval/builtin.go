@@ -176,6 +176,7 @@ var Builtins = map[string]Val{
 	"Int.abs":               absFn,
 	"Int.compare":           Fn(intCompareFn),
 	"Int.div":               arith(divInt, nil),
+	"Int.fmt":               Fn(intFmtFn),
 	"Int.fromInt":           Fn(identityFn),
 	"Int.fromLarge":         Fn(identityFn),
 	"Int.fromString":        Fn(intFromStringFn),
@@ -525,7 +526,8 @@ func absFn(arg Val) (Val, error) {
 	switch v := arg.(type) {
 	case int32:
 		if v < 0 {
-			return -v, nil
+			// -minInt does not fit in int, so raise Overflow.
+			return checkIntRange(-int64(v))
 		}
 		return v, nil
 	case float32:
