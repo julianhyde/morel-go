@@ -608,7 +608,7 @@ G. This phase runs before the query slices (G).
 - [x] 54. `String` structure — complete the built-in file: the
       last members and printed forms that java's tests exercise.
 - [x] 55. `List` structure — complete.
-- [ ] 56. `Bag` structure — implement the `'a bag` value type and
+- [x] 56. `Bag` structure — implement the `'a bag` value type and
       its List-like surface (`nil`, `null`, `fromList`, `toList`,
       `length`, `hd`, `tl`, `getItem`, `take`, `drop`, `concat`,
       `app`, `map`, `mapPartial`, `find`, `filter`, `partition`,
