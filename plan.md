@@ -93,6 +93,33 @@ The test scripts are implementation-independent and shared across
 the three ports; matching them is the project's acceptance
 criterion.
 
+### Corpus regeneration with `etc/pull-passing.py`
+
+Once the tool exists, the corpus is no longer grown by hand (steps
+1-2 above); instead `etc/pull-passing.py` is run after each commit
+that adds functionality. It starts from morel-java's copy of each
+`.smli` file and drops every statement morel-go cannot reproduce,
+to a fixed point; because it only deletes whole statements, the
+result is an ordered subsequence of java that round-trips through
+morel-go. A commit's `.smli` additions therefore reflect precisely
+the functionality that commit enabled.
+
+Operating rules:
+
+- Run `etc/pull-passing.py --apply` after adding functionality, and
+  commit the resulting `.smli` changes separately from the code
+  (plan.md is never mixed with code either).
+- A file morel-go crashes on — e.g. `tail-recursion.smli`, whose
+  unbounded recursion overflows the stack — is skipped and left as
+  it is; the crash is a signal for a future task, not a blocker.
+- A java file go does not have yet is created only when enough of
+  it passes (`--min-pass`, `--min-statements`); the rest are
+  deferred and reported with their pass rate.
+- Because each run regenerates whole files rather than applying
+  diffs, successive runs never conflict: coverage grows
+  monotonically as functionality lands, and updating a section
+  (dropping lines and adding others) is rare.
+
 ## Lessons from morel-rust (day-1 rules)
 
 Reversals and fix-cascades in the rust history, and the rule each
