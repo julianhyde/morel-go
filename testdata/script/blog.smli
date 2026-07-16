@@ -436,6 +436,30 @@ emps;
 >    {deptno=30,id=102,name="Shaggy"},{deptno=30,id=103,name="Scooby"}]
 >   : {deptno:int, id:int, name:string} list
 
+(* --- 2020/03/03: Morel: The basic language ---------------------- *)
+
+(*) WordCount in Standard ML
+fun mapReduce mapper reducer list =
+  let
+    fun update (key, value, []) = [(key, [value])]
+      | update (key, value, ((key2, values) :: tail)) =
+          if key = key2 then
+            (key, (value :: values)) :: tail
+          else
+            (key2, values) :: (update (key, value, tail))
+    fun dedup ([], dict) = dict
+      | dedup ((key, value) :: tail, dict) =
+          dedup (tail, update (key, value, dict))
+    fun flatMap f list = List.foldl (op @) [] (List.map f list)
+    val keyValueList = flatMap mapper list
+    val keyValuesList = dedup (keyValueList, [])
+  in
+    List.map (fn (key, values) => (key, reducer (key, values))) keyValuesList
+  end;
+> val mapReduce = fn
+>   : ('a -> ('b * 'c) list)
+>      -> ('b * 'c list -> 'd) -> 'a list -> ('b * 'd) list
+
 fun wc_mapper line =
   let
     fun split0 [] word words = word :: words
@@ -446,11 +470,19 @@ fun wc_mapper line =
     List.map (fn w => (w, 1)) (split line)
   end;
 > val wc_mapper = fn : string -> (string * int) list
+fun wc_reducer (key, values) = List.foldl (op +) 0 values;
+> val wc_reducer = fn : 'a * int list -> int
 
 (*) Check that they work on discrete values
 wc_mapper "a skunk sat on a stump";
 > val it = [("a",1),("skunk",1),("sat",1),("on",1),("a",1),("stump",1)]
 >   : (string * int) list
+wc_reducer ("hello", [1, 4, 2]);
+> val it = 7 : int
+
+(*) Bind them to mapReduce, and run
+fun wordCount lines = mapReduce wc_mapper wc_reducer lines;
+> val wordCount = fn : string list -> (string * int) list
 
 (*) WordCount in Morel
 val lines = ["a skunk sat on a stump",

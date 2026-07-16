@@ -54,6 +54,9 @@ List.`@` ([], [2]);
 List.`@` ([], []);
 > val it = [] : 'a list
 
+(op @) ([1], [2, 3]);
+> val it = [1,2,3] : int list
+
 [1] @ [2, 3];
 > val it = [1,2,3] : int list
 [] @ [];
@@ -251,16 +254,28 @@ List.foldl;
 > val it = fn : ('a * 'b -> 'b) -> 'b -> 'a list -> 'b
 List.foldl (fn (a, b) => a + b) 0 [1,2,3];
 > val it = 6 : int
+List.foldl (op +) 0 [1,2,3];
+> val it = 6 : int
+List.foldl (op +) 0 [];
+> val it = 0 : int
 List.foldl (fn (a, b) => b) 0 [1,2,3];
 > val it = 0 : int
+List.foldl (op -) 0 [1,2,3,4];
+> val it = 2 : int
 
 (*) val foldr : ('a * 'b -> 'b) -> 'b -> 'a list -> 'b
 List.foldr;
 > val it = fn : ('a * 'b -> 'b) -> 'b -> 'a list -> 'b
 List.foldr (fn (a, b) => a + b) 0 [1,2,3];
 > val it = 6 : int
+List.foldr (op +) 0 [1,2,3];
+> val it = 6 : int
+List.foldr (op +) 0 [];
+> val it = 0 : int
 List.foldr (fn (a, b) => b) 0 [1,2,3];
 > val it = 0 : int
+List.foldr (op -) 0 [1,2,3,4];
+> val it = ~2 : int
 
 (*) val exists : ('a -> bool) -> 'a list -> bool
 List.`exists`;
