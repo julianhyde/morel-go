@@ -106,9 +106,12 @@ the functionality that commit enabled.
 
 Operating rules:
 
-- Run `etc/pull-passing.py --apply` after adding functionality, and
-  commit the resulting `.smli` changes separately from the code
-  (plan.md is never mixed with code either).
+- Run `etc/pull-passing.py --apply` as part of each commit that
+  adds functionality, folding the regenerated `.smli` files into
+  that commit. (They cannot be a separate later commit: a commit
+  that changes existing output — type wrapping, string escaping —
+  would otherwise leave the old corpus failing to round-trip, so
+  the corpus must move with the code that changed it.)
 - A file morel-go crashes on — e.g. `tail-recursion.smli`, whose
   unbounded recursion overflows the stack — is skipped and left as
   it is; the crash is a signal for a future task, not a blocker.
