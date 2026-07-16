@@ -605,7 +605,7 @@ G. This phase runs before the query slices (G).
       value: `(op @)`, `op +` passed to a fold, `List.foldl
       (op +)`. First, before any structure, so a structure's `op`
       tests count toward its completeness.
-- [ ] 54. `String` structure — complete the built-in file: the
+- [x] 54. `String` structure — complete the built-in file: the
       last members and printed forms that java's tests exercise.
 - [ ] 55. `List` structure — complete.
 - [ ] 56. `Bag` structure — implement the `'a bag` value type and
