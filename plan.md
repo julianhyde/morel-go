@@ -616,7 +616,7 @@ G. This phase runs before the query slices (G).
       reusing the List code, as `Vector` did, printing bag values
       in java's syntax. The bag *typing* for queries (morel#273)
       waits for phase G, but the structure itself is complete now.
-- [ ] 57. `StringCvt` structure — enough to unblock `fmt`: the
+- [x] 57. `StringCvt` structure — enough to unblock `fmt`: the
       `radix` datatype (`BIN`/`OCT`/`DEC`/`HEX`) and `padLeft`/
       `padRight`. The scanner-based members (`scanString`, the
       reader combinators) wait for reader types, noted in the
