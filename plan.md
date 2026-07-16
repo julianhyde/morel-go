@@ -621,7 +621,7 @@ G. This phase runs before the query slices (G).
       `padRight`. The scanner-based members (`scanString`, the
       reader combinators) wait for reader types, noted in the
       commit as the exception.
-- [ ] 58. `Int` structure — complete; `Int.fmt` uses task 57's
+- [x] 58. `Int` structure — complete; `Int.fmt` uses task 57's
       radix.
 - [ ] 59. `Real` structure — complete; `Real.fmt` likewise.
 - [ ] 60. `Math` structure — complete.
