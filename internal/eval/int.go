@@ -136,6 +136,44 @@ func FormatInt(i int32) string {
 		"-", "~")
 }
 
+// intFmtFn is "Int.fmt radix i": i rendered in the radix's base,
+// with upper-case hex digits and "~" for a negative sign.
+func intFmtFn(radix Val) (Val, error) {
+	base := radixBase(radix)
+	return Fn(func(arg Val) (Val, error) {
+		s := strconv.FormatInt(int64(asInt(arg)), base)
+		return strings.ReplaceAll(strings.ToUpper(s), "-", "~"), nil
+	}), nil
+}
+
+// The numeric bases of the StringCvt.radix constructors.
+const (
+	binRadix = 2
+	octRadix = 8
+	decRadix = 10
+	hexRadix = 16
+)
+
+// radixBase maps a StringCvt.radix constructor (BIN, OCT, DEC, HEX)
+// to its numeric base.
+func radixBase(radix Val) int {
+	con, ok := radix.(Con)
+	if !ok {
+		panic("Int.fmt: radix is not a constructor")
+	}
+	// lint: sort until '^\t}' where '^\tcase '
+	switch con.Name {
+	case "BIN":
+		return binRadix
+	case "HEX":
+		return hexRadix
+	case "OCT":
+		return octRadix
+	default:
+		return decRadix
+	}
+}
+
 // intFromStringFn is "Int.fromString s": parses the longest
 // prefix of s that looks like an integer, returning NONE if
 // there is none.
