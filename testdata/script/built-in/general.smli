@@ -50,6 +50,8 @@ General.`o` (Char.chr, String.size);
 > val it = fn : string -> char
 General.`o` (Char.chr, String.size) "012345678901234567890123456789012";
 > val it = #"!" : char
+(op o) (Char.chr, String.size) "012345678901234567890123456789012";
+> val it = #"!" : char
 
 val plusOne = fn x => x + 1;
 > val plusOne = fn : int -> int

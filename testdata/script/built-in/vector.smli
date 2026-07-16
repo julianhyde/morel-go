@@ -155,6 +155,8 @@ Vector.foldri (fn (i,j,a) => a + i * j) 0 (Vector.fromList [2,3,4]);
 (*) Vector.foldl  : ('a * 'b -> 'b) -> 'b -> 'a vector -> 'b
 Vector.foldl;
 > val it = fn : ('a * 'b -> 'b) -> 'b -> 'a vector -> 'b
+Vector.foldl (op +) 0 (Vector.fromList [2,3,4]);
+> val it = 9 : int
 
 (*) Vector.foldr  : ('a * 'b -> 'b) -> 'b -> 'a vector -> 'b
 Vector.foldr;

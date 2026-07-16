@@ -132,26 +132,54 @@ LESS;
 valOf NONE;
 > uncaught exception Option
 >   raised at: stdIn:1.1-1.11
+
+(* Values --------------------------------------------------------- *)
+
+(* "val ! : 'a ref -> 'a" maps to "General.!" *)
+(*) TODO !;
+
+(* "val := : 'a ref * 'a -> unit" maps to "General.:=" *)
+(*) TODO :=;
+
+(* "val ~ : int -> int" maps to "Int.~"; overloaded for real *)
+op ~;
+> val it = fn : int -> int
 Int.`~`;
 > val it = fn : int -> int
 ~ 5;
 > val it = ~5 : int
 ~ 3.5;
 > val it = ~3.5 : real
+
+(* "val + : int * int -> int" maps to "Int.+" *)
+op +;
+> val it = fn : int * int -> int
 Int.`+`;
+> val it = fn : int * int -> int
+
+(* "val - : int * int -> int" maps to "Int.-" *)
+op -;
 > val it = fn : int * int -> int
 Int.`-`;
 > val it = fn : int * int -> int
+
+(* "val * : int * int -> int" maps to "Int.*" *)
+op *;
+> val it = fn : int * int -> int
 Int.`*`;
 > val it = fn : int * int -> int
+
+(* "val @ : ('a list * 'a list) -> 'a list" maps to "List.@" *)
+op @;
+> val it = fn : 'a list * 'a list -> 'a list
 List.`@`;
 > val it = fn : 'a list * 'a list -> 'a list
+
+(* "val ^ : string * string -> string" maps to "String.^" *)
+op ^;
+> val it = fn : string * string -> string
 String.`^`;
 > val it = fn : string * string -> string
-
-(* "val abs : int -> int" maps to "Int.abs"; overloaded for real *)
-abs;
-> val it = fn : 'a -> 'a
 Int.abs;
 > val it = fn : int -> int
 abs ~3;
@@ -274,6 +302,10 @@ null;
 > val it = fn : 'a list -> bool
 List.null;
 > val it = fn : 'a list -> bool
+
+(* "val o : ('a->'b) * ('c->'a) -> 'c->'b" maps to "General.o" *)
+op o;
+> val it = fn : ('a -> 'b) * ('c -> 'a) -> 'c -> 'b
 General.`o`;
 > val it = fn : ('a -> 'b) * ('c -> 'a) -> 'c -> 'b
 
@@ -414,36 +446,71 @@ Sys.unset;
 > val it = fn : string -> unit
 Interact.useSilently;
 > val it = fn : string -> unit
+
+(* Overloaded operators ------------------------------------------- *)
+(* Standard ML overloads twelve operators. Each is shown with its default
+ * signature, then applied to a value of each type for which it is defined.
+ * Word arithmetic ("+", "-", "*", "div", "mod", "~") wraps modulo
+ * 2^wordSize, and word division and comparison are unsigned. *)
+
+(* "op +" : numeric (int, real, word); default "int * int -> int". *)
+op +;
+> val it = fn : int * int -> int
 1 + 2;
 > val it = 3 : int
 1.0 + 2.0;
 > val it = 3 : real
+
+(* "op -" : numeric (int, real, word). *)
+op -;
+> val it = fn : int * int -> int
 3 - 1;
 > val it = 2 : int
 3.0 - 1.0;
 > val it = 2 : real
+
+(* "op *" : numeric (int, real, word). *)
+op *;
+> val it = fn : int * int -> int
 2 * 3;
 > val it = 6 : int
 2.0 * 3.0;
 > val it = 6 : real
+
+(* "op div" : wordint (int, word). Word division is unsigned. *)
+op div;
+> val it = fn : int * int -> int
 7 div 2;
 > val it = 3 : int
+
+(* "op mod" : wordint (int, word). *)
+op mod;
+> val it = fn : int * int -> int
 7 mod 2;
 > val it = 1 : int
+
+(* "op /" : real only; applying to int is a type error. *)
+op /;
+> val it = fn : real * real -> real
 3.0 / 2.0;
 > val it = 1.5 : real
+
+(* "op ~" : num (int, real, word). For word, '~' is the 2's complement. *)
+op ~;
+> val it = fn : int -> int
 ~ 5;
 > val it = ~5 : int
 ~ 5.0;
 > val it = ~5 : real
-
-(* "abs" : a function (not an operator), numeric (int, real). *)
-abs;
-> val it = fn : 'a -> 'a
 abs ~5;
 > val it = 5 : int
 abs ~5.0;
 > val it = 5 : real
+
+(* "op <" : numtext (int, real, string, char, word). Word is unsigned, so a
+ * word with the high bit set is large. *)
+op <;
+> val it = fn : 'a * 'a -> bool
 1 < 2;
 > val it = true : bool
 1.0 < 2.0;
@@ -452,6 +519,10 @@ abs ~5.0;
 > val it = true : bool
 #"a" < #"b";
 > val it = true : bool
+
+(* "op >" : numtext (int, real, string, char, word). *)
+op >;
+> val it = fn : 'a * 'a -> bool
 2 > 1;
 > val it = true : bool
 2.0 > 1.0;
@@ -460,6 +531,10 @@ abs ~5.0;
 > val it = true : bool
 #"b" > #"a";
 > val it = true : bool
+
+(* "op <=" : numtext (int, real, string, char, word). *)
+op <=;
+> val it = fn : 'a * 'a -> bool
 2 <= 2;
 > val it = true : bool
 2.0 <= 2.0;
@@ -468,6 +543,10 @@ abs ~5.0;
 > val it = true : bool
 #"a" <= #"a";
 > val it = true : bool
+
+(* "op >=" : numtext (int, real, string, char, word). *)
+op >=;
+> val it = fn : 'a * 'a -> bool
 2 >= 3;
 > val it = false : bool
 2.0 >= 3.0;
