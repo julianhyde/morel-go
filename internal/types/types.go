@@ -122,14 +122,24 @@ func namedDesc(name string, args []Type) string {
 }
 
 // varName returns the description of the type variable with the
-// given ordinal: 'a, 'b, ..., 'z, 'a1, 'b1, ...
+// given ordinal: 'a, 'b, ..., 'z, 'ba, 'bb, ..., 'zz, 'baa, ...
+// It is a base-26 number with 'a' as 0 and 'z' as 25, matching
+// java's TypeVar.name.
 func varName(ordinal int) string {
 	const letters = 26
-	name := "'" + string(rune('a'+ordinal%letters))
-	if ordinal >= letters {
-		name += strconv.Itoa(ordinal / letters)
+	var b []byte
+	for {
+		b = append(b, byte('a'+ordinal%letters))
+		ordinal /= letters
+		if ordinal == 0 {
+			break
+		}
 	}
-	return name
+	// The digits were generated least-significant first.
+	for i, j := 0, len(b)-1; i < j; i, j = i+1, j-1 {
+		b[i], b[j] = b[j], b[i]
+	}
+	return "'" + string(b)
 }
 
 // descArg parenthesizes a type used as a list element or tuple
