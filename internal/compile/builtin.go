@@ -54,6 +54,7 @@ const (
 var topBuiltins = map[string]topBuiltin{
 	"abs":       {"'a -> 'a", intName},
 	"app":       {"('a -> unit) -> 'a list -> unit", ""},
+	"bag":       {"'a list -> 'a bag", ""},
 	"ceil":      {realToInt, ""},
 	"chr":       {"int -> char", ""},
 	"env":       {"unit -> (string * string) list", ""},
