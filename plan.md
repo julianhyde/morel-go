@@ -644,7 +644,11 @@ G. This phase runs before the query slices (G).
       hunks: `testChar`, which exercises the classification
       predicates through a `group`/`compute`/`order` query, so it
       waits for the phase-G relational features.
-- [ ] 65. `General` structure — complete.
+- [x] 65. `General` structure — complete, save for `exnName` and
+      `exnMessage`: those need first-class `exn` values (the built-in
+      exceptions and `Fail` bound as values), a piece of the
+      exception system that `raise` (morel#364) also needs, so they
+      wait for that feature rather than being built piecemeal here.
 - [ ] 66. `Vector` structure — complete (finish task 52: the
       `Vector;` dump now prints, given task 51's label quoting and
       contiguous type-variable numbering).
