@@ -747,6 +747,9 @@ in a quiet moment, replaying with `git rebase -f -x 'fullMake
       Comments should read as if the code had always been this way.
       Prefer folding each edit into the commit that introduced the
       comment.
+- [ ] H3. Rename `isASCIIChar` to `isAsciiChar` in its birth commit
+      ("Implement String and Char"), so the initialism matches the
+      `Ascii` casing of `Char.isAscii` and Go's mixed-caps style.
 
 ## After the endpoint
 
