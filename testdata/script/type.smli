@@ -46,6 +46,12 @@
 > val it = ((1,true),7) : (int * bool) * int
 (1,(true,7));
 > val it = (1,(true,7)) : int * (bool * int)
+fn (x: (int * bool) * int) => true;
+> val it = fn : (int * bool) * int -> bool
+fn (x: int * (bool * int)) => true;
+> val it = fn : int * (bool * int) -> bool
+fn (x: int * bool * int) => true;
+> val it = fn : int * bool * int -> bool
 
 (*) Expressions with type annotations
 1: int;
@@ -66,6 +72,19 @@ INR ((1, true), 7);
 INR (1, (true, 7));
 > val it = INR (1,(true,7)) : ('a,int * (bool * int)) either
 
+(* Tuple types and function types interact correctly: '*' binds tighter
+ * than '->' in both source syntax and printed form. A tuple as a
+ * function arg or result needs no parens; a function as a tuple element
+ * does. *)
+fun f (x: int * bool) = 1;
+> val f = fn : int * bool -> int
+fn x: int * bool => x;
+> val it = fn : int * bool -> int * bool
+fn x: int -> int * bool => 1;
+> val it = fn : (int -> int * bool) -> int
+fn x: (int -> int) * bool => 1;
+> val it = fn : (int -> int) * bool -> int
+
 []: int list;
 > val it = [] : int list
 []: {a: int, b: string} list;
@@ -82,9 +101,58 @@ String.size ("abc": string);
 > val it = 3 : int
 String.size ("abc": string): int;
 > val it = 3 : int
+
+(*) Patterns with type annotations
+val x: int = 1;
+> val x = 1 : int
+val y: bool = true;
+> val y = true : bool
+val (y: bool) = true;
+> val y = true : bool
+val p: int * bool = (1, true);
+> val p = (1,true) : int * bool
+val (p: int * bool) = (1, true);
+> val p = (1,true) : int * bool
+val empty: int list = [];
+> val empty = [] : int list
+val empty2: {a: int, b: string} list = [];
+> val empty2 = [] : {a:int, b:string} list
+
+(*) Function declarations with type annotations
+fun f (x: int, y) = x + y;
+> val f = fn : int * int -> int
+fun f (x, y: int) = x + y;
+> val f = fn : int * int -> int
+fun f3 (e: {name: string, deptno:int}) = e.deptno;
+> val f3 = fn : {deptno:int, name:string} -> int
+fun hello (name: string, code: int): string = "hello!";
+> val hello = fn : string * int -> string
+fun hello2 (name: string) (code : int): string = "hello!";
+> val hello2 = fn : string -> int -> string
+val hello3: string * int -> string =
+  fn (name, code) => "hello!";
+> val hello3 = fn : string * int -> string
+fun l1 [] = 0 | l1 ((h: string) :: t) = 1 + (l1 t);
+> val l1 = fn : string list -> int
+fun l2 [] = 0 | l2 (h :: (t: bool list)) = 1 + (l2 t);
+> val l2 = fn : bool list -> int
+fun l1a (p: string list) = List.length p;
+> val l1a = fn : string list -> int
+fun l1b (p: string list): int = List.length p;
+> val l1b = fn : string list -> int
+fun l2b (p: bool list) = List.length p;
+> val l2b = fn : bool list -> int
+fun l3b (p: {b: int, a: string} list) = List.length p;
+> val l3b = fn : {a:string, b:int} list -> int
+fun countOption (NONE: string option) = 0
+  | countOption (SOME x) = 1;
+> val countOption = fn : string option -> int
 fun countOption0 (NONE) = 0
   | countOption0 (SOME x) = if x = "" then 1 else 2;
 > val countOption0 = fn : string option -> int
+fun countOption00 (SOME x) = 1
+  | countOption00 (NONE: string option) = 0;
+> val countOption00 = fn : string option -> int
 fun countOption1 (NONE) = 0
   | countOption1 (SOME x) = if x then 1 else 2;
 > val countOption1 = fn : bool option -> int
@@ -184,6 +252,16 @@ map len (map explode ["ab", "", "cde"]);
 map (fn s => len (explode s)) ["ab", "", "cde"];
 > val it = [2,0,3] : int list
 
+(* Polymorphic type constraints ----------------------------------- *)
+
+(*) id_list returns its argument but that argument must be a list
+fun id_list (x: 'a list) = x;
+> val id_list = fn : 'a list -> 'a list
+id_list [1,2];
+> val it = [1,2] : int list
+id_list ["a","b"];
+> val it = ["a","b"] : string list
+
 (*) Same, without parentheses around the argument.
 fun id_list x: 'a list = x;
 > val id_list = fn : 'a list -> 'a list
@@ -203,6 +281,23 @@ one_list "a";
 > val it = ["a"] : string list
 one_list ("a", "b");
 > val it = [("a","b")] : (string * string) list
+
+(*) Four type parameters collapse to two
+fun four_list (a: 'a, b: 'b, c: 'c, d: 'd) = [(a, true, b), (c, d, b)];
+> val four_list = fn : 'a * 'b * 'a * bool -> ('a * bool * 'b) list
+four_list (1, "a", 2, false);
+> val it = [(1,true,"a"),(2,false,"a")] : (int * bool * string) list
+
+(*) first_pair returns the first item, but requires types to be the same
+fun first_pair (list: ('a * 'a) list) = hd list;
+> val first_pair = fn : ('a * 'a) list -> 'a * 'a
+first_pair [(1,2),(3,4)];
+> val it = (1,2) : int * int
+first_pair [("a","b"),("c","d")];
+> val it = ("a","b") : string * string
+first_pair [("a",true),("c",false)];
+> stdIn:1.1-1.36 Error: Cannot deduce type: conflict: string vs bool
+>   raised at: stdIn:1.1-1.36
 
 (* Type resolution involving record selectors --------------------- *)
 val emps =
@@ -305,6 +400,13 @@ end;
 [INR(true,1),INL "x"];
 > val it = [INR (true,1),INL "x"] : (string,bool * int) either list
 
+(* If a function type is spread over several lines, put '->' at the start of
+ * the next line. *)
+val f : ('a -> (int * int) list) -> ('a -> (int * int) list) -> 'a -> (int * int) list = fn a => fn b => fn c => [];
+> val f = fn
+>   : ('a -> (int * int) list)
+>      -> ('a -> (int * int) list) -> 'a -> (int * int) list
+
 (* Function with tuple type and lots of type variables returns record type.
  * Note that after 'z, type variables are 'ba, 'bb, etc.
  * Also note that 'o' needs to be quoted. *)
@@ -358,6 +460,13 @@ let val r = {a=[], b=[]} in r.b end;
 > val it = [] : 'a list
 fun f (a, b, c) = {x=c, y=a};
 > val f = fn : 'a * 'b * 'c -> {x:'c, y:'a}
+
+(* [MOREL-247] Cannot translate an expression that contains type annotations. *)
+fun divides (n: int, d: int): bool =
+  n mod d = 0;
+> val divides = fn : int * int -> bool
+divides (10, 4): bool;
+> val it = false : bool
 
 (* An expression whose type is complicated to infer. *)
 fun f1 x = x;
