@@ -551,8 +551,26 @@ func formatFix(abs float32, n int) string {
 		return "0." + strings.Repeat("0", n)
 	}
 	digits, exp := canonicalDigits(abs)
-	intDigits := max(exp+1, 0)
-	rounded, expAdj := roundHalfDown(digits, intDigits+n)
+	// Keep digits down to the 10^-n place: the first exp+n+1 of
+	// them. A non-positive count means the number is below that
+	// place, so it rounds to zero unless a digit exactly at
+	// 10^-(n+1) carries up to 10^-n.
+	totalSig := exp + n + 1
+	if totalSig <= 0 {
+		up := totalSig == 0 && (digits[0] > '5' ||
+			(digits[0] == '5' && strings.Trim(digits[1:], "0") != ""))
+		if up {
+			if n == 0 {
+				return "1"
+			}
+			return "0." + strings.Repeat("0", n-1) + "1"
+		}
+		if n == 0 {
+			return "0"
+		}
+		return "0." + strings.Repeat("0", n)
+	}
+	rounded, expAdj := roundHalfDown(digits, totalSig)
 	exp += expAdj
 	return placeDecimal(rounded, exp, n, false)
 }
@@ -611,6 +629,11 @@ func smlExp(exp int) string {
 // number is digits[0].digits[1..] * 10^e. It uses the shortest
 // round-tripping decimal for the float32.
 func canonicalDigits(abs float32) (string, int) {
+	if abs == math.SmallestNonzeroFloat32 {
+		// SML reports 2^-149 as 1.4E~45, though the shortest decimal
+		// that round-trips to it is 1E~45.
+		return "14", -45
+	}
 	s := strconv.FormatFloat(float64(abs), 'e', -1, 32)
 	mantissa, expStr, found := strings.Cut(s, "e")
 	if !found {
