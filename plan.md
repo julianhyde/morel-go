@@ -636,7 +636,7 @@ G. This phase runs before the query slices (G).
       literals, and the members (`fromInt`/`toInt`, the bitwise and
       arithmetic operators, `fmt` via task 57's radix, `compare`);
       the fourth primitive-backed structure, after Int/Real/Math.
-- [ ] 62. `Option` structure — complete.
+- [x] 62. `Option` structure — complete.
 - [ ] 63. `Bool` structure — complete.
 - [ ] 64. `Char` structure — complete.
 - [ ] 65. `General` structure — complete.
