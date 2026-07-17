@@ -93,3 +93,16 @@ func stampSpan(err error, span token.Span) error {
 	}
 	return err
 }
+
+// restampSpan replaces a Morel error's position with the given one.
+// An error surfacing from an application's function subexpression is
+// a curried built-in rejecting a partial argument (such as Real.fmt
+// on an invalid precision); it is reported at the whole application,
+// as java does, not at the partial.
+func restampSpan(err error, span token.Span) error {
+	var morelErr *MorelError
+	if errors.As(err, &morelErr) {
+		morelErr.Span = span
+	}
+	return err
+}
