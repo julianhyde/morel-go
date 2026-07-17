@@ -665,7 +665,7 @@ G. This phase runs before the query slices (G).
 - [x] 70. `Range` structure — range values (morel#338);
       `contains`, `toList`/`toBag`, `discreteSetOf`/
       `continuousSetOf`, `flatten`, `ranges`, `complement`.
-- [ ] 71. `Variant` structure — variant values (morel#324);
+- [x] 71. `Variant` structure — variant values (morel#324);
       `parse`, `print`.
 - [ ] 72. `Date` structure — the `date` type over Go's `time`
       (morel#278); `date`, `year`/`month`/…/`yearDay`, `compare`,
