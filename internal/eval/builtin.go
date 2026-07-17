@@ -235,7 +235,7 @@ var Builtins = map[string]Val{
 	"Math.ln":               real1(math.Log),
 	"Math.log10":            real1(math.Log10),
 	"Math.pi":               float32(math.Pi),
-	"Math.pow":              real2(math.Pow),
+	"Math.pow":              Fn(mathPowFn),
 	"Math.sin":              real1(math.Sin),
 	"Math.sinh":             real1(math.Sinh),
 	"Math.sqrt":             real1(math.Sqrt),
