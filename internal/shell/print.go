@@ -34,6 +34,7 @@ const (
 	intType    = "int"
 	realType   = "real"
 	stringType = "string"
+	timeType   = "time"
 	wordType   = "word"
 )
 
@@ -107,6 +108,9 @@ func (c *Config) valueDoc(t types.Type, v eval.Val,
 		if t.Name == "bag" && len(t.Args) == 1 {
 			return c.seqDoc("[", "]",
 				c.elementDocs(t.Args[0], v, depth))
+		}
+		if t.Name == timeType {
+			return pp.Text(eval.FormatTime(v))
 		}
 		return c.conDoc(t, v, depth)
 	case *types.Primitive:
