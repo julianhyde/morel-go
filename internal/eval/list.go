@@ -19,6 +19,7 @@ package eval
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 )
@@ -202,8 +203,19 @@ func valsEqual(a, b Val) bool {
 func compareFn(test func(c int) bool) Fn {
 	return func(arg Val) (Val, error) {
 		a, b := asPair(arg)
+		// An ordering comparison with a NaN real is false, as IEEE
+		// requires; cmpOrdered would otherwise report NaN as equal.
+		if isNaNReal(a) || isNaNReal(b) {
+			return false, nil
+		}
 		return test(compareVals(a, b)), nil
 	}
+}
+
+// isNaNReal reports whether v is a NaN real.
+func isNaNReal(v Val) bool {
+	f, ok := v.(float32)
+	return ok && math.IsNaN(float64(f))
 }
 
 func compareVals(a, b Val) int {
