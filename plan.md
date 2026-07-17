@@ -659,7 +659,7 @@ G. This phase runs before the query slices (G).
       (`INL`/`INR`); `isLeft`/`isRight`, `asLeft`/`asRight`,
       `map`/`mapLeft`/`mapRight`, `app`/`appLeft`/`appRight`,
       `fold`, `proj`, `partition`.
-- [ ] 69. `Fn` structure — combinators `id`, `const`, `apply`,
+- [x] 69. `Fn` structure — combinators `id`, `const`, `apply`,
       `o`, `curry`, `uncurry`, `flip`, `repeat`, `equal`,
       `notEqual`.
 - [ ] 70. `Range` structure — range values (morel#338);
