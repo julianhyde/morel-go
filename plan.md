@@ -638,7 +638,12 @@ G. This phase runs before the query slices (G).
       the fourth primitive-backed structure, after Int/Real/Math.
 - [x] 62. `Option` structure — complete.
 - [x] 63. `Bool` structure — complete.
-- [ ] 64. `Char` structure — complete.
+- [x] 64. `Char` structure — complete (the last unimplemented
+      members, `toCString`/`fromCString`, are now in). One block of
+      `built-in/char.smli` remains unpulled beyond the postfix
+      hunks: `testChar`, which exercises the classification
+      predicates through a `group`/`compute`/`order` query, so it
+      waits for the phase-G relational features.
 - [ ] 65. `General` structure — complete.
 - [ ] 66. `Vector` structure — complete (finish task 52: the
       `Vector;` dump now prints, given task 51's label quoting and
