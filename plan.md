@@ -649,7 +649,7 @@ G. This phase runs before the query slices (G).
       exceptions and `Fail` bound as values), a piece of the
       exception system that `raise` (morel#364) also needs, so they
       wait for that feature rather than being built piecemeal here.
-- [ ] 66. `Vector` structure — complete (finish task 52: the
+- [x] 66. `Vector` structure — complete (finish task 52: the
       `Vector;` dump now prints, given task 51's label quoting and
       contiguous type-variable numbering).
 - [ ] 67. `ListPair` structure — `zip`, `unzip`, `map`, `app`,
