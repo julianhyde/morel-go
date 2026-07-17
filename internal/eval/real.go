@@ -56,15 +56,15 @@ func real2(f func(a, b float64) float64) Fn {
 	}
 }
 
-// realTest adapts a float64 predicate.
-func realTest(f func(a float64) bool) Fn {
+// realPredicate adapts a float64 predicate.
+func realPredicate(f func(a float64) bool) Fn {
 	return func(arg Val) (Val, error) {
 		return f(float64(asReal(arg))), nil
 	}
 }
 
-// realPairTest adapts a float64 predicate of a pair.
-func realPairTest(f func(a, b float64) bool) Fn {
+// realPairPredicate adapts a float64 predicate of a pair.
+func realPairPredicate(f func(a, b float64) bool) Fn {
 	return func(arg Val) (Val, error) {
 		a, b := asRealPair(arg)
 		return f(a, b), nil
@@ -158,14 +158,36 @@ func realToIntFn(round func(float64) float64) Fn {
 	}
 }
 
+// realIsNegative reports whether a real is negative. For a NaN it
+// inverts the raw sign, so nan counts as negative and ~nan as
+// positive; this defines Real.signBit, sameSign, and copySign.
+func realIsNegative(f float64) bool {
+	neg := math.Signbit(f)
+	if math.IsNaN(f) {
+		return !neg
+	}
+	return neg
+}
+
+// realCopySign is "Real.copySign (a, b)": the magnitude of a with
+// the sign of b.
+func realCopySign(a, b float64) float64 {
+	if realIsNegative(b) {
+		return -math.Abs(a)
+	}
+	return math.Abs(a)
+}
+
 // realSplitFn is "Real.split r": its fractional and whole parts,
-// as the record {frac, whole}.
+// as the record {frac, whole}. The whole part of a zero is positive.
 func realSplitFn(arg Val) (Val, error) {
 	r := float64(asReal(arg))
 	var frac, whole float64
 	switch {
-	case r == 0 || math.IsNaN(r):
+	case math.IsNaN(r):
 		frac, whole = r, r
+	case r == 0:
+		frac, whole = r, 0
 	case math.IsInf(r, 0):
 		frac, whole = math.Copysign(0, r), r
 	default:
@@ -173,6 +195,16 @@ func realSplitFn(arg Val) (Val, error) {
 		frac = r - whole
 	}
 	return []Val{float32(frac), float32(whole)}, nil
+}
+
+// realTruncFn is "Real.realTrunc r": r rounded toward zero, as a
+// real. An infinity has no whole part, so it yields NaN.
+func realTruncFn(arg Val) (Val, error) {
+	r := float64(asReal(arg))
+	if math.IsInf(r, 0) {
+		return float32(math.NaN()), nil
+	}
+	return float32(math.Trunc(r)), nil
 }
 
 // realModFn is "Real.realMod r", the fractional part of r.
@@ -199,6 +231,12 @@ func realToManExpFn(arg Val) (Val, error) {
 		man, exp = r, zeroExp
 	default:
 		man, exp = math.Frexp(r)
+		if exp < zeroExp {
+			// A subnormal's exponent is clamped to the minimum
+			// normal exponent; its mantissa drops below 0.5.
+			man = math.Ldexp(man, exp-zeroExp)
+			exp = zeroExp
+		}
 	}
 	return []Val{int32(exp), float32(man)}, nil
 }
@@ -211,12 +249,27 @@ func realFromManExpFn(arg Val) (Val, error) {
 	return float32(math.Ldexp(man, int(exp))), nil
 }
 
-// realFromStringFn is "Real.fromString s": parses the longest
-// prefix of s that looks like a real, returning NONE if there is
-// none.
+// isSpaceByte reports whether b is a whitespace character that
+// Real.fromString skips before the number.
+func isSpaceByte(b byte) bool {
+	switch b {
+	case ' ', '\t', '\n', '\v', '\f', '\r':
+		return true
+	default:
+		return false
+	}
+}
+
+// realFromStringFn is "Real.fromString s": after leading
+// whitespace, parses the longest prefix of s that looks like a
+// real, returning NONE if there is none.
 func realFromStringFn(arg Val) (Val, error) {
 	s := asString(arg)
 	i := 0
+	for i < len(s) && isSpaceByte(s[i]) {
+		i++
+	}
+	start := i
 	accept := func(test func(byte) bool) bool {
 		if i < len(s) && test(s[i]) {
 			i++
@@ -259,7 +312,7 @@ func realFromStringFn(arg Val) (Val, error) {
 			i = e
 		}
 	}
-	text := strings.ReplaceAll(s[:i], "~", "-")
+	text := strings.ReplaceAll(s[start:i], "~", "-")
 	f, err := strconv.ParseFloat(text, 64)
 	if err != nil {
 		return noneVal, nil //nolint:nilerr // NONE, not an error
@@ -359,4 +412,298 @@ func writeScientific(b *strings.Builder, digits string, exp int) {
 		exp = -exp
 	}
 	b.WriteString(strconv.Itoa(exp))
+}
+
+// fmtKind is the style of a StringCvt.realfmt: scientific, fixed,
+// general, or exact.
+type fmtKind int
+
+const (
+	sciKind fmtKind = iota
+	fixKind
+	genKind
+	exactKind
+)
+
+// realFmtFn is "Real.fmt spec": it validates the spec — a negative
+// precision for SCI or FIX, or a precision below 1 for GEN, raises
+// Size — and returns the function that renders a real in that style.
+func realFmtFn(spec Val) (Val, error) {
+	if fmtSpecBad(spec) {
+		return nil, &MorelError{Exn: ExnSize}
+	}
+	return Fn(func(arg Val) (Val, error) {
+		return realFmt(spec, asReal(arg)), nil
+	}), nil
+}
+
+// fmtSpecBad reports whether a realfmt spec's precision is out of
+// range for its kind.
+func fmtSpecBad(spec Val) bool {
+	con, _ := spec.(Con)
+	switch con.Name {
+	case "FIX", "SCI":
+		if n, ok := optInt(con.Arg); ok && n < 0 {
+			return true
+		}
+	case "GEN":
+		if n, ok := optInt(con.Arg); ok && n < 1 {
+			return true
+		}
+	}
+	return false
+}
+
+// optInt returns the payload of an "int option" value: (n, true)
+// for SOME n, (0, false) for NONE.
+func optInt(opt Val) (int, bool) {
+	con, ok := opt.(Con)
+	if !ok || con.Name != "SOME" {
+		return 0, false
+	}
+	i, _ := con.Arg.(int32)
+	return int(i), true
+}
+
+// parseFmtSpec returns a realfmt spec's kind and precision, applying
+// the per-kind default when the precision is NONE: 6 for SCI and
+// FIX, 12 for GEN.
+func parseFmtSpec(spec Val) (fmtKind, int) {
+	con, _ := spec.(Con)
+	var kind fmtKind
+	def := 0
+	// lint: sort until '^\t}' where '^\tcase '
+	switch con.Name {
+	case "EXACT":
+		return exactKind, 0
+	case "FIX":
+		kind, def = fixKind, 6
+	case "GEN":
+		kind, def = genKind, 12
+	case "SCI":
+		kind, def = sciKind, 6
+	}
+	if n, ok := optInt(con.Arg); ok {
+		return kind, n
+	}
+	return kind, def
+}
+
+// realFmt renders a real in the given realfmt style. Special values
+// are "nan", "inf", and "~inf"; a negative sign is "~".
+func realFmt(spec Val, r float32) string {
+	kind, n := parseFmtSpec(spec)
+	f := float64(r)
+	if math.IsNaN(f) {
+		return "nan"
+	}
+	if math.IsInf(f, 0) {
+		if math.Signbit(f) {
+			return "~inf"
+		}
+		return "inf"
+	}
+	neg := math.Signbit(f)
+	abs := float32(math.Abs(f))
+	var body string
+	// lint: sort until '^\t}' where '^\tcase '
+	switch kind {
+	case exactKind:
+		body = formatExact(abs)
+	case fixKind:
+		body = formatFix(abs, n)
+	case genKind:
+		body = formatGen(abs, n)
+	case sciKind:
+		body = formatSci(abs, n)
+	}
+	if neg {
+		return "~" + body
+	}
+	return body
+}
+
+// formatSci renders abs in scientific notation "D.dddE<exp>" with n
+// digits after the decimal point.
+func formatSci(abs float32, n int) string {
+	if abs == 0 {
+		if n == 0 {
+			return "0E0"
+		}
+		return "0." + strings.Repeat("0", n) + "E0"
+	}
+	digits, exp := canonicalDigits(abs)
+	rounded, expAdj := roundHalfDown(digits, n+1)
+	exp += expAdj
+	if n == 0 {
+		return rounded[:1] + "E" + smlExp(exp)
+	}
+	return rounded[:1] + "." + rounded[1:] + "E" + smlExp(exp)
+}
+
+// formatFix renders abs in fixed-point notation with n digits after
+// the decimal point.
+func formatFix(abs float32, n int) string {
+	if abs == 0 {
+		if n == 0 {
+			return "0"
+		}
+		return "0." + strings.Repeat("0", n)
+	}
+	digits, exp := canonicalDigits(abs)
+	intDigits := max(exp+1, 0)
+	rounded, expAdj := roundHalfDown(digits, intDigits+n)
+	exp += expAdj
+	return placeDecimal(rounded, exp, n, false)
+}
+
+// formatGen renders abs with at most n significant digits, using
+// fixed notation when the exponent is in [-3, n) and scientific
+// otherwise, with trailing zeros stripped.
+func formatGen(abs float32, n int) string {
+	if abs == 0 {
+		return "0"
+	}
+	digits, exp := canonicalDigits(abs)
+	rounded, expAdj := roundHalfDown(digits, n)
+	exp += expAdj
+	stripped := strings.TrimRight(rounded, "0")
+	if stripped == "" {
+		stripped = "0"
+	}
+	if exp <= -3 || exp >= n {
+		if len(stripped) == 1 {
+			return stripped + "E" + smlExp(exp)
+		}
+		return stripped[:1] + "." + stripped[1:] + "E" + smlExp(exp)
+	}
+	return placeDecimal(stripped, exp, 0, true)
+}
+
+// formatExact renders abs as "0.<digits>E<exp>", the exact decimal
+// value with trailing zeros stripped.
+func formatExact(abs float32) string {
+	if abs == 0 {
+		return "0.0"
+	}
+	digits, exp := canonicalDigits(abs)
+	stripped := strings.TrimRight(digits, "0")
+	if stripped == "" {
+		stripped = "0"
+	}
+	exp++
+	if exp == 0 {
+		return "0." + stripped
+	}
+	return "0." + stripped + "E" + smlExp(exp)
+}
+
+// smlExp renders an exponent with "~" for a negative sign.
+func smlExp(exp int) string {
+	if exp < 0 {
+		return "~" + strconv.Itoa(-exp)
+	}
+	return strconv.Itoa(exp)
+}
+
+// canonicalDigits returns abs's significant digits (no leading
+// zeros, no point) and the scientific exponent e such that the
+// number is digits[0].digits[1..] * 10^e. It uses the shortest
+// round-tripping decimal for the float32.
+func canonicalDigits(abs float32) (string, int) {
+	s := strconv.FormatFloat(float64(abs), 'e', -1, 32)
+	mantissa, expStr, found := strings.Cut(s, "e")
+	if !found {
+		expStr = "0"
+	}
+	expBase, _ := strconv.Atoi(expStr)
+	intPart, fracPart, _ := strings.Cut(mantissa, ".")
+	digits := intPart + fracPart
+	if digits == "" {
+		digits = "0"
+	}
+	return digits, expBase + len(intPart) - 1
+}
+
+// roundHalfDown rounds a digit string to target significant digits,
+// ties toward zero. It returns the rounded digits and an exponent
+// adjustment of 1 when the rounding carried past the leading digit
+// ("999" -> "1000").
+func roundHalfDown(digits string, target int) (string, int) {
+	if target <= 0 {
+		return "0", 0
+	}
+	if len(digits) <= target {
+		return digits + strings.Repeat("0", target-len(digits)), 0
+	}
+	kept := digits[:target]
+	dropped := digits[target:]
+	roundUp := dropped[0] > '5' ||
+		(dropped[0] == '5' && strings.Trim(dropped[1:], "0") != "")
+	if !roundUp {
+		return kept, 0
+	}
+	const decimalBase = 10
+	b := []byte(kept)
+	carry := byte(1)
+	for i := len(b) - 1; i >= 0 && carry != 0; i-- {
+		if v := b[i] - '0' + carry; v >= decimalBase {
+			b[i] = '0'
+		} else {
+			b[i] = '0' + v
+			carry = 0
+		}
+	}
+	if carry == 1 {
+		return "1" + strings.Repeat("0", target-1), 1
+	}
+	return string(b), 0
+}
+
+// placeDecimal writes digits with a decimal point so the value is
+// digits[0].digits[1..] * 10^exp, keeping at least minFrac
+// fractional digits. When strip is true, trailing fractional zeros
+// (and a trailing point) are removed.
+func placeDecimal(digits string, exp, minFrac int, strip bool) string {
+	intLen := exp + 1
+	var body string
+	switch {
+	case intLen <= 0:
+		body = "0." + strings.Repeat("0", -intLen) + digits
+	case intLen >= len(digits):
+		out := digits + strings.Repeat("0", intLen-len(digits))
+		if minFrac > 0 {
+			out += "." + strings.Repeat("0", minFrac)
+		}
+		if strip {
+			return trimDecimal(out)
+		}
+		return out
+	default:
+		body = digits[:intLen] + "." + digits[intLen:]
+	}
+	if dot := strings.IndexByte(body, '.'); dot >= 0 {
+		if frac := len(body) - dot - 1; frac < minFrac {
+			body += strings.Repeat("0", minFrac-frac)
+		}
+	} else if minFrac > 0 {
+		body += "." + strings.Repeat("0", minFrac)
+	}
+	if strip {
+		return trimDecimal(body)
+	}
+	return body
+}
+
+// trimDecimal removes trailing zeros after a decimal point, then a
+// trailing point.
+func trimDecimal(s string) string {
+	if !strings.Contains(s, ".") {
+		return s
+	}
+	t := strings.TrimRight(strings.TrimRight(s, "0"), ".")
+	if t == "" {
+		return "0"
+	}
+	return t
 }
