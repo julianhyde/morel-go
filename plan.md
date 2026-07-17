@@ -623,19 +623,19 @@ G. This phase runs before the query slices (G).
       commit as the exception.
 - [x] 58. `Int` structure — complete; `Int.fmt` uses task 57's
       radix.
-- [x] 59. `Real` structure — complete; `Real.fmt` likewise. The
-      only unpulled non-deferred hunks are the int-valued
-      `floor`/`ceil`/`trunc`/`round` of an infinity or NaN: morel-go
-      raises `Overflow`/`Domain` as SML/NJ does, whereas morel-java
-      saturates to maxInt/minInt/0, so those rows are not pulled.
-      (morel-java's earlier `floor`/`ceil`/`round` bug on negatives
-      was fixed upstream, and those rows now reproduce.)
+- [x] 59. `Real` structure — complete; `Real.fmt` likewise.
+      (morel-java's `floor`/`ceil`/`round` bugs — wrong results on
+      negatives, and saturating on infinity/NaN where SML/NJ raises
+      `Overflow`/`Domain` — were both found while doing this task and
+      fixed upstream; morel-go matched SML/NJ throughout, and those
+      rows now reproduce.)
 - [x] 60. `Math` structure — complete.
-- [ ] 61. `Word` structure (morel#396) — the `word` type over a
-      `uint32` value, `0wFF`/`0wxFF` literals, and the members
-      (`fromInt`/`toInt`, the bitwise and arithmetic operators,
-      `fmt` via task 57's radix, `compare`); the fourth
-      primitive-backed structure, after Int/Real/Math.
+- [x] 61. `Word` structure (morel#396) — the `word` type over an
+      unsigned 64-bit value (`wordSize` is 64, per morel-java, not
+      the 32 assumed here; morel-rust has no Word), `0w`/`0wx`
+      literals, and the members (`fromInt`/`toInt`, the bitwise and
+      arithmetic operators, `fmt` via task 57's radix, `compare`);
+      the fourth primitive-backed structure, after Int/Real/Math.
 - [ ] 62. `Option` structure — complete.
 - [ ] 63. `Bool` structure — complete.
 - [ ] 64. `Char` structure — complete.
