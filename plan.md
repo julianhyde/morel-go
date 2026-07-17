@@ -624,10 +624,12 @@ G. This phase runs before the query slices (G).
 - [x] 58. `Int` structure — complete; `Int.fmt` uses task 57's
       radix.
 - [x] 59. `Real` structure — complete; `Real.fmt` likewise. The
-      only unpulled non-deferred hunks are morel-java's buggy
-      `Real.floor`/`ceil`/`round` on negatives (see `issue.md`);
-      morel-go matches SML/NJ and morel-rust, so, like Calcite-only
-      hunks, they are simply not pulled.
+      only unpulled non-deferred hunks are the int-valued
+      `floor`/`ceil`/`trunc`/`round` of an infinity or NaN: morel-go
+      raises `Overflow`/`Domain` as SML/NJ does, whereas morel-java
+      saturates to maxInt/minInt/0, so those rows are not pulled.
+      (morel-java's earlier `floor`/`ceil`/`round` bug on negatives
+      was fixed upstream, and those rows now reproduce.)
 - [x] 60. `Math` structure — complete.
 - [ ] 61. `Word` structure (morel#396) — the `word` type over a
       `uint32` value, `0wFF`/`0wxFF` literals, and the members
