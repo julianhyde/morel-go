@@ -834,6 +834,33 @@ f ~2.5;
 f ~3.5;
 > val it = (~4,~3,~3,~4) : int * int * int * int
 
+(* On an infinity the result is out of int range, so they raise Overflow;
+   on NaN they raise Domain. *)
+Real.floor Real.posInf;
+> uncaught exception Overflow [overflow]
+>   raised at: stdIn:1.1-1.23
+Real.ceil Real.negInf;
+> uncaught exception Overflow [overflow]
+>   raised at: stdIn:1.1-1.22
+Real.trunc Real.posInf;
+> uncaught exception Overflow [overflow]
+>   raised at: stdIn:1.1-1.23
+Real.round Real.posInf;
+> uncaught exception Overflow [overflow]
+>   raised at: stdIn:1.1-1.23
+Real.floor nan;
+> uncaught exception Domain [domain error]
+>   raised at: stdIn:1.1-1.15
+Real.ceil nan;
+> uncaught exception Domain [domain error]
+>   raised at: stdIn:1.1-1.14
+Real.trunc nan;
+> uncaught exception Domain [domain error]
+>   raised at: stdIn:1.1-1.15
+Real.round nan;
+> uncaught exception Domain [domain error]
+>   raised at: stdIn:1.1-1.15
+
 (* "toInt mode x", "toLargeInt mode x" convert the argument x to an integral
    type using the specified rounding mode. They raise Overflow if the result
    is not representable, in particular, if x is an infinity. They raise
