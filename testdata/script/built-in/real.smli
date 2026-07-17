@@ -1095,6 +1095,20 @@ Real.fmt (FIX (SOME 3)) (1.0 / 0.0);
 > val it = "inf" : string
 Real.fmt (FIX (SOME 3)) (~1.0 / 0.0);
 > val it = "~inf" : string
+
+(* Invalid precision raises Size. *)
+Real.fmt (SCI (SOME ~1)) 1.0;
+> uncaught exception Size [size]
+>   raised at: stdIn:1.1-1.29
+Real.fmt (FIX (SOME ~1)) 1.0;
+> uncaught exception Size [size]
+>   raised at: stdIn:1.1-1.29
+Real.fmt (GEN (SOME 0)) 1.0;
+> uncaught exception Size [size]
+>   raised at: stdIn:1.1-1.28
+Real.fmt (GEN (SOME ~1)) 1.0;
+> uncaught exception Size [size]
+>   raised at: stdIn:1.1-1.29
 (* Partial application validates the spec immediately,
  * before the second argument arrives. *)
 Real.fmt (SCI (SOME ~1));

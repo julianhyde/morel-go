@@ -165,7 +165,7 @@ type applyCode struct {
 func (c *applyCode) Eval(f *Frame) (Val, error) {
 	fnVal, err := c.fn.Eval(f)
 	if err != nil {
-		return nil, err
+		return nil, restampSpan(err, c.span)
 	}
 	argVal, err := c.arg.Eval(f)
 	if err != nil {
