@@ -813,8 +813,26 @@ fun f x = (Real.floor x, Real.ceil x, Real.trunc x, Real.round x);
 > val f = fn : real -> int * int * int * int
 f 0.0;
 > val it = (0,0,0,0) : int * int * int * int
+f 0.5;
+> val it = (0,1,0,0) : int * int * int * int
+f 1.75;
+> val it = (1,2,1,2) : int * int * int * int
+f 2.25;
+> val it = (2,3,2,2) : int * int * int * int
+f 2.5;
+> val it = (2,3,2,2) : int * int * int * int
+f 3.5;
+> val it = (3,4,3,4) : int * int * int * int
 f ~2.0;
 > val it = (~2,~2,~2,~2) : int * int * int * int
+f ~1.75;
+> val it = (~2,~1,~1,~2) : int * int * int * int
+f ~2.25;
+> val it = (~3,~2,~2,~2) : int * int * int * int
+f ~2.5;
+> val it = (~3,~2,~2,~2) : int * int * int * int
+f ~3.5;
+> val it = (~4,~3,~3,~4) : int * int * int * int
 
 (* "toInt mode x", "toLargeInt mode x" convert the argument x to an integral
    type using the specified rounding mode. They raise Overflow if the result
