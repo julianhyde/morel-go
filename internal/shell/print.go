@@ -231,6 +231,9 @@ func (c *Config) primitiveString(t *types.Primitive,
 				`#"`
 		}
 		return `"` + escapeString(v2) + `"`
+	case wordType:
+		v2, _ := v.(uint64)
+		return eval.FormatWord(v2)
 	default:
 		return "()"
 	}
