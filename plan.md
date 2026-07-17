@@ -652,7 +652,7 @@ G. This phase runs before the query slices (G).
 - [x] 66. `Vector` structure — complete (finish task 52: the
       `Vector;` dump now prints, given task 51's label quoting and
       contiguous type-variable numbering).
-- [ ] 67. `ListPair` structure — `zip`, `unzip`, `map`, `app`,
+- [x] 67. `ListPair` structure — `zip`, `unzip`, `map`, `app`,
       `all`, `exists`, `foldl`/`foldr`, and the `*Eq` variants
       that raise `UnequalLengths`.
 - [ ] 68. `Either` structure — the `('a, 'b) either` datatype
