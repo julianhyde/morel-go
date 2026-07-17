@@ -628,7 +628,7 @@ G. This phase runs before the query slices (G).
       `Real.floor`/`ceil`/`round` on negatives (see `issue.md`);
       morel-go matches SML/NJ and morel-rust, so, like Calcite-only
       hunks, they are simply not pulled.
-- [ ] 60. `Math` structure — complete.
+- [x] 60. `Math` structure — complete.
 - [ ] 61. `Word` structure (morel#396) — the `word` type over a
       `uint32` value, `0wFF`/`0wxFF` literals, and the members
       (`fromInt`/`toInt`, the bitwise and arithmetic operators,
