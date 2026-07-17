@@ -672,7 +672,7 @@ G. This phase runs before the query slices (G).
       `toString`/`fromString`, `fmt`, `toTime`/`fromTime*`. The
       corpus fixes `now` and `timeZone` via `Sys.set`, so tests
       are deterministic.
-- [ ] 73. `Time` structure — the `time` type (morel#351, #352);
+- [x] 73. `Time` structure — the `time` type (morel#351, #352);
       `fromReal`/`toReal`, `to`/`fromSeconds`…`Nanoseconds`,
       `compare`, `now`, `fmt`, `toString`/`fromString`,
       `zeroTime`.
