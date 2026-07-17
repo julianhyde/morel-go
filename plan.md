@@ -667,7 +667,7 @@ G. This phase runs before the query slices (G).
       `continuousSetOf`, `flatten`, `ranges`, `complement`.
 - [x] 71. `Variant` structure — variant values (morel#324);
       `parse`, `print`.
-- [ ] 72. `Date` structure — the `date` type over Go's `time`
+- [x] 72. `Date` structure — the `date` type over Go's `time`
       (morel#278); `date`, `year`/`month`/…/`yearDay`, `compare`,
       `toString`/`fromString`, `fmt`, `toTime`/`fromTime*`. The
       corpus fixes `now` and `timeZone` via `Sys.set`, so tests
