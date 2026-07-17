@@ -459,6 +459,7 @@ var Builtins = map[string]Val{
 	"tokens":             stringSplit(false),
 	"trunc":              realToIntFn(math.Trunc),
 	"valOf":              valOfFn,
+	"vector":             Fn(vectorFromListFn),
 }
 
 // Precisions and radixes of the numeric types.
