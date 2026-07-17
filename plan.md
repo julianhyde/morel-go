@@ -662,7 +662,7 @@ G. This phase runs before the query slices (G).
 - [x] 69. `Fn` structure — combinators `id`, `const`, `apply`,
       `o`, `curry`, `uncurry`, `flip`, `repeat`, `equal`,
       `notEqual`.
-- [ ] 70. `Range` structure — range values (morel#338);
+- [x] 70. `Range` structure — range values (morel#338);
       `contains`, `toList`/`toBag`, `discreteSetOf`/
       `continuousSetOf`, `flatten`, `ranges`, `complement`.
 - [ ] 71. `Variant` structure — variant values (morel#324);
