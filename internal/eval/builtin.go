@@ -257,10 +257,10 @@ var Builtins = map[string]Val{
 	"Real./":                arith(nil, divReal),
 	"Real.<":                compareFn(func(c int) bool { return c < 0 }),
 	"Real.<=":               compareFn(func(c int) bool { return c <= 0 }),
-	"Real.<>": realPairTest(func(a, b float64) bool {
+	"Real.<>": realPairPredicate(func(a, b float64) bool {
 		return a != b || math.IsNaN(a) || math.IsNaN(b)
 	}),
-	"Real.=": realPairTest(func(a, b float64) bool {
+	"Real.=": realPairPredicate(func(a, b float64) bool {
 		return a == b
 	}),
 	"Real.>":          compareFn(func(c int) bool { return c > 0 }),
@@ -269,16 +269,17 @@ var Builtins = map[string]Val{
 	"Real.ceil":       realToIntFn(math.Ceil),
 	"Real.checkFloat": Fn(realCheckFloatFn),
 	"Real.compare":    Fn(realCompareFn),
-	"Real.copySign":   real2(math.Copysign),
+	"Real.copySign":   real2(realCopySign),
 	"Real.floor":      realToIntFn(math.Floor),
+	"Real.fmt":        Fn(realFmtFn),
 	"Real.fromInt":    Fn(realFromIntFn),
 	"Real.fromManExp": Fn(realFromManExpFn),
 	"Real.fromString": Fn(realFromStringFn),
-	"Real.isFinite": realTest(func(a float64) bool {
+	"Real.isFinite": realPredicate(func(a float64) bool {
 		return !math.IsInf(a, 0) && !math.IsNaN(a)
 	}),
-	"Real.isNan": realTest(math.IsNaN),
-	"Real.isNormal": realTest(func(a float64) bool {
+	"Real.isNan": realPredicate(math.IsNaN),
+	"Real.isNormal": realPredicate(func(a float64) bool {
 		return !math.IsNaN(a) && !math.IsInf(a, 0) &&
 			math.Abs(a) >= minNormal
 	}),
@@ -295,19 +296,19 @@ var Builtins = map[string]Val{
 	"Real.realFloor":    real1(math.Floor),
 	"Real.realMod":      Fn(realModFn),
 	"Real.realRound":    real1(math.RoundToEven),
-	"Real.realTrunc":    real1(math.Trunc),
+	"Real.realTrunc":    Fn(realTruncFn),
 	"Real.rem":          real2(math.Mod),
 	"Real.round":        realToIntFn(math.RoundToEven),
-	"Real.sameSign": realPairTest(func(a, b float64) bool {
-		return math.Signbit(a) == math.Signbit(b)
+	"Real.sameSign": realPairPredicate(func(a, b float64) bool {
+		return realIsNegative(a) == realIsNegative(b)
 	}),
 	"Real.sign":     Fn(realSignFn),
-	"Real.signBit":  realTest(math.Signbit),
+	"Real.signBit":  realPredicate(realIsNegative),
 	"Real.split":    Fn(realSplitFn),
 	"Real.toManExp": Fn(realToManExpFn),
 	"Real.toString": Fn(realToStringFn),
 	"Real.trunc":    realToIntFn(math.Trunc),
-	"Real.unordered": realPairTest(func(a, b float64) bool {
+	"Real.unordered": realPairPredicate(func(a, b float64) bool {
 		return math.IsNaN(a) || math.IsNaN(b)
 	}),
 	"Real.~": negFn,
