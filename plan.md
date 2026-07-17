@@ -655,7 +655,7 @@ G. This phase runs before the query slices (G).
 - [x] 67. `ListPair` structure — `zip`, `unzip`, `map`, `app`,
       `all`, `exists`, `foldl`/`foldr`, and the `*Eq` variants
       that raise `UnequalLengths`.
-- [ ] 68. `Either` structure — the `('a, 'b) either` datatype
+- [x] 68. `Either` structure — the `('a, 'b) either` datatype
       (`INL`/`INR`); `isLeft`/`isRight`, `asLeft`/`asRight`,
       `map`/`mapLeft`/`mapRight`, `app`/`appLeft`/`appRight`,
       `fold`, `proj`, `partition`.
