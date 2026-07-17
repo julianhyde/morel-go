@@ -93,7 +93,7 @@ func realSignFn(arg Val) (Val, error) {
 	r := float64(asReal(arg))
 	switch {
 	case math.IsNaN(r):
-		return nil, &MorelError{Exn: "Domain"}
+		return nil, &MorelError{Exn: ExnDomain}
 	case r < 0:
 		return int32(-1), nil
 	case r > 0:
@@ -150,11 +150,14 @@ func realCheckFloatFn(arg Val) (Val, error) {
 func realToIntFn(round func(float64) float64) Fn {
 	return func(arg Val) (Val, error) {
 		r := round(float64(asReal(arg)))
-		if math.IsNaN(r) || r < math.MinInt32 ||
-			r > math.MaxInt32 {
+		switch {
+		case math.IsNaN(r):
+			return nil, &MorelError{Exn: ExnDomain}
+		case r < math.MinInt32 || r > math.MaxInt32:
 			return nil, &MorelError{Exn: ExnOverflow}
+		default:
+			return int32(r), nil
 		}
-		return int32(r), nil
 	}
 }
 

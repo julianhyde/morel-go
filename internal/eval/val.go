@@ -38,6 +38,7 @@ const (
 	ExnBind      = "Bind"
 	ExnChr       = "Chr"
 	ExnDiv       = "Div"
+	ExnDomain    = "Domain"
 	ExnEmpty     = "Empty"
 	ExnOverflow  = "Overflow"
 	ExnSize      = "Size"
