@@ -57,6 +57,10 @@ Vector.fromList ["a", "", "bc"];
 Vector.fromList [1,2];
 > val it = #[1,2] : int vector
 
+(*) "vector" is shorthand for "Vector.fromList"
+vector [1,2];
+> val it = #[1,2] : int vector
+
 (* supported in sml-nj but not morel:
  #[1,2];
  *)
