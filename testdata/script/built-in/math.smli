@@ -258,6 +258,34 @@ Math.pow (2.0, ~4.0);
 > val it = 0.0625 : real
 Math.pow (100.0, 0.5);
 > val it = 10 : real
+List.map (fn (x, y) => (x, y, Math.pow (x, y)))
+  [(0.0, 0.0), (nan, 0.0),
+   (2.0, Real.posInf), (~2.0, Real.posInf),
+   (0.5, Real.posInf), (~0.5, Real.posInf),
+   (3.0, Real.negInf), (~3.0, Real.negInf),
+   (0.25, Real.negInf), (~0.25, Real.negInf),
+   (Real.posInf, 0.5),
+   (Real.posInf, ~0.5),
+   (Real.negInf, 7.0),
+   (Real.negInf, 8.0),
+   (Real.negInf, ~7.0),
+   (Real.negInf, ~8.0),
+   (9.5, nan),
+   (nan, 9.6),
+   (1.0, Real.posInf), (~1.0, Real.posInf), (1.0, Real.negInf), (~1.0, Real.negInf),
+   (~9.8, 2.5),
+   (0.0, ~9.0), (~0.0, ~9.0),
+   (0.0, ~10.0), (~0.0, ~10.0),
+   (0.0, 11.0), (~0.0, 11.0),
+   (0.0, 12.0), (~0.0, 12.0)];
+> val it =
+>   [(0,0,1),(nan,0,1),(2,inf,inf),(~2,inf,inf),(0.5,inf,0),(~0.5,inf,0),
+>    (3,~inf,0),(~3,~inf,0),(0.25,~inf,inf),(~0.25,~inf,inf),(inf,0.5,inf),
+>    (inf,~0.5,0),(~inf,7,~inf),(~inf,8,inf),(~inf,~7,~0),(~inf,~8,0),
+>    (9.5,nan,nan),(nan,9.6,nan),(1,inf,nan),(~1,inf,nan),(1,~inf,nan),
+>    (~1,~inf,nan),(~9.8,2.5,nan),(0,~9,inf),(~0,~9,~inf),(0,~10,inf),
+>    (~0,~10,inf),(0,11,0),(~0,11,~0),(0,12,0),(~0,12,0)]
+>   : (real * real * real) list
 
 (* "sin x" returns the sine of x, measured in radians.
    If x is an infinity, returns NaN. *)
