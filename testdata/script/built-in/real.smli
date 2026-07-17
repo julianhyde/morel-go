@@ -177,6 +177,8 @@ Real.`<` (3.0, nan);
 > val it = false : bool
 Real.`<=` (3.0, 3.0);
 > val it = true : bool
+Real.`<=` (nan, 5.0);
+> val it = false : bool
 Real.`>` (5.0, 3.0);
 > val it = true : bool
 Real.`>` (3.0, nan);
@@ -325,6 +327,14 @@ Real.signBit Real.posInf;
 > val it = false : bool
 Real.signBit Real.negInf;
 > val it = true : bool
+(*) In SMLNJ and Mlton, nan is negative; we do the same
+Real.signBit nan;
+> val it = true : bool
+(*) In SMLNJ and Mlton, ~nan is positive; we do the same
+Real.signBit (~nan);
+> val it = false : bool
+Real.signBit (~(~nan));
+> val it = true : bool
 
 (* "sameSign (r1, r2)" returns true if and only if signBit r1 equals
    signBit r2. *)
@@ -333,6 +343,10 @@ Real.sameSign;
 Real.sameSign (2.0, 3.5);
 > val it = true : bool
 Real.sameSign (~2.0, Real.negInf);
+> val it = true : bool
+Real.sameSign (2.0, nan);
+> val it = false : bool
+Real.sameSign (~2.0, nan);
 > val it = true : bool
 Real.sameSign (nan, nan);
 > val it = true : bool
@@ -344,6 +358,12 @@ Real.copySign (2.0, Real.posInf);
 > val it = 2 : real
 Real.copySign (2.0, Real.negInf);
 > val it = ~2 : real
+Real.copySign (2.0, nan);
+> val it = ~2 : real
+Real.copySign (~3.5, ~nan);
+> val it = 3.5 : real
+Real.copySign (~3.5, nan);
+> val it = ~3.5 : real
 Real.copySign (2.0, ~0.0);
 > val it = ~2 : real
 
@@ -420,6 +440,10 @@ Real.posInf < Real.posInf;
 > val it = true : bool
 3.0 <= 5.0;
 > val it = true : bool
+3.0 <= nan;
+> val it = false : bool
+nan <= 5.0;
+> val it = false : bool
 3.0 <= Real.posInf;
 > val it = true : bool
 3.0 <= Real.negInf;
@@ -445,6 +469,10 @@ Real.posInf > Real.posInf;
 3.0 >= 3.0;
 > val it = true : bool
 3.0 >= 5.0;
+> val it = false : bool
+3.0 >= nan;
+> val it = false : bool
+nan >= 5.0;
 > val it = false : bool
 3.0 >= Real.posInf;
 > val it = false : bool
@@ -590,8 +618,30 @@ Real.toManExp (~Real.minNormalPos);
 > val it = {exp=~125,man=~0.5} : {exp:int, man:real}
 Real.toManExp (Real.minNormalPos / 2.0);
 > val it = {exp=~126,man=0.5} : {exp:int, man:real}
+Real.toManExp (Real.minNormalPos / 4.0);
+> val it = {exp=~126,man=0.25} : {exp:int, man:real}
+Real.toManExp Real.minPos;
+> val it = {exp=~126,man=1.1920929E~7} : {exp:int, man:real}
 Real.minNormalPos / Real.minPos;
 > val it = 8388608 : real
+List.map (fn x => (x, Real.toManExp x, Real.fromManExp (Real.toManExp x)))
+  [1.0, 0.0, ~0.0, ~1.0, 0.5, 2.0,
+   0.0000123456, 0.00000123456, 0.000000123456, ~0.00000123456,
+   Real.minPos, Real.minNormalPos, Real.maxFinite, ~Real.maxFinite,
+   Real.posInf, Real.negInf, nan];
+> val it =
+>   [(1,{exp=1,man=0.5},1),(0,{exp=~126,man=0},0),(~0,{exp=~126,man=~0},~0),
+>    (~1,{exp=1,man=~0.5},~1),(0.5,{exp=0,man=0.5},0.5),(2,{exp=2,man=0.5},2),
+>    (1.23456E~5,{exp=~16,man=0.80908126},1.23456E~5),
+>    (1.23456E~6,{exp=~19,man=0.647265},1.23456E~6),
+>    (1.23456E~7,{exp=~22,man=0.517812},1.23456E~7),
+>    (~1.23456E~6,{exp=~19,man=~0.647265},~1.23456E~6),
+>    (1.4E~45,{exp=~126,man=1.1920929E~7},1.4E~45),
+>    (1.1754944E~38,{exp=~125,man=0.5},1.1754944E~38),
+>    (3.4028235E38,{exp=128,man=0.99999994},3.4028235E38),
+>    (~3.4028235E38,{exp=128,man=~0.99999994},~3.4028235E38),
+>    (inf,{exp=129,man=inf},inf),(~inf,{exp=129,man=~inf},~inf),
+>    (nan,{exp=129,man=nan},nan)] : (real * {exp:int, man:real} * real) list
 
 (* "fromManExp {man, exp}" returns man * radix(exp). This function is comparable
    to ldexp in the C library. Note that, even if man is a non-zero, finite real
@@ -632,6 +682,8 @@ Real.split 2.0;
 > val it = {frac=0,whole=2} : {frac:real, whole:real}
 Real.split 0.0;
 > val it = {frac=0,whole=0} : {frac:real, whole:real}
+Real.split ~0.0;
+> val it = {frac=~0,whole=0} : {frac:real, whole:real}
 Real.split 2.75;
 > val it = {frac=0.75,whole=2} : {frac:real, whole:real}
 Real.split ~12.25;
@@ -727,6 +779,10 @@ f ~2.5;
 > val it = (~3,~2,~2,~2) : real * real * real * real
 f ~3.5;
 > val it = (~4,~3,~3,~4) : real * real * real * real
+f Real.negInf;
+> val it = (~inf,~inf,nan,~inf) : real * real * real * real
+f Real.posInf;
+> val it = (inf,inf,nan,inf) : real * real * real * real
 f nan;
 > val it = (nan,nan,nan,nan) : real * real * real * real
 
@@ -827,6 +883,8 @@ Real.fromString ".e7";
 (*) Letters and whitespace at the end, and whitespace at the start, are ignored
 Real.fromString "1.5x";
 > val it = SOME 1.5 : real option
+Real.fromString " 1.5 x ";
+> val it = SOME 1.5 : real option
 Real.fromString "1.5e";
 > val it = SOME 1.5 : real option
 Real.fromString "1.5e~";
@@ -840,6 +898,8 @@ Real.fromString "1.5e2e";
 Real.fromString "1.5e2e3";
 > val it = SOME 150 : real option
 Real.fromString "2e3.4";
+> val it = SOME 2000 : real option
+Real.fromString "  2e3.4";
 > val it = SOME 2000 : real option
 Real.fromString "2.x";
 > val it = SOME 2 : real option
@@ -919,6 +979,89 @@ Sys.unset "output";
  *)
 Real.fmt;
 > val it = fn : realfmt -> real -> string
+
+(* SCI: scientific notation with one digit before the point and n after. *)
+Real.fmt (SCI NONE) 1.23456789;
+> val it = "1.234568E0" : string
+Real.fmt (SCI (SOME 0)) 1.23456789;
+> val it = "1E0" : string
+Real.fmt (SCI (SOME 3)) 1.23456789;
+> val it = "1.235E0" : string
+Real.fmt (SCI (SOME 6)) 1.23456789;
+> val it = "1.234568E0" : string
+Real.fmt (SCI (SOME 3)) ~1.23456789;
+> val it = "~1.235E0" : string
+Real.fmt (SCI (SOME 3)) 0.0;
+> val it = "0.000E0" : string
+
+(* FIX: fixed-point with n digits after the point. *)
+Real.fmt (FIX NONE) 1.23456789;
+> val it = "1.234568" : string
+Real.fmt (FIX (SOME 0)) 1.23456789;
+> val it = "1" : string
+Real.fmt (FIX (SOME 3)) 1.23456789;
+> val it = "1.235" : string
+Real.fmt (FIX (SOME 6)) 1.23456789;
+> val it = "1.234568" : string
+Real.fmt (FIX (SOME 3)) 0.0;
+> val it = "0.000" : string
+Real.fmt (FIX (SOME 3)) ~0.0;
+> val it = "~0.000" : string
+
+(* GEN: shortest of SCI / FIX, with n significant digits. *)
+Real.fmt (GEN (SOME 1)) 1.23456789;
+> val it = "1" : string
+Real.fmt (GEN (SOME 3)) 1.23456789;
+> val it = "1.23" : string
+Real.fmt (GEN (SOME 3)) 1234567.89;
+> val it = "1.23E6" : string
+Real.fmt (GEN (SOME 3)) 0.000123;
+> val it = "1.23E~4" : string
+Real.fmt (GEN (SOME 3)) 0.0123;
+> val it = "0.0123" : string
+Real.fmt (GEN (SOME 3)) 100.0;
+> val it = "100" : string
+Real.fmt (GEN (SOME 3)) 1000.0;
+> val it = "1E3" : string
+
+(* EXACT: 0.<digits>E<exp> form with no trailing zeros. *)
+Real.fmt EXACT 0.0;
+> val it = "0.0" : string
+Real.fmt EXACT 1.0;
+> val it = "0.1E1" : string
+Real.fmt EXACT 1.5;
+> val it = "0.15E1" : string
+Real.fmt EXACT 0.1;
+> val it = "0.1" : string
+
+(* Ties round half toward zero, matching SML/NJ. *)
+Real.fmt (FIX (SOME 0)) 1.5;
+> val it = "1" : string
+Real.fmt (FIX (SOME 0)) 2.5;
+> val it = "2" : string
+Real.fmt (FIX (SOME 0)) 9.5;
+> val it = "9" : string
+
+(* Special values. *)
+Real.fmt (FIX (SOME 3)) (0.0 / 0.0);
+> val it = "nan" : string
+Real.fmt (FIX (SOME 3)) (1.0 / 0.0);
+> val it = "inf" : string
+Real.fmt (FIX (SOME 3)) (~1.0 / 0.0);
+> val it = "~inf" : string
+(* Partial application validates the spec immediately,
+ * before the second argument arrives. *)
+Real.fmt (SCI (SOME ~1));
+> uncaught exception Size [size]
+>   raised at: stdIn:1.1-1.23
+Real.fmt (FIX (SOME ~1));
+> uncaught exception Size [size]
+>   raised at: stdIn:1.1-1.23
+Real.fmt (GEN (SOME 0));
+> uncaught exception Size [size]
+>   raised at: stdIn:1.1-1.22
+Real.fmt EXACT;
+> val it = fn : real -> string
 
 Real.toString;
 > val it = fn : real -> string
