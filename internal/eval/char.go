@@ -251,6 +251,110 @@ func charFromStringFn(arg Val) (Val, error) {
 	return someVal(c), nil
 }
 
+// Bases and digit widths of the numeric C escapes.
+const (
+	octalBase   = 8
+	hexBase     = 16
+	octalDigits = 3
+	hexDigits   = 2
+)
+
+// charToCStringFn is "Char.toCString c": the character in C string
+// syntax.
+func charToCStringFn(arg Val) (Val, error) {
+	return CharToCString(asChar(arg)), nil
+}
+
+// CharToCString renders a character as Char.toCString does: the C
+// escapes, and a three-digit octal escape for any other
+// non-printing character.
+func CharToCString(c rune) string {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch c {
+	case '"':
+		return `\"`
+	case '\\':
+		return `\\`
+	case '\a':
+		return `\a`
+	case '\b':
+		return `\b`
+	case '\f':
+		return `\f`
+	case '\n':
+		return `\n`
+	case '\r':
+		return `\r`
+	case '\t':
+		return `\t`
+	case '\v':
+		return `\v`
+	}
+	if c < ' ' || c > '~' {
+		o := strconv.FormatInt(int64(c), octalBase)
+		return `\` + strings.Repeat("0", octalDigits-len(o)) + o
+	}
+	return string(c)
+}
+
+// cStringEscapes are the single-letter C escapes that
+// Char.fromCString decodes.
+var cStringEscapes = map[byte]rune{
+	'"': '"', '\'': '\'', '?': '?', '\\': '\\',
+	'a': '\a', 'b': '\b', 'f': '\f', 'n': '\n',
+	'r': '\r', 't': '\t', 'v': '\v',
+}
+
+// charFromCStringFn is "Char.fromCString s": the first character of
+// s, decoding a leading C escape, or NONE.
+func charFromCStringFn(arg Val) (Val, error) {
+	s := asString(arg)
+	if s == "" {
+		return noneVal, nil
+	}
+	if s[0] != '\\' {
+		return someVal(rune(s[0])), nil
+	}
+	if len(s) == 1 { // a lone backslash
+		return noneVal, nil
+	}
+	if r, ok := cStringEscapes[s[1]]; ok {
+		return someVal(r), nil
+	}
+	if s[1] == 'x' {
+		return cCharCode(s[2:], hexBase, hexDigits)
+	}
+	if s[1] >= '0' && s[1] <= '7' {
+		return cCharCode(s[1:], octalBase, octalDigits)
+	}
+	return noneVal, nil
+}
+
+// cCharCode decodes up to maxDigits digits of a numeric C escape in
+// the given base into a character, or NONE if it is out of range.
+func cCharCode(s string, base, maxDigits int) (Val, error) {
+	end := 0
+	for end < maxDigits && end < len(s) && isBaseDigit(s[end], base) {
+		end++
+	}
+	if end == 0 {
+		return noneVal, nil
+	}
+	n, err := strconv.ParseInt(s[:end], base, 32)
+	if err != nil || n > int64(maxCharVal) {
+		return noneVal, nil //nolint:nilerr // out of range is NONE
+	}
+	return someVal(rune(n)), nil
+}
+
+// isBaseDigit reports whether b is a digit in base 8 or 16.
+func isBaseDigit(b byte, base int) bool {
+	if base == hexBase {
+		return isHexByte(b)
+	}
+	return b >= '0' && b <= '7'
+}
+
 // charFromIntFn is "Char.fromInt i": SOME (chr i), or NONE if i
 // is out of range.
 func charFromIntFn(arg Val) (Val, error) {
