@@ -706,7 +706,7 @@ Findings from a 2026-07-18 review of the corpus workflow:
       as the JVM does. (Go inherits the hardware sign —
       positive on arm64, negative on x86-64 — which is why
       `built-in/real.smli` carries the port's only adapted
-      corpus line, `val nan = Real.abs (Real.posInf /
+      corpus line, `val nan = abs (Real.posInf /
       Real.posInf)`: the verbatim java line would pass on
       arm64 and fail on x86-64 CI, so `pull-passing.py`'s
       report is host-dependent exactly there. Sign-copying
@@ -1041,7 +1041,7 @@ relational.smli sections disabled.
 `.smli` lines where morel-go's formulation is better than
 morel-java's and should, at some point, be proposed upstream.
 
-- `built-in/real.smli`: `val nan = Real.abs (Real.posInf /
+- `built-in/real.smli`: `val nan = abs (Real.posInf /
   Real.posInf)` is host-independent — `abs` forces the positive
   NaN — whereas java's `val nan = Real.posInf / Real.posInf`
   relies on the JVM canonicalizing NaN to positive. morel-go
