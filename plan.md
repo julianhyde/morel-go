@@ -686,9 +686,18 @@ file, so it is done once, here, at the end:
       `Int.abs 5`, `[1].hd ()` is `List.hd [1]`). A
       `pull-passing.py` run then adds the postfix hunks, absent
       until now, across every structure file.
-- [ ] 75. `Sys.plan`: emit java's compiled-plan string. A
-      `pull-passing.py` run adds the plan hunks — the single
-      largest remaining block — across every file at once.
+- [x] 75. `Sys.plan`: emit java's compiled-plan string. A
+      `pull-passing.py` run adds the plan hunks across every file
+      at once. The expression plans reproduce now — applications
+      (`apply`/`apply2`/`apply3` with `fnValue` names), constants,
+      and tuples — pulling ~145 lines across the built-in
+      structure files. Function-body plans (`match`,
+      `stack(offset ...)`), relational plans (`from`/`sink`), and
+      optimized plans need features from later phases (H, J-K), so
+      those hunks stay unpulled until then; a `pull-passing.py`
+      run at each of those milestones folds in the ones it
+      unlocks. Since matching is best-effort, no plan line is
+      commented out — an unreproducible one is simply absent.
 
 The remaining skeletons stay out of this phase: `datalog`
 (morel#323) and `pp` (morel#398 user surface) are post-endpoint
