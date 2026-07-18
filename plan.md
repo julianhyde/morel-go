@@ -1036,6 +1036,19 @@ group/compute scoping and set-op semantics built in —
 territory where rust at the same milestone still had 33
 relational.smli sections disabled.
 
+## Propagate back to morel-java
+
+`.smli` lines where morel-go's formulation is better than
+morel-java's and should, at some point, be proposed upstream.
+
+- `built-in/real.smli`: `val nan = Real.abs (Real.posInf /
+  Real.posInf)` is host-independent — `abs` forces the positive
+  NaN — whereas java's `val nan = Real.posInf / Real.posInf`
+  relies on the JVM canonicalizing NaN to positive. morel-go
+  inherits the hardware NaN sign (positive on arm64, negative on
+  x86-64), so the `abs` form passes on every architecture; the
+  bare form is a latent x86-64 failure until task 75a lands.
+
 ## Commit-history maintenance
 
 Deferred history surgery: fold or re-order commits so the final
