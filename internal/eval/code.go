@@ -76,7 +76,11 @@ func (c *getCode) Eval(f *Frame) (Val, error) {
 }
 
 func (c *getCode) Describe() string {
-	return "get(name " + c.name + ")"
+	// The plan describes a local by its distance from the top of
+	// the frame, counting from 1: a function's parameter is at
+	// slot 0, the most recently pushed, so it is offset 1.
+	return "stack(offset " + strconv.Itoa(c.slot+1) +
+		", name " + c.name + ")"
 }
 
 // Closure is a user function value: the pattern that binds its
@@ -113,22 +117,24 @@ type Capture struct {
 
 // MakeClosure returns code that creates a closure, capturing the
 // given slots of the current frame.
-func MakeClosure(param Pat, body Code, captures []Capture,
-	nSlots int,
+func MakeClosure(param Pat, paramName string, body Code,
+	captures []Capture, nSlots int,
 ) Code {
 	return &makeClosureCode{
-		param:    param,
-		body:     body,
-		captures: captures,
-		nSlots:   nSlots,
+		param:     param,
+		paramName: paramName,
+		body:      body,
+		captures:  captures,
+		nSlots:    nSlots,
 	}
 }
 
 type makeClosureCode struct {
-	param    Pat
-	body     Code
-	captures []Capture
-	nSlots   int
+	param     Pat
+	paramName string
+	body      Code
+	captures  []Capture
+	nSlots    int
 }
 
 func (c *makeClosureCode) Eval(f *Frame) (Val, error) {
@@ -148,7 +154,7 @@ func (c *makeClosureCode) Eval(f *Frame) (Val, error) {
 }
 
 func (c *makeClosureCode) Describe() string {
-	return "closure(" + c.body.Describe() + ")"
+	return "match(" + c.paramName + ", " + c.body.Describe() + ")"
 }
 
 // Apply returns code that evaluates a function and an argument

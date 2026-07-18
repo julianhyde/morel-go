@@ -286,8 +286,8 @@ func (c *compiler) compileFn(fn *core.Fn) (eval.Code, error) {
 	if err != nil {
 		return nil, err
 	}
-	return eval.MakeClosure(param, body, inner.captures,
-		inner.nSlots), nil
+	return eval.MakeClosure(param, fn.IDPat.Name, body,
+		inner.captures, inner.nSlots), nil
 }
 
 func (c *compiler) compileCase(caseExp *core.Case) (eval.Code,
