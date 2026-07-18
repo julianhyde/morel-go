@@ -681,7 +681,7 @@ Two features were deferred by every structure above; each closes
 the last of the per-structure divergence in one pass over every
 file, so it is done once, here, at the end:
 
-- [ ] 74. Postfix method calls (morel#346): `x.f a` desugars to
+- [x] 74. Postfix method calls (morel#346): `x.f a` desugars to
       the qualified call the receiver's type names (`5.abs ()` is
       `Int.abs 5`, `[1].hd ()` is `List.hd [1]`). A
       `pull-passing.py` run then adds the postfix hunks, absent
