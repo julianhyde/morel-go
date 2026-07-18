@@ -19,6 +19,8 @@ package eval
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/hydromatic/morel-go/internal/core"
 	"github.com/hydromatic/morel-go/internal/token"
@@ -56,7 +58,7 @@ func (c *constantCode) Eval(*Frame) (Val, error) {
 }
 
 func (c *constantCode) Describe() string {
-	return fmt.Sprintf("constant(%v)", c.v)
+	return "constant(" + PlanString(c.v) + ")"
 }
 
 // GetSlot returns code that reads a variable's slot.
@@ -151,15 +153,29 @@ func (c *makeClosureCode) Describe() string {
 
 // Apply returns code that evaluates a function and an argument
 // and applies one to the other; span is where an exception
-// raised by the application is reported.
-func Apply(fn, arg Code, span token.Span) Code {
-	return &applyCode{fn: fn, arg: arg, span: span}
+// raised by the application is reported. When the function is a
+// built-in, fnName is its qualified name (e.g. "Int.+") and
+// fnArity is the number of arguments it takes (1, 2, or 3), used
+// to render the compiled plan the way java does; fnName is empty
+// for any other function.
+func Apply(fn, arg Code, span token.Span, fnName string,
+	fnArity int,
+) Code {
+	return &applyCode{
+		fn:      fn,
+		arg:     arg,
+		span:    span,
+		fnName:  fnName,
+		fnArity: fnArity,
+	}
 }
 
 type applyCode struct {
-	fn   Code
-	arg  Code
-	span token.Span
+	fn      Code
+	arg     Code
+	fnName  string
+	span    token.Span
+	fnArity int
 }
 
 func (c *applyCode) Eval(f *Frame) (Val, error) {
@@ -199,7 +215,30 @@ func ApplyVal(fn, arg Val) (Val, error) {
 }
 
 func (c *applyCode) Describe() string {
-	return "apply(fnValue " + c.fn.Describe() + ", argCode " +
+	// A built-in whose argument is a tuple of the arity it expects
+	// is described as apply2/apply3, with the tuple's elements
+	// spread as separate arguments — as java compiles a built-in
+	// applied to a tuple.
+	if c.fnName != "" {
+		if tup, ok := c.arg.(*tupleCode); ok &&
+			len(tup.args) == c.fnArity &&
+			(c.fnArity == 2 || c.fnArity == 3) {
+			var b strings.Builder
+			b.WriteString("apply")
+			b.WriteString(strconv.Itoa(c.fnArity))
+			b.WriteString("(fnValue ")
+			b.WriteString(c.fnName)
+			for _, a := range tup.args {
+				b.WriteString(", ")
+				b.WriteString(a.Describe())
+			}
+			b.WriteString(")")
+			return b.String()
+		}
+		return "apply(fnValue " + c.fnName + ", argCode " +
+			c.arg.Describe() + ")"
+	}
+	return "apply(fnCode " + c.fn.Describe() + ", argCode " +
 		c.arg.Describe() + ")"
 }
 
@@ -303,7 +342,19 @@ func (c *tupleCode) Eval(f *Frame) (Val, error) {
 }
 
 func (c *tupleCode) Describe() string {
-	return "tuple(...)"
+	if len(c.args) == 0 {
+		return "tuple"
+	}
+	var b strings.Builder
+	b.WriteString("tuple(")
+	for i, a := range c.args {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(a.Describe())
+	}
+	b.WriteString(")")
+	return b.String()
 }
 
 // Unit returns code that yields the unit value.
