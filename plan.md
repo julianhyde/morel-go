@@ -697,23 +697,10 @@ The remaining skeletons stay out of this phase: `datalog`
 already at java's coverage (their java files are type-references
 only).
 
-### F2. Corpus housekeeping (75a-75b)
+### F2. Corpus housekeeping (75b)
 
 Findings from a 2026-07-18 review of the corpus workflow:
 
-- [ ] 75a. Canonicalize NaN: a real arithmetic operation that
-      produces a NaN returns the canonical positive quiet NaN,
-      as the JVM does. (Go inherits the hardware sign —
-      positive on arm64, negative on x86-64 — which is why
-      `built-in/real.smli` carries the port's only adapted
-      corpus line, `val nan = abs (Real.posInf /
-      Real.posInf)`: the verbatim java line would pass on
-      arm64 and fail on x86-64 CI, so `pull-passing.py`'s
-      report is host-dependent exactly there. Sign-copying
-      and sign-inspecting members — `~`, `copySign`,
-      `signBit` — keep their semantics.) Then pull java's
-      `val nan = Real.posInf / Real.posInf` verbatim,
-      retiring the port's one adapted corpus line.
 - [x] 75b. Run `pull-passing.py --apply` and fold in the two
       top-level files that crossed the creation threshold
       when tasks 70-71 landed but were never generated:
@@ -1047,7 +1034,8 @@ morel-java's and should, at some point, be proposed upstream.
   relies on the JVM canonicalizing NaN to positive. morel-go
   inherits the hardware NaN sign (positive on arm64, negative on
   x86-64), so the `abs` form passes on every architecture; the
-  bare form is a latent x86-64 failure until task 75a lands.
+  bare form is a latent x86-64 failure, which is why morel-go
+  keeps the `abs` form.
 
 ## Commit-history maintenance
 
