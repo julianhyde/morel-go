@@ -15,6 +15,30 @@
 // language governing permissions and limitations under the
 // License.
 
-module github.com/hydromatic/morel-go
+package eval
 
-go 1.25
+import "strings"
+
+// stringCvtPadLeftFn is "StringCvt.padLeft c i s": s padded on the
+// left with copies of c to a width of at least i, or s unchanged if
+// it is already that wide.
+func stringCvtPadLeftFn(c, i, s Val) (Val, error) {
+	str := asString(s)
+	n := int(asInt(i)) - len(str)
+	if n <= 0 {
+		return str, nil
+	}
+	return strings.Repeat(string(asChar(c)), n) + str, nil
+}
+
+// stringCvtPadRightFn is "StringCvt.padRight c i s": s padded on the
+// right with copies of c to a width of at least i, or s unchanged if
+// it is already that wide.
+func stringCvtPadRightFn(c, i, s Val) (Val, error) {
+	str := asString(s)
+	n := int(asInt(i)) - len(str)
+	if n <= 0 {
+		return str, nil
+	}
+	return str + strings.Repeat(string(asChar(c)), n), nil
+}

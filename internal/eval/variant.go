@@ -15,6 +15,15 @@
 // language governing permissions and limitations under the
 // License.
 
-module github.com/hydromatic/morel-go
+package eval
 
-go 1.25
+// Variant is a dynamically-typed value: an underlying value tagged
+// with its underlying type. Type is an opaque handle (a
+// types.Type) that the runtime never inspects; the printer and the
+// Variant operations, which have access to the type system,
+// interpret it. Value is the underlying value in its ordinary
+// Morel representation.
+type Variant struct {
+	Type  any
+	Value Val
+}

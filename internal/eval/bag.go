@@ -15,6 +15,23 @@
 // language governing permissions and limitations under the
 // License.
 
-module github.com/hydromatic/morel-go
+package eval
 
-go 1.25
+// The Bag built-ins. A bag holds its elements in the list
+// representation ([]Val), so all its element-wise operations —
+// null, length, hd, tl, getItem, take, drop, @, concat, app, map,
+// mapPartial, find, filter, partition, fold, exists, all,
+// tabulate, nth, only — reuse the List code. Only the conversions
+// between the identical bag and list representations are named
+// here.
+
+// bagFromListFn is "Bag.fromList l" and the global "bag": a bag
+// holds the same elements as the list, in the same representation.
+func bagFromListFn(arg Val) (Val, error) {
+	return arg, nil
+}
+
+// bagToListFn is "Bag.toList b": the list of a bag's elements.
+func bagToListFn(arg Val) (Val, error) {
+	return arg, nil
+}

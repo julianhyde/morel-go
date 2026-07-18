@@ -1,0 +1,181 @@
+// Licensed to Julian Hyde under one or more contributor license
+// agreements.  See the NOTICE file distributed with this work
+// for additional information regarding copyright ownership.
+// Julian Hyde licenses this file to you under the Apache
+// License, Version 2.0 (the "License"); you may not use this
+// file except in compliance with the License.  You may obtain a
+// copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+// either express or implied.  See the License for the specific
+// language governing permissions and limitations under the
+// License.
+
+package eval
+
+import "github.com/hydromatic/morel-go/internal/token"
+
+// Pat is a compiled pattern. Match tests a value, binding the
+// pattern's variables into the frame's slots, and reports
+// whether it matched.
+type Pat interface {
+	Match(v Val, f *Frame) bool
+}
+
+// LiteralPat matches a constant.
+type LiteralPat struct {
+	V Val
+}
+
+// Match implements Pat.
+func (p LiteralPat) Match(v Val, _ *Frame) bool {
+	return v == p.V
+}
+
+// SlotPat binds a value to a variable's slot; it always matches.
+type SlotPat struct {
+	Slot int
+}
+
+// Match implements Pat.
+func (p SlotPat) Match(v Val, f *Frame) bool {
+	f.Slots[p.Slot] = v
+	return true
+}
+
+// Con0Pat matches a constant constructor value.
+type Con0Pat struct {
+	Datatype string
+	Ordinal  int
+}
+
+// Match implements Pat.
+func (p Con0Pat) Match(v Val, _ *Frame) bool {
+	con, ok := v.(Con)
+	return ok && con.Datatype == p.Datatype &&
+		con.Ordinal == p.Ordinal
+}
+
+// ConAppPat matches a constructor application, binding its
+// argument.
+type ConAppPat struct {
+	Arg      Pat
+	Datatype string
+	Ordinal  int
+}
+
+// Match implements Pat.
+func (p ConAppPat) Match(v Val, f *Frame) bool {
+	con, ok := v.(Con)
+	return ok && con.Datatype == p.Datatype &&
+		con.Ordinal == p.Ordinal && p.Arg.Match(con.Arg, f)
+}
+
+// ConsPat matches a non-empty list, binding its head and tail.
+type ConsPat struct {
+	Head Pat
+	Tail Pat
+}
+
+// Match implements Pat.
+func (p ConsPat) Match(v Val, f *Frame) bool {
+	vals, ok := v.([]Val)
+	if !ok || len(vals) == 0 {
+		return false
+	}
+	return p.Head.Match(vals[0], f) &&
+		p.Tail.Match(vals[1:], f)
+}
+
+// ListPat matches a list of exactly its length.
+type ListPat struct {
+	Pats []Pat
+}
+
+// Match implements Pat.
+func (p ListPat) Match(v Val, f *Frame) bool {
+	vals, ok := v.([]Val)
+	if !ok || len(vals) != len(p.Pats) {
+		return false
+	}
+	for i, pat := range p.Pats {
+		if !pat.Match(vals[i], f) {
+			return false
+		}
+	}
+	return true
+}
+
+// TuplePat matches a tuple or record value element-wise.
+type TuplePat struct {
+	Pats []Pat
+}
+
+// Match implements Pat.
+func (p TuplePat) Match(v Val, f *Frame) bool {
+	vals, ok := v.([]Val)
+	if !ok {
+		return false
+	}
+	for i, pat := range p.Pats {
+		if !pat.Match(vals[i], f) {
+			return false
+		}
+	}
+	return true
+}
+
+// WildcardPat matches anything, binding nothing.
+type WildcardPat struct{}
+
+// Match implements Pat.
+func (WildcardPat) Match(Val, *Frame) bool {
+	return true
+}
+
+// MatchClause is one rule of a compiled case: a pattern and the
+// code to run when it matches.
+type MatchClause struct {
+	Pat  Pat
+	Body Code
+}
+
+// Case returns code that evaluates a scrutinee and runs the body
+// of the first clause whose pattern matches; if none matches, it
+// raises Bind at the match list's position.
+func Case(scrutinee Code, clauses []MatchClause,
+	span token.Span,
+) Code {
+	return &caseCode{
+		scrutinee: scrutinee,
+		clauses:   clauses,
+		span:      span,
+	}
+}
+
+type caseCode struct {
+	scrutinee Code
+	clauses   []MatchClause
+	span      token.Span
+}
+
+func (c *caseCode) Eval(f *Frame) (Val, error) {
+	v, err := c.scrutinee.Eval(f)
+	if err != nil {
+		return nil, err
+	}
+	for _, clause := range c.clauses {
+		if clause.Pat.Match(v, f) {
+			return clause.Body.Eval(f)
+		}
+	}
+	return nil, &MorelError{Exn: ExnBind, Span: c.span}
+}
+
+func (c *caseCode) Describe() string {
+	return "case(" + c.scrutinee.Describe() + ")"
+}

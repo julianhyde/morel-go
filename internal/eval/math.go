@@ -15,6 +15,20 @@
 // language governing permissions and limitations under the
 // License.
 
-module github.com/hydromatic/morel-go
+package eval
 
-go 1.25
+import "math"
+
+// The Math structure. Most members reuse the real1/real2 helpers;
+// only pow needs its own special-casing.
+
+// mathPowFn is "Math.pow (x, y)". It follows C's pow except that a
+// base of magnitude one raised to a non-finite exponent is NaN, not
+// one, as the Standard ML Basis requires.
+func mathPowFn(arg Val) (Val, error) {
+	x, y := asRealPair(arg)
+	if math.Abs(x) == 1 && (math.IsInf(y, 0) || math.IsNaN(y)) {
+		return float32(math.NaN()), nil
+	}
+	return float32(math.Pow(x, y)), nil
+}

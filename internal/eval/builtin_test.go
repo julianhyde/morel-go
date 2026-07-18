@@ -15,6 +15,26 @@
 // language governing permissions and limitations under the
 // License.
 
-module github.com/hydromatic/morel-go
+package eval_test
 
-go 1.25
+import (
+	"testing"
+
+	"github.com/hydromatic/morel-go/internal/eval"
+)
+
+func TestParseTree(t *testing.T) {
+	f := eval.Builtins["Sys.parseTree"]
+	v, err := eval.ApplyVal(f, "f 1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "(apply (id f) (int_literal 1))"
+	if v != want {
+		t.Errorf("got %q, want %q", v, want)
+	}
+	_, err = eval.ApplyVal(f, "1 +")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}

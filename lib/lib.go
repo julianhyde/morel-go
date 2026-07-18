@@ -15,6 +15,13 @@
 // language governing permissions and limitations under the
 // License.
 
-module github.com/hydromatic/morel-go
+// Package lib embeds the built-in library signatures, which are
+// shared verbatim with morel-java.
+package lib
 
-go 1.25
+import "embed"
+
+// FS holds the signature files.
+//
+//go:embed *.sig
+var FS embed.FS

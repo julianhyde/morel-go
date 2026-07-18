@@ -15,22 +15,7 @@
 // language governing permissions and limitations under the
 // License.
 
-package main
-
-import "testing"
-
-func TestAdd(t *testing.T) {
-	cases := []struct {
-		a, b, want int
-	}{
-		{3, 4, 7},
-		{-1, 1, 0},
-		{0, 0, 0},
-		{-5, -5, -10},
-	}
-	for _, c := range cases {
-		if got := add(c.a, c.b); got != c.want {
-			t.Errorf("add(%d, %d) = %d, want %d", c.a, c.b, got, c.want)
-		}
-	}
-}
+// Package morel is the root of morel-go, an interpreter for Morel,
+// a functional query language. The implementation lives under
+// internal/; the command lives under cmd/morel.
+package morel

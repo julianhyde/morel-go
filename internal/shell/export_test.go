@@ -15,6 +15,21 @@
 // language governing permissions and limitations under the
 // License.
 
-module github.com/hydromatic/morel-go
+package shell
 
-go 1.25
+import (
+	"github.com/hydromatic/morel-go/internal/eval"
+	"github.com/hydromatic/morel-go/internal/types"
+)
+
+// Test hooks for unexported printing functions.
+
+func PrettyBindingForTest(c Config, name string, v eval.Val,
+	t types.Type,
+) string {
+	return c.prettyBinding(name, v, t)
+}
+
+func FormatRealForTest(f float32) string {
+	return eval.FormatReal(f)
+}
