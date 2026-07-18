@@ -643,7 +643,7 @@ G. This phase runs before the query slices (G).
       `built-in/char.smli` remains unpulled beyond the postfix
       hunks: `testChar`, which exercises the classification
       predicates through a `group`/`compute`/`order` query, so it
-      waits for the phase-G relational features.
+      waits for the phase-H relational features.
 - [x] 65. `General` structure — complete, save for `exnName` and
       `exnMessage`: those need first-class `exn` values (the built-in
       exceptions and `Fail` bound as values), a piece of the
@@ -693,49 +693,348 @@ file, so it is done once, here, at the end:
 The remaining skeletons stay out of this phase: `datalog`
 (morel#323) and `pp` (morel#398 user surface) are post-endpoint
 (`word` is now task 61); `relational` is the query engine
-(48-50 and beyond); `ieee-real`, `int-inf`, and `interact` are
+(phases G-K); `ieee-real`, `int-inf`, and `interact` are
 already at java's coverage (their java files are type-references
 only).
 
-### G. Relational, first slices (47-50)
+### F2. Corpus housekeeping (75a-75b)
+
+Findings from a 2026-07-18 review of the corpus workflow:
+
+- [ ] 75a. Canonicalize NaN: a real arithmetic operation that
+      produces a NaN returns the canonical positive quiet NaN,
+      as the JVM does. (Go inherits the hardware sign —
+      positive on arm64, negative on x86-64 — which is why
+      `built-in/real.smli` carries the port's only adapted
+      corpus line, `val nan = Real.abs (Real.posInf /
+      Real.posInf)`: the verbatim java line would pass on
+      arm64 and fail on x86-64 CI, so `pull-passing.py`'s
+      report is host-dependent exactly there. Sign-copying
+      and sign-inspecting members — `~`, `copySign`,
+      `signBit` — keep their semantics.) Then pull java's
+      `val nan = Real.posInf / Real.posInf` verbatim,
+      retiring the port's one adapted corpus line.
+- [ ] 75b. Run `pull-passing.py --apply` and fold in the two
+      top-level files that crossed the creation threshold
+      when tasks 70-71 landed but were never generated:
+      variant.smli (66/87 statements pass) and range.smli
+      (63/147).
+
+### G. Query typing on the orderedness atom (47, 76-82)
 
 Runs after phase F. The `Bag` structure is already complete
-(task 55); its query *typing* — bags as unordered collections —
-lands here with the collection work (morel#273).
+(task 56); queries learn to carry orderedness here. Draft
+tasks 48-50 of the old phase G are superseded by tasks 83-91.
+
+What the histories teach (morel-rust's commit log; the git
+archaeology of morel-java's `TypeResolver`):
+
+- rust's worst fix-cascade — ~15 commits over seven months,
+  30+ test sections disabled, aggregate adaptation not
+  complete until two months *after* the endpoint commit —
+  traces to building group/compute/set-op evaluation
+  list-only and retrofitting orderedness (morel#273),
+  overloading (#237), and aggregate adaptation (#271)
+  afterward. Here, typing carries orderedness before any
+  query evaluation exists, and group/compute evaluation
+  waits until the signatures and scoping rules are final.
+- java replaced its own first representation — distinct
+  `list`/`bag` unifier terms reconciled by special-case
+  helpers (`mayBeBagOrList`, `isListIfAllAreLists`, magic
+  `collectionKind` integers, a `CollectionType` enum) — with
+  the orderedness atom (morel#407, java commit 744744b8,
+  2026-07-17): a collection is a single internal term
+  `$collection(elem, o)`, where `o` is the atom `ordered`
+  (a list), the atom `unordered` (a bag), or a free
+  variable. "Same orderedness" is then a shared variable
+  (plain unification, no constraint); the list/bag meet is
+  one 2x2 constraint table; and unconstrained orderedness
+  decodes as `bag`. morel-go ports the final design directly
+  and never builds the helper family. (#407 is a day old:
+  watch java for follow-up fixes before freezing details.)
+- The per-step orderedness rules, for reference:
+
+  | Step | Orderedness |
+  | --- | --- |
+  | empty `from` | ordered (`unit list`) |
+  | first scan, `=` scan, `yield`, `group` | same as input |
+  | join / extra scan, set ops | list iff all inputs are |
+  | `order` | list |
+  | `unorder`, sourceless scan | bag |
+  | `where`, `distinct`, `skip`, `take` | passthrough |
+  | `compute`, `into` | scalar (no collection) |
+  | unconstrained | bag, at decode |
+
+- Dead ends skipped: the `suchthat` keyword ([MOREL-129],
+  removed [MOREL-202]); the `desc` keyword (#244, #282);
+  dual list/bag overloads of the built-in aggregates
+  (removed by #271 — bag-parameter signatures plus
+  adaptation from day one); the pre-#407 helper family; the
+  #258 "skip/take with unbounded variable" error (superseded
+  by #217, under which `take 3` over an infinite extent
+  works).
+- java's `bag.smli` (321 lines) is the orderedness spec in
+  miniature; its `:t` hunks grow with every task below. As
+  in phase C, `:t` tests the whole phase without evaluation.
 
 - [x] 47. Typing for scan (`in`, `=`), `where`, `yield` over
       lists: a query's rows carry named fields, the element type
       is the sole field or a record of them, `yield` of a record
       literal exposes its fields. The list-scan `:t` hunks pass.
       (`Core.From` + `FromBuilder` land with the evaluator in
-      task 48, rather than as an unused IR node now — no
+      task 85, rather than as an unused IR node now — no
       speculative infrastructure. The collection-kind constraint
       hook from task 21 is ready for bags.)
-- [ ] 48. `RowSink` push pipeline: scan/where/yield sinks; java's
-      binding model verbatim — canonical field-name-ordered rows,
-      one implicit-label helper, `current` as a rewrite, one
-      shared row read/write helper (rust's row-layout bugs took a
-      15-commit tail).
-- [ ] 49. Joins: comma joins and `join ... on`; nested and
-      dependent scans; pattern scans.
-- [ ] 50. `group`/`compute` with the basic aggregates (`count`,
-      `sum`, `min`, `max`); output matcher + `matchStrict`
-      (morel#334) for unordered results.
-      **Milestone: first `relational.smli` hunks pass.**
+- [ ] 76. Orderedness in the unifier: `ordered`/`unordered`
+      atoms, the `$collection(elem, o)` term, and the three
+      primitives — `isCollectionOf` (orderedness left free),
+      `sameOrderedness` (a shared orderedness variable),
+      `meetOrderedness` (the 2x2 constraint table) plus
+      binary/n-ary `meetCollections`; unconstrained
+      orderedness decodes as `bag`; conflicts render as
+      `int list vs int bag`. First verify task 21's
+      constraint hooks do java's candidate pruning with
+      fire-when-one-remains; harden if not. Rebuild task 47's
+      from-typing on the new term (first scan shares the
+      source's orderedness), so `from x in aBag` types as a
+      bag query. Pull the first bag.smli `:t` hunks.
+- [ ] 77. The query row model, ported from java: the
+      rootEnv/stepEnv/element/collection step state
+      (java's `Triple`) plus ordered named fields
+      (`fieldVars`) with the 0/1/n collapse rule (unit / the
+      sole field / a sorted record); scan patterns
+      destructure and bind fields; `=` scalar scans; `where`;
+      `current` bound in each step's env.
+- [ ] 78. `yield` typing: a record-literal yield exposes its
+      fields to later steps; implicit labels (`yield e.b` is
+      field `b`); the singleton-record rule (`yield {x = y}`
+      renames rather than wraps); an atom yield becomes a
+      single implicitly-labeled field.
+- [ ] 79. Join typing: comma scans and `join ... on`
+      (`on` is bool); dependent scans; result is a list iff
+      all inputs are lists. (Outer joins stay out of scope.)
+- [ ] 80. Passthroughs and forcers: `distinct` (no type
+      change); `skip`/`take` (counts typed in the root env,
+      `int`); `order` (single sort-key expression, forces
+      list, warns when a record sort key's fields are not
+      alphabetical); `unorder` (forces bag); `ordinal`
+      (`int`; post-solve validation that the input is
+      ordered); `union`/`intersect`/`except` (arguments typed
+      in the root env; n-ary meet).
+- [ ] 81. `group`/`compute` typing: key and aggregate fields;
+      `elements` bound to the input collection in the
+      aggregate env; label derivation and duplicate checks;
+      the `group` binder; standalone `compute` as a scalar.
+      Aggregate linkage via java's `AggKind` classification:
+      a known bag- or list-parameter aggregate is decoupled
+      from the input's orderedness (adaptation), an
+      unknown user function is left free; the POLYMORPHIC
+      kind arrives with task 94. Built-in aggregates (`sum`,
+      `count`, `min`, `max`, ...) get java's present-day
+      bag-parameter signatures from day one.
+- [ ] 82. `exists`/`forall` (bool) and `require` (last step
+      of `forall` only); `into` (scalar) and `through`
+      (rebinds the row; orderedness from the function's
+      result type).
+      **Milestone: the `:t` hunks of bag.smli,
+      relational.smli, and such-that.smli pass — query typing
+      complete, tested without evaluation.**
 
-### Beyond task 50 (to the endpoint)
+### H. Query evaluation (83-91)
 
-In rough order: `order`/`distinct`/`take`/`skip` evaluation;
-set-op steps; quantifiers; in-heap scott dataset (morel#255);
-ordered/unordered queries + aggregate adaptation (morel#273,
-#271, #282, #328); full `over`/`inst` overloading surface
-(morel#237); polymorphic datatypes (morel#70, #205); cross-unit
-inlining (morel#223, #330); surface conveniences — postfix
-method calls,
-`op` sections, unparser, tabular output, `-e`/`--eval`, `use`
-(morel#346, #311, #293, #259, #333, #198); match-coverage analysis
-(morel#55); predicate inversion (morel#217).
-**Endpoint milestone: parity with morel-rust `e0779b86`.**
+- [ ] 83. `OutputMatcher` (morel#334): port java's type-driven
+      semantic comparison of expected vs actual output —
+      parse both value strings guided by the static result
+      type, compare bag-typed values as multisets, normalize
+      whitespace; `matchStrict` opts out. Wire it into the
+      script harness (which needs the result type alongside
+      the text) *before* any bag-producing query evaluates:
+      rust added this mid-stream in three commits, and
+      without it every bag result is a flaky test.
+- [ ] 84. In-heap scott dataset (morel#255): the `scott`
+      structure (emp/dept/salgrade/bonus) that fuels most of
+      relational.smli; pull scott.smli. (scott-queries.smli
+      also needs `useSilently`, task 109.)
+- [ ] 85. `RowSink` push pipeline: scan/where/yield sinks;
+      java's binding model verbatim — canonical
+      field-name-ordered rows, one implicit-label helper,
+      `current` as a rewrite, one shared row read/write
+      helper (rust's row-layout bugs took a 15-commit tail).
+- [ ] 86. Join evaluation: comma joins and `join ... on`;
+      nested and dependent scans; pattern scans.
+- [ ] 87. `order`/`distinct`/`skip`/`take` evaluation: sort
+      via the type-directed comparators (task 36); `DESC`
+      sort keys wait for task 93.
+- [ ] 88. Set-op evaluation with java's present-day counting
+      semantics (morel#321 folded in from the start:
+      `intersect`/`except` respect multiplicity; rust shipped
+      the naive semantics first and reworked them).
+- [ ] 89. `group`/`compute` evaluation with the built-in
+      aggregates (`count`, `sum`, `min`, `max`) and the
+      list-input adapters that the bag-parameter signatures
+      imply (the runtime half of morel#271); java's
+      present-day scoping rules for keys and `compute`
+      (settled upstream in the June 2026 fixes rust needed
+      after its endpoint).
+- [ ] 90. Quantifier and terminal steps: `exists`/`forall`
+      with short-circuit, `require`, `into`, `through`.
+- [ ] 91. `current`, `ordinal`, `unorder` evaluation
+      (morel#265, #276, #277).
+      **Milestone: the first big relational.smli pull; the
+      `testChar` block deferred at task 64 lands.**
+
+### I. Polymorphism, overloading, aggregates (92-95)
+
+Ordering per the rust retrospective: polymorphic datatypes
+before type-based orderings; overloading before aggregate
+adaptation is complete.
+
+- [ ] 92. Polymorphic datatypes (morel#70, #205):
+      `datatype 'a tree = ...`; constructors instantiate at
+      use sites; the (datatype, ordinal) value representation
+      and type-directed comparators already fit. Big
+      convergence step for type.smli and datatype.smli.
+- [ ] 93. `Descending` datatype and `Relational.compare`
+      (morel#282): type-based orderings; `order (DESC e)`
+      evaluation via task 87's comparators.
+- [ ] 94. `over`/`inst` overloading (morel#237): `over`
+      declarations, instance registry, constraint-based
+      dispatch at application sites (the "A Second Look at
+      Overloading" approach); `MultiType` builtins — `elem`/
+      `notelem` on bags and lists, `Relational.only`,
+      overloaded `abs` (#318). Unblocks the `op` and numeric
+      hunks noted at task 43c, and overload.smli's first
+      pull.
+- [ ] 95. Aggregate adaptation, completed (morel#271):
+      the POLYMORPHIC `AggKind` — an overloaded aggregate's
+      instance is selected by the input's orderedness; the
+      zero-field relation rule (`distinct` vs `group {}`,
+      morel#328); `Relational` structure completion
+      (built-in/relational.smli). Pull the overload.smli
+      aggregate sections.
+
+### J. Inlining and analysis (96-98)
+
+- [ ] 96. `Analyzer` + `Inliner`: inline non-recursive
+      `val`/`fun` bindings into query predicates, with the
+      pass-count loop in the compile driver; cross-unit
+      inlining (morel#223). A prerequisite for predicate
+      inversion (phase K) — inversion must see through
+      user-defined predicates — and for java-matching plans
+      (task 75).
+- [ ] 97. Constant-`case` inlining (morel#330), so inverted
+      and specialized queries simplify to java's plans.
+- [ ] 98. Satisfiability prover + match-coverage analysis
+      (morel#55): redundant- and missed-case warnings.
+      Budget the prover generously (rust's 315-line first cut
+      was rewritten within a month). Unlocks the
+      type-inference.smli warning hunks deferred since
+      task 28, and most of match.smli.
+
+### K. Unbounded variables (99-107)
+
+An unbounded variable (`from x where x > 3 andalso x < 10`) is
+grounded at compile time by inverting the predicates that
+constrain it. java's final architecture, ported directly:
+
+- Typing needs no extent knowledge: a sourceless scan gets a
+  fresh type variable and forces `bag` (already in task 76's
+  rules); everything else happens on typed, *inlined* Core.
+- The resolver emits a scan over an internal infinite-extent
+  value; a compile-time pass (java's `SuchThatShuttle` →
+  `Expander` → `Generators`, from morel#217) accumulates
+  `where`/`on` conjuncts step by step and replaces each
+  extent with the best *generator* — an efficient inverse of
+  a predicate class, carrying cardinality, dependencies
+  (`freePats`), uniqueness, and `provenance` (the conjuncts
+  it subsumes, which are then deleted). A used pattern with
+  no finite generator reports "pattern 'x' is not grounded".
+- rust landed morel#217 as one 8.9k-line commit; go splits
+  it, and folds java's follow-up fixes (the provenance/
+  monotonic-cache refactor, case inversion #341, outer-scope
+  filters #347, merged ranges, one-sided ranges, the
+  transitive-closure cousin fix) into each piece's first
+  landing, so each is born final.
+- Out of scope, as before: FBBT (morel#373) — the
+  such-that.smli FBBT sections stay unpulled; Datalog
+  (#323), though phase K builds the machinery it needs.
+
+- [ ] 99. Extent representation: `RangeExtent` (type plus
+      per-path range sets; finite extents materialize),
+      internal `Z_EXTENT` builtin (panics if an infinite
+      extent reaches evaluation), resolver emits extent scans
+      for sourceless `from p` and unorders the query. Finite
+      types (bool, unit, char, options over them) evaluate
+      end to end: `from b where b orelse not b`.
+- [ ] 100. The `Expander`/`Generators` framework skeleton:
+      the generator abstraction (cardinality, freePats,
+      unique, sealed, provenance, simplify), the monotonic
+      per-pattern cache, conjunct accumulation via
+      decomposed `andalso`, the used-pattern grounding check
+      ("pattern 'x' is not grounded") and cycle check, the
+      shuttle dispatcher gated on containsUnbounded (skipping
+      recursive-function bodies). First generators: point
+      (`x = e`) and finite-extent.
+- [ ] 101. Collection generator: `x elem coll`; composite
+      patterns (`(x, y) elem pairs`) via per-field generators
+      rejoined; dependent generators become filtered subquery
+      scans with renamed patterns and join conditions;
+      `distinct` insertion rules.
+- [ ] 102. Range generator: lower/upper bound extraction
+      (linear-term helpers; literal bounds pushed into
+      infinite-range scans), emitting java's present-day
+      `Range`-based shapes — `Bag.fromList (Range.flatten
+      [...])`, multi-interval `Range.discreteSetOf`,
+      one-sided ranges combined with other constraints — and
+      range-lists in the list constructor
+      (`[0..^10, 20, 100..]`, morel#372) as the syntax
+      prerequisite. Task 70's `Range` structure pays off
+      here.
+- [ ] 103. Union generator (`orelse` inverts to a union,
+      deduplicated when non-unique) + the `Simplifier` and
+      provenance-based cancellation of subsumed `where`
+      conjuncts.
+- [ ] 104. Exists inversion: `Relational.nonEmpty` of a
+      subquery in monotonic position becomes a join or
+      semi-join generator; filtering by outer-scope variables
+      (morel#347).
+- [ ] 105. Function and case inversion: inline a user
+      function's body into the constraint set and recurse
+      (needs task 96); multi-arm `case` inversion
+      (morel#341); the `String.isPrefix` generator.
+- [ ] 106. Transitive closure: `Relational.iterate`
+      (semi-naive fixpoint) as a builtin; the
+      transitive-closure and bounded-iterate generators,
+      including the tuple and cousin-style variants. Unlocks
+      the edges/paths and family sections of such-that.smli
+      and much of fixed-point.smli.
+- [ ] 107. `Sys.planEx` (morel#329): re-run compilation of
+      the last declaration up to a numbered pass and print
+      the Core (builds on task 75's plan printing). Pull the
+      plan-assertion hunks — 33 uses in such-that.smli, 38 in
+      optimize.smli.
+
+### L. Remaining surface (108-110)
+
+- [ ] 108. Record update: `{e with deptno = 0}` (morel#249);
+      used by relational.smli and blog.smli.
+- [ ] 109. `use` and `useSilently` (morel#198), with
+      `--maxUseDepth`; unlocks scott-queries.smli.
+- [ ] 110. Unparser (morel#41, #293): render AST back to
+      source with correct precedence, for warnings and plan
+      text. Pull forward earlier (task 80's sort-key warning,
+      task 75's plans) if those need more than trivial
+      rendering.
+
+**Endpoint milestone: feature parity with morel-rust
+`e0779b86`, measured go-style — every remaining line of
+`.smli` divergence is attributable to an out-of-scope
+feature (Calcite/dual, Datalog, FBBT, exceptions/`raise`,
+file reader, outer joins, `yieldAll`, `?.`, binder syntax,
+shell polish).** Note that go arrives with java's June-2026
+group/compute scoping and set-op semantics built in —
+territory where rust at the same milestone still had 33
+relational.smli sections disabled.
 
 ## Commit-history maintenance
 
@@ -765,6 +1064,12 @@ in a quiet moment, replaying with `git rebase -f -x 'fullMake
 - [ ] H3. Rename `isASCIIChar` to `isAsciiChar` in its birth commit
       ("Implement String and Char"), so the initialism matches the
       `Ascii` casing of `Char.isAscii` and Go's mixed-caps style.
+- [ ] H4. Add `Propagates hydromatic/morel#NNN commit <sha>`
+      footers to the two Real propagation commits ("Propagate
+      morel-java's Real.floor/ceil/round fix", "Propagate
+      morel-java's Real inf/NaN int-conversion fix"), so
+      `check-convergence.py --ledger` records them; the ledger
+      currently shows zero propagated commits.
 
 ## After the endpoint
 
