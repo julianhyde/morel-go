@@ -714,7 +714,7 @@ Findings from a 2026-07-18 review of the corpus workflow:
       `signBit` — keep their semantics.) Then pull java's
       `val nan = Real.posInf / Real.posInf` verbatim,
       retiring the port's one adapted corpus line.
-- [ ] 75b. Run `pull-passing.py --apply` and fold in the two
+- [x] 75b. Run `pull-passing.py --apply` and fold in the two
       top-level files that crossed the creation threshold
       when tasks 70-71 landed but were never generated:
       variant.smli (66/87 statements pass) and range.smli
