@@ -143,7 +143,7 @@ commit), via the corpus rule.
 | 5932f2b Real.fmt FIX small values | Real structure commit |
 | fde0c8c floor/ceil of NaN raise Domain | Real structure commit |
 | e74bbc4 / 01da4de java-fix corpus pulls | Real structure commit (`issue.md` parts dropped) |
-| c822550 wrap long types (task 51) | a61f86a printing engine (decision D5) |
+| c822550 wrap long types (task 51) | not a fold (probe): standalone commit right after d5dd000 datatype values |
 | 5425fbb checkNoUnresolvedFieldRefs | keep standalone, but move to just after 9c29395 (selectors); retitle "Check field references against record types" |
 | a23166e checkNumericOperators | already in place after 45c1360; keep standalone |
 
@@ -168,7 +168,7 @@ per-structure corpus files regenerate via the corpus rule.
    structure", "`Char` structure" (+ 91c9877). Apply plan H3
    here: `isASCIIChar` -> `isAsciiChar` in the birth commit.
 
-## Target narrative (68 commits)
+## Target narrative (69 commits)
 
 The full target sequence. Sources are old SHAs; `+` marks a
 fold or squash; splits are marked. Where no source is listed
@@ -221,8 +221,7 @@ in a chapter preamble, the commit is a straight keep+reword.
 26. Add the runtime value representation (597f6ec)
 27. Add Code, Frame, and the compiler; statements evaluate
     (b40dd68)
-28. Add the printing engine
-    (a61f86a+c822550 [D5]+bc72280 [check blame])
+28. Add the printing engine (a61f86a+bc72280 [check blame])
 29. Evaluate case, if, and negation (81887a0)
 30. Evaluate functions and closures (068f718)
 31. Evaluate recursive functions (a3b6419)
@@ -233,58 +232,63 @@ in a chapter preamble, the commit is a straight keep+reword.
 34. Report compile and runtime errors
     (006fdc9+dbba9d4+d3ea485)
 35. Evaluate datatype values (d5dd000)
-36. Pull the first evaluation corpus (98ae2a7)
-37. Stress-test closures and recursion across statements
+36. Wrap long types across lines (c822550 — earliest feasible
+    position, proven by probe; needs `System.Substitute`,
+    born in 35)
+37. Pull the first evaluation corpus (98ae2a7)
+38. Stress-test closures and recursion across statements
     (c807959)
 
-### E. Shell (38-42)
+### E. Shell (39-43)
 
-38. Add the built-in registry (250f2d2)
-39. Add structure test scripts and their lint check (7f318ae)
-40. Parse the command line (91510f1+8ee993a)
-41. Run .smli scripts through the shared runner (809be0d)
-42. Add the interactive shell (6d0eb63)
+39. Add the built-in registry (250f2d2)
+40. Add structure test scripts and their lint check (7f318ae)
+41. Parse the command line (91510f1+8ee993a)
+42. Run .smli scripts through the shared runner (809be0d)
+43. Add the interactive shell (6d0eb63)
 
-### F. Standard library (43-67)
+### F. Standard library (44-68)
 
 One commit per structure — basics + completion + its
-`built-in/<name>.smli` fully grown at that tree. `Sys` leads
-(D6 resolved: yes) so every structure file is born with its
-`Sys.set` preamble; `StringCvt` precedes the numerics because
-`fmt` needs the radix.
+`built-in/<name>.smli` fully grown at that tree. `Sys` comes
+as early as it can (right after `Option` — probing showed Sys
+needs option values); the four files born before it gain their
+`Sys.set` preambles in Sys's own corpus regeneration.
+`StringCvt` precedes the numerics because `fmt` needs the
+radix.
 
-43. `op` sections (32efad8)
-44. `Sys` structure (754ad47)
-45. Tabular output mode (94cf2f3)
-46. `General` structure (split of 65ed679)
-47. `Bool` structure (split of 65ed679)
-48. `Order` structure (split of 65ed679; may prove to belong
+44. `op` sections (32efad8)
+45. `General` structure (split of 65ed679)
+46. `Bool` structure (split of 65ed679)
+47. `Order` structure (split of 65ed679; may prove to belong
     to the registry commit — verify at split time)
-49. `Option` structure (split of 65ed679)
-50. `StringCvt` structure (48028e1)
-51. `Int` structure (split of e9671a3, +4566d38)
-52. `Real` structure (split of e9671a3, +df3c696+18da1c0
+48. `Option` structure (split of 65ed679)
+49. `Sys` structure (754ad47)
+50. Tabular output mode (94cf2f3)
+51. `StringCvt` structure (48028e1)
+52. `Int` structure (split of e9671a3, +4566d38)
+53. `Real` structure (split of e9671a3, +df3c696+18da1c0
     +5932f2b+fde0c8c+e74bbc4+01da4de)
-53. `Math` structure (split of e9671a3, +a9f397f)
-54. `Word` structure (624ece5)
-55. `String` structure (split of 2b5401a; plan H3 rename here)
-56. `Char` structure (split of 2b5401a, +91c9877)
-57. `List` structure (aeee2ec+a179e37)
-58. `Bag` structure (53a686c)
-59. `Vector` structure (8007e80+c936db1)
-60. `ListPair` structure (1f1f567)
-61. `Either` structure (a98bb4c)
-62. `Fn` structure (b5500e2)
-63. `Range` structure (46d43b6)
-64. `Variant` structure (1475068)
-65. `Time` structure (077883a)
-66. `Date` structure (a408d00)
-67. Postfix method calls (c6b80f7 — its corpus regeneration
+54. `Math` structure (split of e9671a3, +a9f397f)
+55. `Word` structure (624ece5)
+56. `String` structure (split of 2b5401a; plan H3 rename here)
+57. `Char` structure (split of 2b5401a, +91c9877)
+58. `List` structure (aeee2ec+a179e37)
+59. `Bag` structure (53a686c)
+60. `Vector` structure (8007e80+c936db1)
+61. `ListPair` structure (1f1f567)
+62. `Either` structure (a98bb4c)
+63. `Fn` structure (b5500e2)
+64. `Range` structure (46d43b6)
+65. `Variant` structure (1475068)
+66. `Time` structure (077883a)
+67. `Date` structure (a408d00)
+68. Postfix method calls (c6b80f7 — its corpus regeneration
     adds the postfix hunks across every structure file)
 
-### G. Queries (68)
+### G. Queries (69)
 
-68. Type 'from' queries over lists (db9935f) — the history
+69. Type 'from' queries over lists (db9935f) — the history
     ends where phase G of the plan begins.
 
 Notes on achievability:
@@ -293,11 +297,37 @@ Notes on achievability:
   support exists; per-commit corpus content will differ from
   the old history's, and the convergence gate in the verify
   pass confirms monotone convergence.
-- Riskiest moves, to test first in stage 1: `Sys` ahead of the
-  numerics (44), `StringCvt` ahead of `Int`/`Real` (50), the
-  type-wrapping fold (28/D5), and the NaN-comparison fold (33).
 - Chapters B-E keep the original commit order; only messages
   and the listed folds change there.
+
+### Probe results (2026-07-18)
+
+All five risky moves probed by cherry-pick + fullMake in a
+worktree:
+
+1. NaN-comparison fold (52c77aa -> 2e52f08): PASS, clean.
+2. Type-wrapping fold into the printing engine: FAIL —
+   c822550 needs `types.System.Substitute`, born in
+   d5dd000 (Evaluate datatype values). Demoted to a
+   standalone commit right after d5dd000 (PASS there); D5
+   resolved accordingly.
+3. StringCvt before Int/Real/Math: PASS; Int/Real/Math apply
+   cleanly on top.
+4. Sys at the head of the structure era: FAIL — Sys needs
+   option values (NoneVal/SomeVal in eval/option.go). PASS
+   immediately after Option (65ed679), with one small
+   kernel.go conflict (maps.Copy vs loop) and corpus
+   regeneration dropping 20 later-dependent lines. D6
+   amended: order is General/Bool/Order/Option -> Sys.
+5. op sections at the era head: PASS (corpus regen -5 lines
+   in vector.smli).
+
+Standard resolution patterns for stage 1, learned here: (a)
+`gofumpt -w` reflow after any builtin-table merge (map-entry
+alignment shifts); (b) re-alphabetize moved table entries
+(the project lint enforces order); (c) on any failing
+`.smli`, `pull-passing.py --apply <file>` at that tree —
+dropped lines return automatically at later regens.
 
 ## Comment sweep (plan H2)
 
@@ -334,11 +364,15 @@ file.
   (recommended — printing is born java-identical, per the day-1
   rule) at the cost of corpus regeneration in the commits
   between; or keep standalone.
+  [Resolved by probe: fold infeasible (needs Substitute from
+  d5dd000); standalone commit right after datatype values.]
 - D6. `Sys` position: the resequencing keeps it mid-block; it
   could move to the head of the structure era so every
   `built-in` file carries its `Sys.set` preamble from birth
   (more regeneration churn, slightly nicer files).
-  [Resolved in the target narrative: `Sys` leads the era.]
+  [Amended by probe: Sys needs option values, so it follows
+  Option; the four earlier files gain preambles in Sys's own
+  corpus regeneration.]
 
 ## Runbook
 
@@ -372,7 +406,7 @@ file.
    `git absorb --base <first new commit>` + autosquash;
    leftovers assigned by hand; one more `rebase -x fullMake`
    replay (comments can break lint).
-5. **Final audit**: log vs the 68 ledger entries;
+5. **Final audit**: log vs the 69 ledger entries;
    `git diff bootstrap-orig main-candidate` empty except
    plan.md, reorg.md, issue.md, comment sweep. Repoint the
    PR; keep `bootstrap-orig`.
