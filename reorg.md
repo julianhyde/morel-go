@@ -127,13 +127,13 @@ commit), via the corpus rule.
 | Fix | Folds into |
 | --- | --- |
 | df3c696 nan via `abs()` in real corpus | e9671a3 before its split (then Real/Math parts separate) |
-| dbba9d4 `:t` errors in java's format | 006fdc9 error reporting |
+| dbba9d4 `:t` errors in java's format | 006fdc9 error reporting (probed OK) |
 | d3ea485 partial-application error span | 006fdc9 error reporting |
 | 3cadbd2 parallel `val ... and ...` | f7ad0a0 val patterns / sequential decls |
-| 559699a type-annotated patterns in val | f7ad0a0 val patterns |
+| 559699a type-annotated patterns in val | 2f0f116 type annotations (1-hunk resolution) |
 | 52c77aa NaN ordering comparisons false | 2e52f08 equality and comparison |
-| bc72280 strings as byte sequences | birth of `parse/string.go` (lexer 2bacca0 or printing a61f86a — check blame) |
-| ecda769 backtick / non-canonical labels | 3f99c35 parser records |
+| bc72280 strings as byte sequences | `String` structure commit (needs CharToString, born 2b5401a; probed OK) |
+| ecda769 backtick / non-canonical labels | f9f841b parser hardening (1-hunk resolution; 3f99c35 drifted too far) |
 | aaaa320 tyvar names beyond 'z (plan H1) | 4f64aef type representations (code+test only; corpus via rule) |
 | 8ee993a Config.Directory prep | 91510f1 CLI parsing |
 | c936db1 global `vector` alias | 8007e80 Vector |
@@ -144,7 +144,7 @@ commit), via the corpus rule.
 | fde0c8c floor/ceil of NaN raise Domain | Real structure commit |
 | e74bbc4 / 01da4de java-fix corpus pulls | Real structure commit (`issue.md` parts dropped) |
 | c822550 wrap long types (task 51) | not a fold (probe): standalone commit right after d5dd000 datatype values |
-| 5425fbb checkNoUnresolvedFieldRefs | keep standalone, but move to just after 9c29395 (selectors); retitle "Check field references against record types" |
+| 5425fbb checkNoUnresolvedFieldRefs | standalone after 2f0f116 (9c29395 drifted too far); retitle "Check field references against record types" |
 | a23166e checkNumericOperators | already in place after 45c1360; keep standalone |
 
 Left where they are (features, not fixes): 94cf2f3 tabular
@@ -168,7 +168,7 @@ per-structure corpus files regenerate via the corpus rule.
    structure", "`Char` structure" (+ 91c9877). Apply plan H3
    here: `isASCIIChar` -> `isAsciiChar` in the birth commit.
 
-## Target narrative (69 commits)
+## Target narrative (70 commits)
 
 The full target sequence. Sources are old SHAs; `+` marks a
 fold or squash; splits are marked. Where no source is listed
@@ -193,14 +193,15 @@ in a chapter preamble, the commit is a straight keep+reword.
     (7b84ea5+cc7a802 — the parse.smli scaffold rides along;
     see D1)
 11. Parse literals, tuples, lists, records, selectors
-    (3f99c35+ecda769)
+    (3f99c35)
 12. Parse operators (d5c729c)
 13. Parse if, fn, case, and patterns (d06140f)
 14. Parse declarations, types, and datatypes (d3e8d4b+1af0b2e)
 15. Parse queries (854b96a+8c477ce — large but one story)
-16. Parser hardening: error messages and spans (f9f841b)
+16. Parser hardening: error messages and spans
+    (f9f841b+ecda769)
 
-### C. Type inference (17-25)
+### C. Type inference (17-26)
 
 17. Add interned type representations
     (4f64aef+aaaa320's code — plan H1)
@@ -208,46 +209,45 @@ in a chapter preamble, the commit is a straight keep+reword.
 19. Add the Core IR and the type resolver (124975c)
 20. Add ':t' statements: type queries without evaluation
     (a3b50d2)
-21. Type tuples, records, and selectors; check field
-    references (9c29395+5425fbb)
+21. Type tuples, records, and selectors (9c29395)
 22. Type case, fun, and val rec (2becda7)
 23. Type datatypes and constructor patterns (07bc031)
 24. Load built-in signatures; check numeric operators
     (45c1360+a23166e)
-25. Type annotations (2f0f116)
+25. Type annotations (2f0f116+559699a)
+26. Check field references against record types (5425fbb)
 
-### D. Evaluator (26-37)
+### D. Evaluator (27-39)
 
-26. Add the runtime value representation (597f6ec)
-27. Add Code, Frame, and the compiler; statements evaluate
+27. Add the runtime value representation (597f6ec)
+28. Add Code, Frame, and the compiler; statements evaluate
     (b40dd68)
-28. Add the printing engine (a61f86a+bc72280 [check blame])
-29. Evaluate case, if, and negation (81887a0)
-30. Evaluate functions and closures (068f718)
-31. Evaluate recursive functions (a3b6419)
-32. Evaluate val patterns, currying, and sequential
-    declarations (f7ad0a0+3cadbd2+559699a)
-33. Evaluate list and string operators, equality, comparison
+29. Add the printing engine (a61f86a)
+30. Evaluate case, if, and negation (81887a0)
+31. Evaluate functions and closures (068f718)
+32. Evaluate recursive functions (a3b6419)
+33. Evaluate val patterns, currying, and sequential
+    declarations (f7ad0a0+3cadbd2)
+34. Evaluate list and string operators, equality, comparison
     (2e52f08+52c77aa)
-34. Report compile and runtime errors
+35. Report compile and runtime errors
     (006fdc9+dbba9d4+d3ea485)
-35. Evaluate datatype values (d5dd000)
-36. Wrap long types across lines (c822550 — earliest feasible
+36. Evaluate datatype values (d5dd000)
+37. Wrap long types across lines (c822550 — earliest feasible
     position, proven by probe; needs `System.Substitute`,
-    born in 35)
-37. Pull the first evaluation corpus (98ae2a7)
-38. Stress-test closures and recursion across statements
+    born in 36)
+38. Pull the first evaluation corpus (98ae2a7)
+39. Stress-test closures and recursion across statements
     (c807959)
 
-### E. Shell (39-43)
+### E. Shell (40-43)
 
-39. Add the built-in registry (250f2d2)
-40. Add structure test scripts and their lint check (7f318ae)
-41. Parse the command line (91510f1+8ee993a)
-42. Run .smli scripts through the shared runner (809be0d)
-43. Add the interactive shell (6d0eb63)
+40. Add the built-in registry (250f2d2)
+41. Add structure test scripts and their lint check (7f318ae)
+42. Parse the command line (91510f1+8ee993a)
+43. Run .smli scripts through the shared runner (809be0d)
 
-### F. Standard library (44-68)
+### F. Standard library (44-69)
 
 One commit per structure — basics + completion + its
 `built-in/<name>.smli` fully grown at that tree. `Sys` comes
@@ -264,31 +264,35 @@ radix.
     to the registry commit — verify at split time)
 48. `Option` structure (split of 65ed679)
 49. `Sys` structure (754ad47)
-50. Tabular output mode (94cf2f3)
-51. `StringCvt` structure (48028e1)
-52. `Int` structure (split of e9671a3, +4566d38)
-53. `Real` structure (split of e9671a3, +df3c696+18da1c0
+50. Add the interactive shell (6d0eb63 — probed: the REPL
+    banner needs Sys, so it follows Sys rather than closing
+    the shell chapter)
+51. Tabular output mode (94cf2f3)
+52. `StringCvt` structure (48028e1)
+53. `Int` structure (split of e9671a3, +4566d38)
+54. `Real` structure (split of e9671a3, +df3c696+18da1c0
     +5932f2b+fde0c8c+e74bbc4+01da4de)
-54. `Math` structure (split of e9671a3, +a9f397f)
-55. `Word` structure (624ece5)
-56. `String` structure (split of 2b5401a; plan H3 rename here)
-57. `Char` structure (split of 2b5401a, +91c9877)
-58. `List` structure (aeee2ec+a179e37)
-59. `Bag` structure (53a686c)
-60. `Vector` structure (8007e80+c936db1)
-61. `ListPair` structure (1f1f567)
-62. `Either` structure (a98bb4c)
-63. `Fn` structure (b5500e2)
-64. `Range` structure (46d43b6)
-65. `Variant` structure (1475068)
-66. `Time` structure (077883a)
-67. `Date` structure (a408d00)
-68. Postfix method calls (c6b80f7 — its corpus regeneration
+55. `Math` structure (split of e9671a3, +a9f397f)
+56. `Word` structure (624ece5)
+57. `String` structure (split of 2b5401a, +bc72280; plan H3
+    rename here)
+58. `Char` structure (split of 2b5401a, +91c9877)
+59. `List` structure (aeee2ec+a179e37)
+60. `Bag` structure (53a686c)
+61. `Vector` structure (8007e80+c936db1)
+62. `ListPair` structure (1f1f567)
+63. `Either` structure (a98bb4c)
+64. `Fn` structure (b5500e2)
+65. `Range` structure (46d43b6)
+66. `Variant` structure (1475068)
+67. `Time` structure (077883a)
+68. `Date` structure (a408d00)
+69. Postfix method calls (c6b80f7 — its corpus regeneration
     adds the postfix hunks across every structure file)
 
-### G. Queries (69)
+### G. Queries (70)
 
-69. Type 'from' queries over lists (db9935f) — the history
+70. Type 'from' queries over lists (db9935f) — the history
     ends where phase G of the plan begins.
 
 Notes on achievability:
@@ -406,7 +410,7 @@ file.
    `git absorb --base <first new commit>` + autosquash;
    leftovers assigned by hand; one more `rebase -x fullMake`
    replay (comments can break lint).
-5. **Final audit**: log vs the 69 ledger entries;
+5. **Final audit**: log vs the 70 ledger entries;
    `git diff bootstrap-orig main-candidate` empty except
    plan.md, reorg.md, issue.md, comment sweep. Repoint the
    PR; keep `bootstrap-orig`.
