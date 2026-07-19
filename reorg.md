@@ -21,7 +21,9 @@ License.
 # Reorganizing 1-bootstrap into right-sized commits
 
 The ledger for rewriting the 200-commit `1-bootstrap` branch into
-a clean history for `main`. This file is the planning medium: it
+a clean history for `main`. (Base note, 2026-07-19:
+origin/main was force-pushed to a1966ef; stage 2 targets it,
+not 53a60b2.) This file is the planning medium: it
 is reviewed and edited until the target history reads well, then
 a replay script executes it. Like `plan.md`, it lives only on the
 work branch and never enters the new history.
@@ -115,8 +117,13 @@ second is provably tree-preserving.
   convergence and corpus tooling"; the scripts' java references
   are exempt from the comment sweep (comparing to java is their
   purpose).
-- **CI**: fold 15c0f6b (macOS/Windows matrix) into 166cd41
-  (lint config / Go 1.25), so CI is born multi-platform.
+- **CI**: origin/main was rewritten (2026-07-19): its CI
+  commit a1966ef now carries 15c0f6b's macOS/Windows matrix
+  verbatim (diffs verified identical) plus a `.gitattributes`
+  (`* text=auto eol=lf`). Stage 2 therefore builds
+  `main-candidate` onto origin/main a1966ef, local main is
+  reset to it, and 15c0f6b's pick drops as empty. Message-map
+  entry 2 becomes "Add golangci-lint configuration".
 
 ## Fold map (fix -> birth commit)
 
@@ -337,9 +344,16 @@ Fold-map adjustments discovered during the replay:
   tabular's full block replaces).
 - The Sys reorder flips the `Sys.nope` test expectation at
   Sys (full field-listing error) rather than at 5425fbb.
-- The `Real.abs` nan corpus lines must be restored from
-  1-bootstrap after any arm64 `pull-passing.py` run (three
-  files) until plan task 75a lands.
+- The nan corpus lines are `val nan = abs(Real.posInf /
+  Real.posInf);` **by policy, permanently, even though the
+  upstream morel-java line has no abs()** — the NaN sign is
+  hardware-dependent and java's JVM canonicalizes where Go
+  does not. Fixed at the Real structure birth commit
+  (2026-07-19 pass); any `pull-passing.py` run on any host
+  will propose reverting to the verbatim java line and must
+  be overridden. Plan task 75a is amended by this policy:
+  canonicalizing NaN in go's arithmetic remains desirable,
+  but the corpus keeps abs() regardless.
 - Full per-commit verification belongs after stage 2:
   fold-group interiors need not be green individually (they
   squash), only group boundaries — which the exec gates
@@ -402,7 +416,8 @@ obvious from the diff) are marked [body]; their text is in
 the session record and drafted at execution time from these
 notes.
 
-A: 1 Add development notes | 2 Configure lint and CI |
+A: 1 Add development notes | 2 Add golangci-lint
+configuration (15c0f6b dropped: content now in the base) |
 3 Add project lint test | 4 Add lexer |
 5 Add statement splitter [body: token-driven, ';' in
 strings/comments] | 6 Add kernel, script runner, and command |
