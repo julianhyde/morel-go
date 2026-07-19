@@ -835,14 +835,20 @@ archaeology of morel-java's `TypeResolver`):
       pattern. Pull: the join `:t` hunks of type-inference.smli
       (+2); most join tests live in relational.smli/bag.smli and
       wait for query evaluation.
-- [ ] 80. Passthroughs and forcers: `distinct` (no type
+- [x] 80. Passthroughs and forcers: `distinct` (no type
       change); `skip`/`take` (counts typed in the root env,
       `int`); `order` (single sort-key expression, forces
       list, warns when a record sort key's fields are not
       alphabetical); `unorder` (forces bag); `ordinal`
       (`int`; post-solve validation that the input is
       ordered); `union`/`intersect`/`except` (arguments typed
-      in the root env; n-ary meet).
+      in the root env; n-ary meet). Two niceties deferred as
+      they matter only for warning/error hunks that need query
+      evaluation or the unparser: the record-sort-key warning
+      (needs `order` evaluation and the unparser, task 110) and
+      the post-solve "`ordinal` requires an ordered input"
+      validation. Pull: the passthrough/forcer `:t` hunks of
+      type-inference.smli (+31) and blog.smli (+6).
 - [ ] 81. `group`/`compute` typing: key and aggregate fields;
       `elements` bound to the input collection in the
       aggregate env; label derivation and duplicate checks;
