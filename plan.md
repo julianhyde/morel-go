@@ -849,7 +849,7 @@ archaeology of morel-java's `TypeResolver`):
       the post-solve "`ordinal` requires an ordered input"
       validation. Pull: the passthrough/forcer `:t` hunks of
       type-inference.smli (+31) and blog.smli (+6).
-- [ ] 81. `group`/`compute` typing: key and aggregate fields;
+- [x] 81. `group`/`compute` typing: key and aggregate fields;
       `elements` bound to the input collection in the
       aggregate env; label derivation and duplicate checks;
       the `group` binder; standalone `compute` as a scalar.
@@ -859,7 +859,14 @@ archaeology of morel-java's `TypeResolver`):
       unknown user function is left free; the POLYMORPHIC
       kind arrives with task 94. Built-in aggregates (`sum`,
       `count`, `min`, `max`, ...) get java's present-day
-      bag-parameter signatures from day one.
+      bag-parameter signatures from day one. Java combines
+      `group X compute Y` into one node; go's parser makes them
+      separate steps, so a `group` is typed together with a
+      following `compute` (the aggregates over the pre-group
+      rows). The bag aggregates `count`/`sum`/`min`/`max`/
+      `empty`/`nonEmpty` are top-level; `elements` is bound only
+      in a compute clause. Pull: the group/compute `:t` hunks of
+      type-inference.smli (+8).
 - [ ] 82. `exists`/`forall` (bool) and `require` (last step
       of `forall` only); `into` (scalar) and `through`
       (rebinds the row; orderedness from the function's
