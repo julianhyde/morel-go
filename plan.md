@@ -813,11 +813,18 @@ archaeology of morel-java's `TypeResolver`):
       `current` in each step to the current row. The pull is the
       `current` typing hunks of type-inference.smli (+5); uses of
       `current` in `order`/`take`/etc. wait for those steps.
-- [ ] 78. `yield` typing: a record-literal yield exposes its
+- [x] 78. `yield` typing: a record-literal yield exposes its
       fields to later steps; implicit labels (`yield e.b` is
       field `b`); the singleton-record rule (`yield {x = y}`
       renames rather than wraps); an atom yield becomes a
-      single implicitly-labeled field.
+      single implicitly-labeled field. Record-literal exposure
+      was already in place; the yielded element's type is the
+      expression's own type (so `{z}` stays `{z:int}`, `(b,a)`
+      stays a tuple), which already matched. The new piece was
+      exposing a non-record yield's single field, labelled by
+      java's implicit-label rule (id name, selector field, or
+      "current"), so a later step can name it. Pull: the
+      chained-yield hunks of type-inference.smli (+2).
 - [ ] 79. Join typing: comma scans and `join ... on`
       (`on` is bool); dependent scans; result is a list iff
       all inputs are lists. (Outer joins stay out of scope.)
