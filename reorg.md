@@ -389,6 +389,102 @@ unit, then `git absorb --base <first new commit>` + `git rebase
 refuses fall forward into the nearest later commit touching the
 file.
 
+## Stage-2 message map (71 commits)
+
+The reword pass executes from this list; sources are the
+stage-1 branch's commits in order. Amendment to the target
+narrative: bc72280 cannot fold into `String` (needs
+CharToString from Char) and stays standalone after `Char`,
+making 71 commits. Bodies (only where the design is not
+obvious from the diff) are marked [body]; their text is in
+the session record and drafted at execution time from these
+notes.
+
+A: 1 Add development notes | 2 Configure lint and CI |
+3 Add project lint test | 4 Add lexer |
+5 Add statement splitter [body: token-driven, ';' in
+strings/comments] | 6 Add kernel, script runner, and command |
+7 Add idempotent script harness [body: output is itself a
+script; fixed point] | 8 Add convergence and corpus tooling
+
+B: 9 Add AST and parse-tree dump | 10 Add Sys.parseTree and
+the first expression parser | 11 Parse literals, tuples,
+lists, records, selectors | 12 Parse operators | 13 Parse if,
+fn, case, and patterns | 14 Parse declarations, types, and
+datatypes | 15 Parse queries | 16 Parser hardening: error
+messages and spans
+
+C: 17 Add interned type representations | 18 Add the unifier
+[body: Martelli-Montanari; action hooks + disjunctive
+constraints from the start] | 19 Add the Core IR and the type
+resolver | 20 Add ':t' statements to type without evaluating |
+21 Type tuples, records, and selectors | 22 Type case, fun,
+and val rec | 23 Type datatypes and constructor patterns |
+24 Load built-in signatures; check numeric operators |
+25 Type annotations | 26 Check field references against
+record types
+
+D: 27 Add the runtime value representation [body: bare
+interface, type-directed; concrete types listed] | 28 Add
+Code, Frame, and the compiler; statements evaluate [body:
+introspectable Code; slot frames] | 29 Add the printing
+engine [body: Wadler-Leijen Doc set; float64 reals] |
+30 Evaluate case, if, and negation | 31 Evaluate functions
+and closures | 32 Evaluate recursive functions [body:
+indirection cells; frames shaped for trampolining] |
+33 Evaluate val patterns, currying, and sequential
+declarations | 34 Evaluate list and string operators,
+equality, and comparison | 35 Report compile and runtime
+errors | 36 Evaluate parallel `val ... and ...` bindings |
+37 Evaluate datatype values | 38 Wrap long types across
+lines | 39 Pull the first evaluation corpus | 40 Stress-test
+closures and recursion across statements
+
+E: 41 Add the built-in registry [body: structures as record
+values; one alphabetical table; curried impls; failing
+placeholders] | 42 Add structure test scripts and their lint
+check | 43 Parse the command line | 44 Run .smli scripts
+through the shared runner
+
+F: 45 `op` sections | 46 `General` structure | 47 `Option`
+structure | 48 `Bool` structure | 49 `Sys` structure |
+50 Add the interactive shell | 51 `StringCvt` structure |
+52 `Int` structure | 53 `Real` structure | 54 `Math`
+structure | 55 `Word` structure | 56 `String` structure |
+57 `Char` structure | 58 Treat strings as byte sequences,
+escaping high bytes | 59 Tabular output mode | 60 `List`
+structure | 61 `Bag` structure | 62 `Vector` structure |
+63 `ListPair` structure | 64 `Either` structure | 65 `Fn`
+structure | 66 `Range` structure | 67 `Variant` structure |
+68 `Time` structure | 69 `Date` structure | 70 Postfix
+method calls [body: receiver-type dispatch, examples]
+
+G: 71 Type 'from' queries over lists
+
+## Tab width 4 (stage-2 item)
+
+The repo adopts tab width 4, folded into birth commits during
+stage 2 so the rule has always existed (option B):
+
+- `.editorconfig` (`tab_width = 4` for Go) enters new commit 2
+  (lint and CI configuration); GitHub renders diffs at 4.
+- `lint_test.go` measures line length on the tab-expanded line
+  (`expandtabs(4)`) in new commit 3 (project lint test); while
+  touching it, count runes rather than bytes.
+- Exactly 3 lines at the current tip exceed 80 at tab 4 (two in
+  `eval/builtin.go`, one in `shell/kernel.go`); rewrap each in
+  its birth commit via the same absorb pass as the comment
+  sweep.
+- The post-stage-2 verification replay is the safety net for
+  transient violations in intermediate commits (expected: none
+  to a handful; each a one-line fixup in its birth commit).
+- Ordering: this lands before the comment sweep, so reworded
+  comments wrap against the final rule.
+- Fallback (option A), if the replay flags dozens of transient
+  violations: one tip commit changing the rule instead — valid
+  because the lint check is versioned with the tree, so
+  historical commits are judged by their own copy.
+
 ## Open decisions
 
 - D1. `parse.smli`: still present and still the parser era's
