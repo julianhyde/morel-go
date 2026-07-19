@@ -781,19 +781,25 @@ archaeology of morel-java's `TypeResolver`):
       task 85, rather than as an unused IR node now — no
       speculative infrastructure. The collection-kind constraint
       hook from task 21 is ready for bags.)
-- [ ] 76. Orderedness in the unifier: `ordered`/`unordered`
-      atoms, the `$collection(elem, o)` term, and the three
-      primitives — `isCollectionOf` (orderedness left free),
-      `sameOrderedness` (a shared orderedness variable),
-      `meetOrderedness` (the 2x2 constraint table) plus
-      binary/n-ary `meetCollections`; unconstrained
-      orderedness decodes as `bag`; conflicts render as
-      `int list vs int bag`. First verify task 21's
-      constraint hooks do java's candidate pruning with
-      fire-when-one-remains; harden if not. Rebuild task 47's
-      from-typing on the new term (first scan shares the
-      source's orderedness), so `from x in aBag` types as a
-      bag query. Pull the first bag.smli `:t` hunks.
+- [x] 76. Orderedness in the unifier: `ordered`/`unordered`
+      atoms, the `$collection(elem, o)` term, and the meet
+      primitive `meetOrderedness` (the 2x2 constraint table);
+      unconstrained orderedness decodes as `bag`; conflicts
+      render in the internal form `list(T) vs bag(T)` (the exact
+      form java's unifier prints). Task 21's constraint hooks
+      already do fire-when-one-remains pruning, so the meet rides
+      on them unchanged. from-typing rebuilt on the new term:
+      empty `from` is `unit list`; the first scan shares its
+      source's orderedness (`from x in aBag` is a bag); a comma
+      scan meets (list iff both are lists); `where`/`yield` pass
+      through. The other three primitives — `isCollectionOf`,
+      `sameOrderedness`, and `meetCollections` — are deferred to
+      the steps that first use them (join, set ops, group,
+      through: tasks 78-82), rather than landing as unused code.
+      The pull is the collection-typing `:t` hunks of
+      type-inference.smli (+22); java writes bag.smli as
+      full-eval, so its own hunks wait for query evaluation
+      (phase H).
 - [ ] 77. The query row model, ported from java: the
       rootEnv/stepEnv/element/collection step state
       (java's `Triple`) plus ordered named fields
