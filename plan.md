@@ -825,9 +825,16 @@ archaeology of morel-java's `TypeResolver`):
       java's implicit-label rule (id name, selector field, or
       "current"), so a later step can name it. Pull: the
       chained-yield hunks of type-inference.smli (+2).
-- [ ] 79. Join typing: comma scans and `join ... on`
+- [x] 79. Join typing: comma scans and `join ... on`
       (`on` is bool); dependent scans; result is a list iff
       all inputs are lists. (Outer joins stay out of scope.)
+      Comma scans, dependent scans, and the list-iff-all-lists
+      meet (via `meetOrderedness`) were already in place from
+      tasks 76-77; the new piece was typing the `on` condition as
+      a boolean over the earlier fields and the join scan's
+      pattern. Pull: the join `:t` hunks of type-inference.smli
+      (+2); most join tests live in relational.smli/bag.smli and
+      wait for query evaluation.
 - [ ] 80. Passthroughs and forcers: `distinct` (no type
       change); `skip`/`take` (counts typed in the root env,
       `int`); `order` (single sort-key expression, forces
