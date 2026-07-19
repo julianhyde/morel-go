@@ -165,8 +165,10 @@ per-structure corpus files regenerate via the corpus rule.
    structure" — after absorbing the completion folds above, so
    each structure appears exactly once.
 3. **2b5401a** "Implement String and Char" -> "`String`
-   structure", "`Char` structure" (+ 91c9877). Apply plan H3
-   here: `isASCIIChar` -> `isAsciiChar` in the birth commit.
+   structure", "`Char` structure" (+ 91c9877).
+   [Executed without plan H3's `isASCIIChar` -> `isAsciiChar`
+   rename, to keep the stage-1 tip-diff audit clean; the
+   rename is now a stage-2 absorb item — see below.]
 
 ## Target narrative (70 commits)
 
@@ -451,7 +453,9 @@ structure | 48 `Bool` structure | 49 `Sys` structure |
 50 Add the interactive shell | 51 `StringCvt` structure |
 52 `Int` structure | 53 `Real` structure | 54 `Math`
 structure | 55 `Word` structure | 56 `String` structure |
-57 `Char` structure | 58 Treat strings as byte sequences,
+57 `Char` structure [absorb here: plan H3 rename
+`isASCIIChar` -> `isAsciiChar`] | 58 Treat strings as byte
+sequences,
 escaping high bytes | 59 Tabular output mode | 60 `List`
 structure | 61 `Bag` structure | 62 `Vector` structure |
 63 `ListPair` structure | 64 `Either` structure | 65 `Fn`
@@ -480,6 +484,9 @@ stage 2 so the rule has always existed (option B):
   to a handful; each a one-line fixup in its birth commit).
 - Ordering: this lands before the comment sweep, so reworded
   comments wrap against the final rule.
+- The same absorb pass carries plan H3: rename `isASCIIChar`
+  to `isAsciiChar` in `char.go`/`builtin.go`, distributed to
+  the `Char` structure commit (its birth in the new history).
 - Fallback (option A), if the replay flags dozens of transient
   violations: one tip commit changing the rule instead — valid
   because the lint check is versioned with the tree, so
