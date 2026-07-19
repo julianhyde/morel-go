@@ -304,6 +304,45 @@ Notes on achievability:
 - Chapters B-E keep the original commit order; only messages
   and the listed folds change there.
 
+### Stage-1 result (2026-07-18)
+
+`1-bootstrap-reordered` is built: 205 commits, tip tree
+identical to `1-bootstrap` (0-line diff), fullMake green at
+tip and at every exec gate during the replay. All three
+splits landed (`65ed679` -> General/Option/Bool; `2b5401a` ->
+String/Char; `e9671a3` -> Int/Real/Math, in a second pass
+after a conflicted `edit` blew through its stop — use
+pick+`break`, never `edit`, for split stops). Every fold sits
+adjacent to its target; the 104 plan-only commits are a tail
+block; one `fixup!` residue commit at the tip carries corpus
+under-pull and cosmetic true-ups for the absorb phase.
+
+Fold-map adjustments discovered during the replay:
+
+- 3cadbd2 (parallel `val`) needs `NonRecValDecl.Span` from the
+  error-reporting group; now standalone right after it. Do not
+  squash it into 33.
+- 559699a's two hunks split: the `toIDPat` half folded into
+  type annotations (25); the `toPat` half grafted into
+  `toPat`'s birth (30, "Evaluate case, if, and negation").
+- The Bool part of the General split depends on Option
+  (`Bool.fromString` returns an option): split order is
+  General -> Option -> Bool. There is no Order content to
+  split out; task 42's "Order" was already in the registry
+  era.
+- Tabular needs `CharToString`: it moved after the Char
+  commit (and Word brought an interim `wordType` const that
+  tabular's full block replaces).
+- The Sys reorder flips the `Sys.nope` test expectation at
+  Sys (full field-listing error) rather than at 5425fbb.
+- The `Real.abs` nan corpus lines must be restored from
+  1-bootstrap after any arm64 `pull-passing.py` run (three
+  files) until plan task 75a lands.
+- Full per-commit verification belongs after stage 2:
+  fold-group interiors need not be green individually (they
+  squash), only group boundaries — which the exec gates
+  checked.
+
 ### Probe results (2026-07-18)
 
 All five risky moves probed by cherry-pick + fullMake in a
