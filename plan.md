@@ -800,13 +800,19 @@ archaeology of morel-java's `TypeResolver`):
       type-inference.smli (+22); java writes bag.smli as
       full-eval, so its own hunks wait for query evaluation
       (phase H).
-- [ ] 77. The query row model, ported from java: the
+- [x] 77. The query row model, ported from java: the
       rootEnv/stepEnv/element/collection step state
       (java's `Triple`) plus ordered named fields
       (`fieldVars`) with the 0/1/n collapse rule (unit / the
       sole field / a sorted record); scan patterns
       destructure and bind fields; `=` scalar scans; `where`;
-      `current` bound in each step's env.
+      `current` bound in each step's env. Most of this was
+      already in place from tasks 47 and 76 (the two-env split,
+      the collapse rule, pattern-destructuring scans, scalar
+      scans, `where`); the genuinely new piece was binding
+      `current` in each step to the current row. The pull is the
+      `current` typing hunks of type-inference.smli (+5); uses of
+      `current` in `order`/`take`/etc. wait for those steps.
 - [ ] 78. `yield` typing: a record-literal yield exposes its
       fields to later steps; implicit labels (`yield e.b` is
       field `b`); the singleton-record rule (`yield {x = y}`
