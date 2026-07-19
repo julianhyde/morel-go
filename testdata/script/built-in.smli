@@ -48,7 +48,7 @@ fun print x = ignore x;
 fn x => x + 1;
 > val it = fn : int -> int
 
-val nan = abs(Real.posInf / Real.posInf);
+val nan = abs (Real.posInf / Real.posInf);
 > val nan = nan : real
 
 (* Datatypes ------------------------------------------------------ *)

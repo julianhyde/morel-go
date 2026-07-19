@@ -161,15 +161,12 @@ func realToIntFn(round func(float64) float64) Fn {
 	}
 }
 
-// realIsNegative reports whether a real is negative. For a NaN it
-// inverts the raw sign, so nan counts as negative and ~nan as
-// positive; this defines Real.signBit, sameSign, and copySign.
+// realIsNegative reports whether a real's raw sign bit is set,
+// including for a NaN; this defines Real.signBit, sameSign, and
+// copySign. IEEE 754 leaves the sign of a NaN produced by
+// arithmetic unspecified, so callers must not rely on it.
 func realIsNegative(f float64) bool {
-	neg := math.Signbit(f)
-	if math.IsNaN(f) {
-		return !neg
-	}
-	return neg
+	return math.Signbit(f)
 }
 
 // realCopySign is "Real.copySign (a, b)": the magnitude of a with
