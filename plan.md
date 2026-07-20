@@ -950,9 +950,16 @@ archaeology of morel-java's `TypeResolver`):
       join queries of blog.smli (+53); relational.smli's joins
       wait for `use`/scott loading (task 109) and group/order
       evaluation.
-- [ ] 87. `order`/`distinct`/`skip`/`take` evaluation: sort
+- [x] 87. `order`/`distinct`/`skip`/`take` evaluation: sort
       via the type-directed comparators (task 36); `DESC`
-      sort keys wait for task 93.
+      sort keys wait for task 93. Reworked the pipeline to a
+      snapshot model — each row is a snapshot of the query
+      variables' frame slots, restored to evaluate a stage's
+      expressions — so stages compose in any order. `order`
+      sorts by a key (the comparators extended to compare
+      tuples/records lexicographically); `distinct` dedups;
+      `skip`/`take` slice, counts evaluated in the root scope.
+      Pull: blog.smli (+17) and built-in/relational.smli (+2).
 - [ ] 88. Set-op evaluation with java's present-day counting
       semantics (morel#321 folded in from the start:
       `intersect`/`except` respect multiplicity; rust shipped
