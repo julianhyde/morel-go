@@ -186,6 +186,179 @@ func countOf(code Code, f *Frame) (int, error) {
 	return int(n), nil
 }
 
+// SetOpKind is the kind of a set operation.
+type SetOpKind int
+
+const (
+	// SetUnion combines the input with the arguments.
+	SetUnion SetOpKind = iota
+	// SetIntersect keeps rows present in the input and every argument.
+	SetIntersect
+	// SetExcept removes the arguments' rows from the input.
+	SetExcept
+)
+
+// SetOpStage combines the input rows with the argument collections
+// by union, intersect, or except. With Distinct, duplicates are
+// removed; otherwise multiplicity is respected (a multiset union,
+// meet, or difference). Multi is true when a row is a record of
+// several variables, so a row value is the record itself; otherwise
+// a row is a single value.
+type SetOpStage struct {
+	Args     []Code
+	Kind     SetOpKind
+	Distinct bool
+	Multi    bool
+}
+
+func (s *SetOpStage) transform(_ *fromCode, f *Frame, rows [][]Val,
+) ([][]Val, error) {
+	left := make([]Val, len(rows))
+	for i, row := range rows {
+		left[i] = s.rowValue(row)
+	}
+	args := make([][]Val, len(s.Args))
+	for i, code := range s.Args {
+		v, err := code.Eval(f)
+		if err != nil {
+			return nil, err
+		}
+		args[i], _ = v.([]Val)
+	}
+	var result []Val
+	// lint: sort until '^	}' where '^	case '
+	switch s.Kind {
+	case SetExcept:
+		result = exceptOp(left, args, s.Distinct)
+	case SetIntersect:
+		result = intersectOp(left, args, s.Distinct)
+	case SetUnion:
+		result = unionOp(left, args, s.Distinct)
+	}
+	out := make([][]Val, len(result))
+	for i, v := range result {
+		out[i] = s.snapshot(v)
+	}
+	return out, nil
+}
+
+// rowValue is the value of a row: the record itself for several
+// variables, or the sole variable's value.
+func (s *SetOpStage) rowValue(row []Val) Val {
+	if s.Multi {
+		return row
+	}
+	return row[0]
+}
+
+// snapshot is the frame-slot snapshot for a row value, the inverse
+// of rowValue.
+func (s *SetOpStage) snapshot(v Val) []Val {
+	if s.Multi {
+		vals, _ := v.([]Val)
+		return vals
+	}
+	return []Val{v}
+}
+
+// dedup returns the distinct values in first-occurrence order.
+func dedup(vals []Val) []Val {
+	var out []Val
+	seen := map[string]bool{}
+	for _, v := range vals {
+		k := PlanString(v)
+		if !seen[k] {
+			seen[k] = true
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// counts tallies values by key.
+func counts(vals []Val) map[string]int {
+	m := map[string]int{}
+	for _, v := range vals {
+		m[PlanString(v)]++
+	}
+	return m
+}
+
+// unionOp is the input followed by every argument; distinct dedups.
+func unionOp(left []Val, args [][]Val, distinct bool) []Val {
+	out := append([]Val(nil), left...)
+	for _, arg := range args {
+		out = append(out, arg...)
+	}
+	if distinct {
+		return dedup(out)
+	}
+	return out
+}
+
+// exceptOp removes the arguments' rows from the input: as a
+// multiset difference, or (distinct) the input's distinct rows
+// absent from every argument.
+func exceptOp(left []Val, args [][]Val, distinct bool) []Val {
+	remove := map[string]int{}
+	for _, arg := range args {
+		for _, v := range arg {
+			remove[PlanString(v)]++
+		}
+	}
+	src := left
+	if distinct {
+		src = dedup(left)
+	}
+	var out []Val
+	for _, v := range src {
+		k := PlanString(v)
+		if remove[k] > 0 {
+			if !distinct {
+				remove[k]--
+			}
+			continue
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+// intersectOp keeps the input's rows present in every argument: at
+// the meet multiplicity, or (distinct) deduplicated.
+func intersectOp(left []Val, args [][]Val, distinct bool) []Val {
+	// The meet count of each key across the arguments.
+	var meet map[string]int
+	for _, arg := range args {
+		ac := counts(arg)
+		if meet == nil {
+			meet = ac
+			continue
+		}
+		for k, m := range meet {
+			if ac[k] < m {
+				meet[k] = ac[k]
+			}
+		}
+	}
+	if meet == nil {
+		meet = map[string]int{}
+	}
+	src := left
+	if distinct {
+		src = dedup(left)
+	}
+	var out []Val
+	for _, v := range src {
+		k := PlanString(v)
+		if meet[k] > 0 {
+			meet[k]--
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
 // From returns code that evaluates a query: it runs the stages
 // over the rows, then collects the value of collect for each — a
 // list or a bag (the same representation). slots are the frame
