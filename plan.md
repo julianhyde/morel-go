@@ -919,11 +919,28 @@ archaeology of morel-java's `TypeResolver`):
       the type layout and printed flat, overrunning the line
       width for a long bag-of-records field; it now wraps like a
       list type (a task-51/52 gap).
-- [ ] 85. `RowSink` push pipeline: scan/where/yield sinks;
+- [x] 85. `RowSink` push pipeline: scan/where/yield sinks;
       java's binding model verbatim — canonical
       field-name-ordered rows, one implicit-label helper,
       `current` as a rewrite, one shared row read/write
       helper (rust's row-layout bugs took a 15-commit tail).
+      Built the whole path a query needs to run: `Core.From`
+      with scan/where/yield steps, the resolver lowering
+      `ast.From` to it, the compiler building the pipeline over
+      frame slots, and an `eval.From` that scans, filters, and
+      collects. A row is the scan pattern's bound variables (the
+      sole one, or a record of them in label order); with a
+      trailing yield the collected value is the yield expression.
+      Lists and bags share the `[]Val` representation, so both
+      iterate the same way and orderedness comes from the type.
+      Scoped to a single `in` scan then `where` filters and an
+      optional trailing yield — joins (86), passthrough/forcer
+      evaluation (87), set ops (88), group/compute (89),
+      quantifiers (90), and `current`/`ordinal`/rebinding yields
+      (91) fall through to "not yet convertible" as before. Pull:
+      the now-runnable queries across blog.smli (+131),
+      type.smli, wordle.smli, misc.smli, range.smli, and
+      built-in.smli — 186 fewer divergent lines.
 - [ ] 86. Join evaluation: comma joins and `join ... on`;
       nested and dependent scans; pattern scans.
 - [ ] 87. `order`/`distinct`/`skip`/`take` evaluation: sort
