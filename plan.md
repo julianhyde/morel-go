@@ -867,13 +867,18 @@ archaeology of morel-java's `TypeResolver`):
       `empty`/`nonEmpty` are top-level; `elements` is bound only
       in a compute clause. Pull: the group/compute `:t` hunks of
       type-inference.smli (+8).
-- [ ] 82. `exists`/`forall` (bool) and `require` (last step
+- [x] 82. `exists`/`forall` (bool) and `require` (last step
       of `forall` only); `into` (scalar) and `through`
       (rebinds the row; orderedness from the function's
-      result type).
-      **Milestone: the `:t` hunks of bag.smli,
-      relational.smli, and such-that.smli pass — query typing
-      complete, tested without evaluation.**
+      result type). `into` reuses the aggregate typing; `through`
+      uses the collection machinery; a `forall` whose last step
+      is not `require` is an error. Pull: the query-typing hunks
+      of type-inference.smli (+38).
+      **Milestone: query typing complete, tested without
+      evaluation.** The typing tests live in type-inference.smli
+      (java writes bag.smli, relational.smli, and such-that.smli
+      as full-eval, not `:t`, so those files' own hunks wait for
+      query evaluation in phase H — they sit at 18%/7%/6%).
 
 ### H. Query evaluation (83-91)
 
