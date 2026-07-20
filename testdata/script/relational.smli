@@ -100,6 +100,12 @@ from e in emps yield {deptno = e.deptno, one = 1};
 >   [{deptno=10,one=1},{deptno=20,one=1},{deptno=30,one=1},{deptno=30,one=1}]
 >   : {deptno:int, one:int} list
 
+from e in emps yield {x = e.deptno} where x > 10 yield {y = x} where y < 30;
+> val it = [{y=20}] : {y:int} list
+
+from e in emps yield {x = e.deptno} where x > 10 yield {x = x} where x < 30;
+> val it = [{x=20}] : {x:int} list
+
 from e in emps yield ((#id e) + (#deptno e));
 > val it = [110,121,132,133] : int list
 
@@ -185,6 +191,18 @@ from i in [1, 2],
 >   [{i=1,x={c=3,g=0}},{i=1,x={c=3,g=1}},{i=2,x={c=2,g=0}},{i=2,x={c=2,g=1}},
 >    {i=2,x={c=2,g=2}}] : {i:int, x:{c:int, g:int}} list
 
+from e in emps
+  yield {x = e.id + e.deptno, y = e.id - e.deptno}
+  yield x + y;
+> val it = [200,202,204,206] : int list
+
+from e in emps
+  where e.deptno < 30
+  yield {x = e.id + e.deptno, y = e.id - e.deptno}
+  where x > 120
+  yield x + y;
+> val it = [202] : int list
+
 (* 'yieldAll e' is equivalent to ', v in e yield v'. *)
 from i in [{a=1},{a=2}], j in [{b=i.a},{b=i.a+10}] yield j;
 > val it = [{b=1},{b=11},{b=2},{b=12}] : {b:int} list
@@ -253,6 +271,29 @@ from e in emps
 > val it = [{deptno=10,id=100,name="Fred"}]
 >   : {deptno:int, id:int, name:string} list
 
+from e in emps,
+    d in depts on e.deptno = d.deptno
+  yield e.id + d.deptno
+  where current mod 2 = 1;
+> val it = [121,133] : int list
+
+from i in [1,2,3]
+  yield current + 2
+  yield current + 3;
+> val it = [6,7,8] : int list
+
+from e in emps,
+    d in depts on e.deptno = d.deptno
+  yield e.id + d.deptno
+  yield current + 1000;
+> val it = [1110,1121,1132,1133] : int list
+
+from e in emps,
+    d in depts on e.deptno = d.deptno
+  yield e.id + d.deptno
+  order (current mod 2, current);
+> val it = [110,132,121,133] : int list
+
 (*) ... but it can be used in the second
 from i in [1, 2],
   j in [current + 10, current + 20];
@@ -272,6 +313,13 @@ from e in emps
 > val it = [{deptno=30,id=102,name="Shaggy"},{deptno=30,id=103,name="Scooby"}]
 >   : {deptno:int, id:int, name:string} list
 
+(*) When there is a field called 'ordinal', it doesn't get used unless you quote it.
+from i in [3,1,4,5,3,5,8,9,7]
+  yield {ordinal, i}
+  where i > 5
+  where ordinal > 1;
+> val it = [{i=7,`ordinal`=8}] : {i:int, `ordinal`:int} list
+
 (*) Ordinal in subquery
 from i in [1,2,3,4]
   yield {i, ks = (from k in ["a","b","c","d"] where ordinal < i)};
@@ -287,6 +335,11 @@ from i in [1,2]
 from i in [1,2]
   join j in (from k in ["a","b","c"] where ordinal < i);
 > val it = [{i=1,j="a"},{i=2,j="a"},{i=2,j="b"}] : {i:int, j:string} list
+
+from i in [1,2]
+  join j in (from k in ["a","b","c"] yield {m = ordinal} yield m);
+> val it = [{i=1,j=0},{i=1,j=1},{i=1,j=2},{i=2,j=0},{i=2,j=1},{i=2,j=2}]
+>   : {i:int, j:int} list
 
 (* Degenerate joins ----------------------------------------------- *)
 
@@ -374,9 +427,79 @@ from _ in [()],
 from _ in [()],
   i in bag [1,2,3];
 > val it = [1,2,3] : int bag
+
+(*) 'yield' followed by 'join'
+from job in ["CLERK", "MANAGER"]
+  yield {x = 0, job}
+  join d in [10, 20];
+> val it =
+>   [{d=10,job="CLERK",x=0},{d=20,job="CLERK",x=0},{d=10,job="MANAGER",x=0},
+>    {d=20,job="MANAGER",x=0}] : {d:int, job:string, x:int} list
+
+(*) singleton record 'yield' followed by 'where'
+from e in emps
+  yield {d = e.deptno}
+  where d > 10;
+> val it = [{d=20},{d=30},{d=30}] : {d:int} list
+
+(*) similar to previous, but an atom named 'deptno'
+from e in emps
+  yield e.deptno
+  where deptno > 10;
+> val it = [20,30,30] : int list
+
+(*) similar to previous, but an anonymous atom, so must use 'current'
+from e in emps
+  yield 0 + e.deptno
+  where current > 10;
+> val it = [20,30,30] : int list
+
+(*) singleton record 'yield' followed by 'where' followed by 'yield'
+from e in emps
+  yield {d = e.deptno}
+  where d > 10
+  yield {d = d};
+> val it = [{d=20},{d=30},{d=30}] : {d:int} list
+
+(* A binder ('yield r = e') names the whole output row 'r', a
+ * scan-variable-like name: the output type is unwrapped, fields are
+ * reached through 'r', 'current' equals 'r', and bare field names are
+ * not in scope. *)
+from i in [{a=1,b=2}] yield r = i;
+> val it = [{a=1,b=2}] : {a:int, b:int} list
+from i in [{a=1,b=2}] yield r = i yield r.a;
+> val it = [1] : int list
+from i in [1,2] yield i = i + 1;
+> val it = [2,3] : int list
+from i in [1,2] yield i = i + 1 where i > 2;
+> val it = [3] : int list
+from i in [1,2] yield `x y` = i + 1;
+> val it = [2,3] : int list
+from i in [1,2] yield `x y` = i + 1 where `x y` > 2;
+> val it = [3] : int list
+
+from i in [{a=1,b=2}] yield r = i where a > 0;
+> stdIn:1.41 Error: unbound variable or constructor: a
+>   raised at: stdIn:1.41
+
+from i in [{a=1,b=2}] yield r = i where current.a > 0;
+> val it = [{a=1,b=2}] : {a:int, b:int} list
+(*) A record expression becomes one named row, not scattered fields.
+from i in [{a=1,b=2}] yield r = {c=i.a, d=i.b} where r.c > 0 yield r.d;
+> val it = [2] : int list
+(*) The binder combines with a following 'join' into a record.
+from i in [1,2] yield r = i + 1 join u in [3,4];
+> val it = [{r=2,u=3},{r=2,u=4},{r=3,u=3},{r=3,u=4}] : {r:int, u:int} list
 (*) Equality is still available via parentheses.
 from i in [1,2,3] yield (i = 2);
 > val it = [false,true,false] : bool list
+
+(*) singleton record 'yield' followed by singleton 'group'
+from e in emps
+  yield {d = e.deptno}
+  group d
+  order d;
+> val it = [10,20,30] : int list
 
 (* 'distinct' preserves arrival order: each value appears in the position
    of its first occurrence, not in sorted order. *)
@@ -389,6 +512,27 @@ from u in [(), (), ()]
   where false
   distinct;
 > val it = [] : unit list
+
+(*) singleton record 'yield' followed by 'yield'
+from i in [1, 2, 3],
+    j in [1, 2, 3]
+  yield {x = i + j}
+  yield x;
+> val it = [2,3,4,3,4,5,4,5,6] : int list
+
+(*) singleton record 'yield' followed by 'yield'
+from i in [1, 2, 3],
+    j in [1, 2, 3]
+  yield {x = i + j}
+  yield x;
+> val it = [2,3,4,3,4,5,4,5,6] : int list
+
+(*) singleton record 'yield' followed by 'group'
+from e in emps
+  yield {d = e.deptno}
+  group d compute {c = count over ()}
+  order d;
+> val it = [{c=1,d=10},{c=1,d=20},{c=2,d=30}] : {c:int, d:int} list
 
 (*) record whose only field is a record with only one field
 from x in [{a = {a = 1}}, {a = {a = 2}}]
@@ -423,7 +567,11 @@ from e in [{x = 1, y = 5}, {x = 0, y = 1}, {x = 1, y = 1}]
  * conditions in parentheses. *)
 val h = 2;
 > val h = 2 : int
+from i in [1,2,3] yield h = i;
+> val it = [1,2,3] : int list
 from i in [1,2,3] yield (h = i);
+> val it = [false,true,false] : bool list
+from i in [1,2,3] yield b = (h = i);
 > val it = [false,true,false] : bool list
 from i in [1,2,3] group h = i compute {c = count over ()};
 > val it = [{c=1,i=1},{c=1,i=2},{c=1,i=3}] : {c:int, i:int} list
@@ -433,6 +581,18 @@ from i in [1,2,3] group (h = i);
 > val it = [false,true] : bool list
 from i in [1,2,3] group b = (h = i);
 > val it = [false,true] : bool list
+
+(*) Single-field record, possibly capturing 'h' from environment.
+from i in [1,2,3] yield h = {x = i};
+> val it = [{x=1},{x=2},{x=3}] : {x:int} list
+from i in [1,2,3] yield h = {h = h};
+> val it = [{h=2},{h=2},{h=2}] : {h:int} list
+from i in [1,2,3] yield h = {h = (i = h)};
+> val it = [{h=false},{h=true},{h=false}] : {h:bool} list
+from i in [1,2,3] yield h = {i = h};
+> val it = [{i=2},{i=2},{i=2}] : {i:int} list
+from i in [{a=1,b=2}] yield r = {c=i.a} yield r.c;
+> val it = [1] : int list
 
 (* -------------------------------------------------------------------
  * List and bag aggregate functions can be applied to list and bag
@@ -1007,6 +1167,16 @@ order deptno;
 >       rows:{d:{deptno:int, name:string}, e:{deptno:int, id:int, name:string}}
 >            list} list
 
+(*) Group followed by yield
+from e in emps
+group e.deptno
+  compute {sumId = sum over e.id,
+           count = count over e}
+yield {deptno, avgId = sumId div count}
+order deptno;
+> val it = [{avgId=100,deptno=10},{avgId=101,deptno=20},{avgId=102,deptno=30}]
+>   : {avgId:int, deptno:int} list
+
 (*) Join followed by single group (from right input)
 from e in emps,
     d in depts
@@ -1029,6 +1199,19 @@ from e in emps
   compute sum over deptno;
 > stdIn:3.20-3.26 Error: unbound variable or constructor: deptno
 >   raised at: stdIn:3.20-3.26
+
+(*) Primitive 'yield' followed  by 'into'
+from e in emps
+  yield e.deptno
+  into sum;
+> val it = 90 : int
+
+(*) As previous, with 'unorder'
+from e in emps
+  yield e.deptno
+  unorder
+  into sum;
+> val it = 90 : int
 
 (*) Patterns left of 'in'
 fun sumPairs pairs =
