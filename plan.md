@@ -941,8 +941,15 @@ archaeology of morel-java's `TypeResolver`):
       the now-runnable queries across blog.smli (+131),
       type.smli, wordle.smli, misc.smli, range.smli, and
       built-in.smli — 186 fewer divergent lines.
-- [ ] 86. Join evaluation: comma joins and `join ... on`;
-      nested and dependent scans; pattern scans.
+- [x] 86. Join evaluation: comma joins and `join ... on`;
+      nested and dependent scans; pattern scans. The pipeline
+      runs any number of scans, nested so a later scan sees the
+      variables earlier ones bound: a comma join is the cartesian
+      product, a dependent scan iterates a per-outer-row source,
+      and `join ... on` lowers to a scan then a where. Pull: the
+      join queries of blog.smli (+53); relational.smli's joins
+      wait for `use`/scott loading (task 109) and group/order
+      evaluation.
 - [ ] 87. `order`/`distinct`/`skip`/`take` evaluation: sort
       via the type-directed comparators (task 36); `DESC`
       sort keys wait for task 93.
