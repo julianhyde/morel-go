@@ -147,6 +147,17 @@ val adjacent_states =
 >    {adjacents=["MT","SD","NE","CO","UT","ID"],state="WY"}]
 >   : {adjacents:string list, state:string} list
 
+(*) Distinct state names
+val states =
+  from a in adjacent_states
+    group a.state
+    order state;
+> val states =
+>   ["AK","AL","AR","AZ","CA","CO","CT","DC","DE","FL","GA","HI","IA","ID","IL",
+>    "IN","KS","KY","LA","MA","MD","ME","MI","MN","MO","MS","MT","NC","ND","NE",
+>    "NH","NJ","NM","NV","NY","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT",
+>    "VA","VT","WA","WI","WV","WY"] : string list
+
 (*) Coastal states
 val coastal_states = ["WA", "OR", "CA", "TX", "LA", "MS",
   "AL", "GA", "FL", "SC", "NC", "VA", "MD", "DE", "NJ",
@@ -206,6 +217,21 @@ val prefixes = List.map (fn s =>
 > val prefixes = fn : string list -> string list
 prefixes ["cat", "dog", "", "car", "cart"];
 > val it = ["ca","do","","ca","car"] : string list
+
+(* Fixed-point over union.
+ * A naive algorithm recomputes the whole set each hop,
+ * so is not very efficient. *)
+fun fixu_naive f a =
+  let
+    val a2 = f a
+    val a3 = from i in (a : 'a list) union (a2 : 'a list) group i
+  in
+    if a3 = a then
+      a
+    else
+      fixu_naive f a3
+  end;
+> val fixu_naive = fn : ('a list -> 'a list) -> 'a list -> 'a list
 
 (* Fixed-point over union, with an iteration limit 'n'.
  * A semi-naive algorithm applies the function only to
