@@ -997,7 +997,7 @@ archaeology of morel-java's `TypeResolver`):
       rebinding stage like group). Pull: blog.smli (+10); most
       quantifier/into/through tests live in relational.smli,
       awaiting `current`/scott loading.
-- [ ] 91. `current`, `ordinal`, `unorder` evaluation
+- [x] 91. `current`, `ordinal`, `unorder` evaluation
       (morel#265, #276, #277).
       **Milestone: the first big relational.smli pull; the
       `testChar` block deferred at task 64 lands.**
