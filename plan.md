@@ -882,15 +882,29 @@ archaeology of morel-java's `TypeResolver`):
 
 ### H. Query evaluation (83-91)
 
-- [ ] 83. `OutputMatcher` (morel#334): port java's type-driven
+- [x] 83. `OutputMatcher` (morel#334): port java's type-driven
       semantic comparison of expected vs actual output —
-      parse both value strings guided by the static result
+      parse both value strings guided by the result
       type, compare bag-typed values as multisets, normalize
       whitespace; `matchStrict` opts out. Wire it into the
-      script harness (which needs the result type alongside
-      the text) *before* any bag-producing query evaluates:
+      script harness *before* any bag-producing query evaluates:
       rust added this mid-stream in three commits, and
-      without it every bag result is a flaky test.
+      without it every bag result is a flaky test. The result
+      type is parsed from the output's own type suffix, so no
+      new plumbing was needed; the harness keeps the expected
+      output when it matches actual up to bag order or
+      formatting, via an optional Executor capability (so test
+      mocks are unaffected). One deliberate deviation from java:
+      the prefix before a binding's value must also match, so a
+      warning morel-go does not yet emit (match-coverage, task
+      98) is not silently swallowed — java is safe there only
+      because it always emits the warning. Because the compare
+      is structural, it also absorbs formatting differences:
+      pulled ~155 lines across simple.smli, type.smli, blog.smli,
+      range.smli, and built-in files — including a systematic
+      go/java difference in how a long list of records wraps
+      (`[` on its own line in java), which a future printer fix
+      could make byte-exact.
 - [ ] 84. In-heap scott dataset (morel#255): the `scott`
       structure (emp/dept/salgrade/bonus) that fuels most of
       relational.smli; pull scott.smli. (scott-queries.smli
