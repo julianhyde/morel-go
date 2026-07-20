@@ -905,10 +905,20 @@ archaeology of morel-java's `TypeResolver`):
       go/java difference in how a long list of records wraps
       (`[` on its own line in java), which a future printer fix
       could make byte-exact.
-- [ ] 84. In-heap scott dataset (morel#255): the `scott`
+- [x] 84. In-heap scott dataset (morel#255): the `scott`
       structure (emp/dept/salgrade/bonus) that fuels most of
       relational.smli; pull scott.smli. (scott-queries.smli
-      also needs `useSilently`, task 109.)
+      also needs `useSilently`, task 109.) scott is not a
+      built-in — scott.smli just binds `val scott = {...}`, an
+      in-heap record of bags of records, which morel-go
+      evaluates and prints, its bags matched as multisets by
+      task 83. It has only 3 statements (below the
+      auto-create threshold), so it is created verbatim from
+      java, which morel-go now reproduces byte-for-byte. That
+      last part needed a printer fix: a bag type had no case in
+      the type layout and printed flat, overrunning the line
+      width for a long bag-of-records field; it now wraps like a
+      list type (a task-51/52 gap).
 - [ ] 85. `RowSink` push pipeline: scan/where/yield sinks;
       java's binding model verbatim — canonical
       field-name-ordered rows, one implicit-label helper,
