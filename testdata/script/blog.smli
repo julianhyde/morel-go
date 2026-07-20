@@ -241,6 +241,18 @@ from e in emps yield e;
 from e in emps where (#deptno e) = 30 yield (#id e);
 > val it = [102,103] : int list
 
+(*) Join two relations
+from e in emps, d in depts
+  where (#deptno e) = (#deptno d)
+  yield {id = (#id e), deptno = (#deptno e),
+         ename = (#name e), dname = (#name d)};
+> val it =
+>   [{deptno=10,dname="Sales",ename="Fred",id=100},
+>    {deptno=20,dname="HR",ename="Velma",id=101},
+>    {deptno=30,dname="Engineering",ename="Shaggy",id=102},
+>    {deptno=30,dname="Engineering",ename="Scooby",id=103}]
+>   : {deptno:int, dname:string, ename:string, id:int} list
+
 (* A query with "exists" and a correlated sub-query.
  * We define the "exists" function ourselves: no need for a
  * built-in!
@@ -706,6 +718,13 @@ List.map
 > val it =
 >   [{deptno=10,name="Fred"},{deptno=20,name="Velma"},{deptno=30,name="Shaggy"},
 >    {deptno=30,name="Scooby"}] : {deptno:int, name:string} list
+from e in emps,
+    d in depts
+  where #deptno e = #deptno d
+  yield {deptno = #deptno d, name = #name e};
+> val it =
+>   [{deptno=10,name="Fred"},{deptno=20,name="Velma"},{deptno=30,name="Shaggy"},
+>    {deptno=30,name="Scooby"}] : {deptno:int, name:string} list
 
 (*) Chaining relational operators
 from e in emps;
@@ -820,6 +839,15 @@ val bands = [["john", "paul", "george", "ringo"], ["simon", "garfunkel"]];
 > val bands = [["john","paul","george","ringo"],["simon","garfunkel"]]
 >   : string list list
 
+(*) Lists, bags, sets in Morel
+from i in [1, 2],
+    j in ["a", "b"],
+    k in [3, 4, 5, 6]
+  where i + k < 6;
+> val it =
+>   [{i=1,j="a",k=3},{i=1,j="a",k=4},{i=1,j="b",k=3},{i=1,j="b",k=4},
+>    {i=2,j="a",k=3},{i=2,j="b",k=3}] : {i:int, j:string, k:int} list
+
 (*) Empty summary table.
 val summary = [] : {c:int, deptno:int, sum_sal:real} list;
 > val summary = [] : {c:int, deptno:int, sum_sal:real} list
@@ -891,6 +919,18 @@ from (name, age) in [("shaggy", 17), ("scooby", 7)]
 >
 > val it : {s:string} list
 
+(* If there are multiple scans, the query generates a cartesian product: *)
+from i in [2, 3],
+  s in ["ab", "cde"];
+> i s
+> - ---
+> 2 ab
+> 2 cde
+> 3 ab
+> 3 cde
+>
+> val it : {i:int, s:string} list
+
 (*) If you want scans later in a query, use the join step.
 val clients =
   [{cname = "Apple", contact = 7654, city = "BOSTON"},
@@ -905,6 +945,19 @@ val clients =
 > BOSTON IBM       7654
 >
 > val clients : {city:string, cname:string, contact:int} list
+
+(* Equivalent using "in" and a singleton list. *)
+from i in [1, 2, 3, 4, 5],
+    odd in [(i mod 2 = 1)];
+> i odd
+> - -----
+> 1 true
+> 2 false
+> 3 true
+> 4 false
+> 5 true
+>
+> val it : {i:int, odd:bool} list
 
 (* Define a table function that returns the even numbers
    from a collection. *)
