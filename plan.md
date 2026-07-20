@@ -960,10 +960,15 @@ archaeology of morel-java's `TypeResolver`):
       tuples/records lexicographically); `distinct` dedups;
       `skip`/`take` slice, counts evaluated in the root scope.
       Pull: blog.smli (+17) and built-in/relational.smli (+2).
-- [ ] 88. Set-op evaluation with java's present-day counting
+- [x] 88. Set-op evaluation with java's present-day counting
       semantics (morel#321 folded in from the start:
       `intersect`/`except` respect multiplicity; rust shipped
-      the naive semantics first and reworked them).
+      the naive semantics first and reworked them). A set-op is a
+      pipeline stage combining the rows so far with the argument
+      collections, matching rows by value: union concatenates
+      (distinct dedups), intersect keeps each row at the meet of
+      its counts, except is a multiset difference. Pull:
+      blog.smli (+22).
 - [ ] 89. `group`/`compute` evaluation with the built-in
       aggregates (`count`, `sum`, `min`, `max`) and the
       list-input adapters that the bag-parameter signatures
