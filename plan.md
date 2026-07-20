@@ -969,13 +969,24 @@ archaeology of morel-java's `TypeResolver`):
       (distinct dedups), intersect keeps each row at the meet of
       its counts, except is a multiset difference. Pull:
       blog.smli (+22).
-- [ ] 89. `group`/`compute` evaluation with the built-in
+- [x] 89. `group`/`compute` evaluation with the built-in
       aggregates (`count`, `sum`, `min`, `max`) and the
       list-input adapters that the bag-parameter signatures
       imply (the runtime half of morel#271); java's
       present-day scoping rules for keys and `compute`
       (settled upstream in the June 2026 fixes rust needed
-      after its endpoint).
+      after its endpoint). A group step partitions rows by key
+      and, per group, writes the key and aggregate values to
+      fresh output slots that later steps read (the compiler's
+      row-pattern set switches from the scan variables to the
+      group's output fields). The aggregates — count, sum, min,
+      max, empty, nonEmpty — reduce the group's `[]Val`, so a
+      bag-parameter aggregate accepts a list too (no adapter
+      needed given go's uniform representation). `group` absorbs
+      the following `compute`. Standalone `compute` (a scalar
+      result) is not evaluated yet. Pull: blog.smli (+79),
+      built-in/relational.smli (+58), built-in.smli (+20),
+      simple.smli (+13) — 170 fewer divergent lines.
 - [ ] 90. Quantifier and terminal steps: `exists`/`forall`
       with short-circuit, `require`, `into`, `through`.
 - [ ] 91. `current`, `ordinal`, `unorder` evaluation
