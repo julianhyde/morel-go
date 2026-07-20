@@ -1,0 +1,75 @@
+(*
+ * Licensed to Julian Hyde under one or more contributor license
+ * agreements.  See the NOTICE file distributed with this work
+ * for additional information regarding copyright ownership.
+ * Julian Hyde licenses this file to you under the Apache
+ * License, Version 2.0 (the "License"); you may not use this
+ * file except in compliance with the License.  You may obtain a
+ * copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+ * either express or implied.  See the License for the specific
+ * language governing permissions and limitations under the
+ * License.
+ *
+ * Tests for logical expressions.
+ *)
+
+(* --- Implies ---------------------------------------------------- *)
+false implies false;
+> val it = true : bool
+false implies true;
+> val it = true : bool
+true implies false;
+> val it = false : bool
+true implies true;
+> val it = true : bool
+
+(*) 'implies' is left-associative
+false implies true implies false;
+> val it = false : bool
+(false implies true) implies false;
+> val it = false : bool
+false implies (true implies false);
+> val it = true : bool
+
+(* --- Exists ----------------------------------------------------- *)
+
+(* Exists in a lambda. *)
+val g = fn f => exists i in [1, 2, 3] where f i;
+> val g = fn : (int -> bool) -> bool
+g (fn i => i mod 2 = 0);
+> val it = true : bool
+g (fn i => i mod 5 = 0);
+> val it = false : bool
+
+(* Exists with a join in a lambda. *)
+val g2 = fn f => exists i in [1, 2, 3] join j in [3, 4] on f (i, j);
+> val g2 = fn : (int * int -> bool) -> bool
+g2 (fn (i, j) => j - i = 2);
+> val it = true : bool
+
+(* As previous, but with a spurious 'yield' step. *)
+val g3 = fn f => exists i in [1, 2, 3] join j in [3, 4] on f (i, j) yield i + j;
+> val g3 = fn : (int * int -> bool) -> bool
+g3 (fn (i, j) => j - i = 2);
+> val it = true : bool
+
+(* --- Forall ----------------------------------------------------- *)
+
+forall i in [2, 4, 6] require i mod 2 = 0;
+> val it = true : bool
+forall i in [2, 3, 4] require i mod 2 = 0;
+> val it = false : bool
+forall i in [] require i mod 2 = 0;
+> val it = true : bool
+forall i in [2, 3, 4, 12, 14] require i > 10 implies i mod 2 = 0;
+> val it = true : bool
+forall i in [2, 3, 4, 12, 14] where i > 10 require i mod 2 = 0;
+> val it = true : bool
+
+(*) End logic.smli
