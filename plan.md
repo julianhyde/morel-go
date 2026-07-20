@@ -987,8 +987,16 @@ archaeology of morel-java's `TypeResolver`):
       result) is not evaluated yet. Pull: blog.smli (+79),
       built-in/relational.smli (+58), built-in.smli (+20),
       simple.smli (+13) — 170 fewer divergent lines.
-- [ ] 90. Quantifier and terminal steps: `exists`/`forall`
-      with short-circuit, `require`, `into`, `through`.
+- [x] 90. Quantifier and terminal steps: `exists`/`forall`
+      with short-circuit, `require`, `into`, `through`. An
+      `exists` query reduces to whether any row survives, a
+      `forall` to whether every row's value (its `require`
+      predicate, lowered to a yield) holds. `into f` applies f
+      to the whole collection, yielding a scalar; `through pat
+      in f` applies f and rebinds pat to each result element (a
+      rebinding stage like group). Pull: blog.smli (+10); most
+      quantifier/into/through tests live in relational.smli,
+      awaiting `current`/scott loading.
 - [ ] 91. `current`, `ordinal`, `unorder` evaluation
       (morel#265, #276, #277).
       **Milestone: the first big relational.smli pull; the
