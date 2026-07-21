@@ -19,6 +19,10 @@
  * Tests for logical expressions.
  *)
 
+(* --- Simple examples -------------------------------------------- *)
+
+(* Q1. Do any employees have a salary under 900? *)
+
 (* --- Implies ---------------------------------------------------- *)
 false implies false;
 > val it = true : bool
@@ -36,6 +40,27 @@ false implies true implies false;
 > val it = false : bool
 false implies (true implies false);
 > val it = true : bool
+
+(* All departments are not department 30 or are called
+   "SALES". *)
+from d in scott.depts
+  where d.deptno = 30 implies d.dname = "SALES";
+> val it =
+>   [{deptno=10,dname="ACCOUNTING",loc="NEW YORK"},
+>    {deptno=20,dname="RESEARCH",loc="DALLAS"},
+>    {deptno=30,dname="SALES",loc="CHICAGO"},
+>    {deptno=40,dname="OPERATIONS",loc="BOSTON"}]
+>   : {deptno:int, dname:string, loc:string} bag
+
+(* Three departments are not department 30 or are called
+   "RESEARCH". *)
+from d in scott.depts
+  where d.deptno = 30 implies d.dname = "RESEARCH";
+> val it =
+>   [{deptno=10,dname="ACCOUNTING",loc="NEW YORK"},
+>    {deptno=20,dname="RESEARCH",loc="DALLAS"},
+>    {deptno=40,dname="OPERATIONS",loc="BOSTON"}]
+>   : {deptno:int, dname:string, loc:string} bag
 
 (* --- Exists ----------------------------------------------------- *)
 

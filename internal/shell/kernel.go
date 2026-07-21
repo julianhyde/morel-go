@@ -18,6 +18,7 @@
 package shell
 
 import (
+	_ "embed"
 	"errors"
 	"maps"
 	"os"
@@ -151,8 +152,14 @@ func NewKernel(name string) *Kernel {
 		values[b.Name] = fields
 	}
 	k.values = values
+	k.loadScott()
 	return k
 }
+
+// scottSrc defines the global "scott" dataset.
+//
+//go:embed scott.sml
+var scottSrc string
 
 // Config returns the kernel's configuration; the kernel is its
 // sole owner.
@@ -210,6 +217,42 @@ func (k *Kernel) Execute(stmt string) string {
 		}
 	}
 	return k.executeStatement(n)
+}
+
+// loadScott binds the global "scott" dataset, which morel-java
+// makes available to every script as a foreign relation. It is
+// evaluated once, and its binding is added to the base
+// environment so every statement sees it.
+func (k *Kernel) loadScott() {
+	n, err := parse.Stmt(k.name, scottSrc)
+	if err != nil {
+		panic(err) // the embedded source is tested, so it parses
+	}
+	decl, ok := n.(ast.Decl)
+	if !ok {
+		panic("scott.sml is not a declaration")
+	}
+	resolved, err := compile.Deduce(k.sys, k.bindings, decl)
+	if err != nil {
+		panic(err)
+	}
+	coreDecl, err := compile.Resolve(resolved)
+	if err != nil {
+		panic(err)
+	}
+	compiled, err := compile.Statement(coreDecl, k.values, k.sys)
+	if err != nil {
+		panic(err)
+	}
+	frame := eval.NewFrame(compiled.Slots)
+	_, err = compiled.Code.Eval(frame)
+	if err != nil {
+		panic(err)
+	}
+	for _, b := range compiled.Binds {
+		k.bind(b.Pat.Name, b.Pat.T)
+		k.values[b.Pat.Name] = frame.Slots[b.Slot]
+	}
 }
 
 // executeStatement compiles and evaluates a statement, prints
