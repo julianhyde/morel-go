@@ -225,8 +225,12 @@ func languageOf(suffix string) language {
 // lintFile checks one file, appending a message to warn for each
 // violation.
 func lintFile(name string, warn func(string)) {
-	// Working notes are exempt from all checks.
-	if name == "plan.md" || name == "scratch.txt" {
+	// Working notes are exempt from all checks; the ".md" notes
+	// under "etc" (issue drafts, surveys) use prose line lengths
+	// and no header.
+	if name == "plan.md" || name == "scratch.txt" ||
+		(strings.HasPrefix(name, "etc/") &&
+			strings.HasSuffix(name, ".md")) {
 		return
 	}
 	suffix := name[strings.LastIndex(name, ".")+1:]
