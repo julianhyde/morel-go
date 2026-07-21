@@ -1028,11 +1028,6 @@ adaptation is complete.
       collection type), `abs` (already correct), and local
       (`let`-scoped) `over`/`val inst` type dispatch. `abs`
       needed no change.
-- [ ] 94b. Cross-statement (top-level) `over`/`val inst`, and
-      qualified types for an overloaded name used at an abstract
-      type (the paper's `demo`). Blocked on `let`-generalization
-      (morel-go has none). Enables overload.smli's first pull.
-      See `etc/issue-overload-let-polymorphism.md`.
 - [x] 95. Aggregate adaptation, completed (morel#271):
       the POLYMORPHIC `AggKind` — an overloaded aggregate's
       instance is selected by the input's orderedness; the
@@ -1043,38 +1038,51 @@ adaptation is complete.
       Done: aggregates/`only` accept a list or a bag (via a
       free-orderedness collection type) at top level and as
       `Relational` members; the `group {}` zero-field rule.
-- [ ] 95b. Type-directed method dispatch, "receiver.member arg"
-      (`(bag [..]).max ()`, `(~3).abs ()`, postfix.smli): the
-      receiver's type picks the structure. morel-go rewrites
-      methods before type inference, so it cannot resolve a
-      bound-variable receiver; this needs dispatch integrated
-      with inference. Low corpus value (~2 built-in/relational
-      lines, plus postfix.smli). overload.smli aggregate
-      sections also await top-level `over`/`inst` (task 94b).
 
-### J. Inlining and analysis (96-98)
+The remaining overload work — cross-statement (top-level)
+`over`/`val inst`, qualified types for an overloaded name used at
+an abstract type (the paper's `demo`, morel#237), and
+type-directed method dispatch (`(bag [..]).max ()`, `(~3).abs ()`,
+postfix.smli) — is blocked on `let`-generalization, which morel-go
+lacks. Rather than build it here, propagate it from morel-java
+once hydromatic/morel#426 is fixed. See
+`etc/issue-overload-let-polymorphism.md`.
 
-- [ ] 96. `Analyzer` + `Inliner`: inline non-recursive
-      `val`/`fun` bindings into query predicates, with the
-      pass-count loop in the compile driver; cross-unit
-      inlining (morel#223). A prerequisite for predicate
-      inversion (phase K) — inversion must see through
-      user-defined predicates — and for java-matching plans
-      (task 75).
-- [ ] 97. Constant-`case` inlining (morel#330), so inverted
-      and specialized queries simplify to java's plans.
+### J. Self-contained wins (98, 106, 108, 111-112)
+
+Contained features that converge whole corpus sections without the
+predicate-inversion machinery of phase K. Do these next.
+
 - [ ] 98. Satisfiability prover + match-coverage analysis
       (morel#55): redundant- and missed-case warnings.
       Budget the prover generously (rust's 315-line first cut
       was rewritten within a month). Unlocks the
       type-inference.smli warning hunks deferred since
       task 28, and most of match.smli.
+- [ ] 111. `PP` pretty-printer structure (`PP.render`,
+      `PP.text`, `PP.line`, ...): built-in/pp.smli, ~19
+      statements.
+- [ ] 108. Record update: `{e with deptno = 0}` (morel#249);
+      used by relational.smli and blog.smli.
+- [ ] 112. Range-list syntax and finite evaluation:
+      `[1 .. 5]`, `[0 ..^ 10, 20]` (morel#372) as list
+      constructors that enumerate via task 70's `Range`,
+      independent of the generator machinery. Infinite ranges
+      in a list (`100..`, `[0..]`) still need phase K.
+- [ ] 106. Transitive closure builtin: `Relational.iterate`
+      (semi-naive fixpoint) as a plain builtin, evaluated
+      directly (not inverted). Unlocks the `iterate` uses in
+      built-in/relational.smli and much of fixed-point.smli.
+      Its generator inversions (transitive-closure and
+      bounded-iterate) belong to phase K.
 
-### K. Unbounded variables (99-107)
+### K. Unbounded variables, such-that, Datalog (96-97, 99-107)
 
-An unbounded variable (`from x where x > 3 andalso x < 10`) is
-grounded at compile time by inverting the predicates that
-constrain it. java's final architecture, ported directly:
+A large later phase. An unbounded variable
+(`from x where x > 3 andalso x < 10`) is grounded at compile time
+by inverting the predicates that constrain it, and Datalog
+(morel#323) reuses the same machinery. java's final architecture,
+ported directly:
 
 - Typing needs no extent knowledge: a sourceless scan gets a
   fresh type variable and forces `bag` (already in task 76's
@@ -1095,9 +1103,18 @@ constrain it. java's final architecture, ported directly:
   transitive-closure cousin fix) into each piece's first
   landing, so each is born final.
 - Out of scope, as before: FBBT (morel#373) — the
-  such-that.smli FBBT sections stay unpulled; Datalog
-  (#323), though phase K builds the machinery it needs.
+  such-that.smli FBBT sections stay unpulled.
+- Datalog (morel#323) rides on the same machinery and lands in
+  this phase once the generators exist.
 
+- [ ] 96. `Analyzer` + `Inliner`: inline non-recursive
+      `val`/`fun` bindings into query predicates, with the
+      pass-count loop in the compile driver; cross-unit
+      inlining (morel#223). A prerequisite for predicate
+      inversion — inversion must see through user-defined
+      predicates — and for java-matching plans (task 75).
+- [ ] 97. Constant-`case` inlining (morel#330), so inverted
+      and specialized queries simplify to java's plans.
 - [ ] 99. Extent representation: `RangeExtent` (type plus
       per-path range sets; finite extents materialize),
       internal `Z_EXTENT` builtin (panics if an infinite
@@ -1124,11 +1141,9 @@ constrain it. java's final architecture, ported directly:
       infinite-range scans), emitting java's present-day
       `Range`-based shapes — `Bag.fromList (Range.flatten
       [...])`, multi-interval `Range.discreteSetOf`,
-      one-sided ranges combined with other constraints — and
-      range-lists in the list constructor
-      (`[0..^10, 20, 100..]`, morel#372) as the syntax
-      prerequisite. Task 70's `Range` structure pays off
-      here.
+      one-sided ranges combined with other constraints. The
+      finite range-list syntax is task 112; this task inverts
+      the infinite cases.
 - [ ] 103. Union generator (`orelse` inverts to a union,
       deduplicated when non-unique) + the `Simplifier` and
       provenance-based cancellation of subsumed `where`
@@ -1141,22 +1156,20 @@ constrain it. java's final architecture, ported directly:
       function's body into the constraint set and recurse
       (needs task 96); multi-arm `case` inversion
       (morel#341); the `String.isPrefix` generator.
-- [ ] 106. Transitive closure: `Relational.iterate`
-      (semi-naive fixpoint) as a builtin; the
-      transitive-closure and bounded-iterate generators,
-      including the tuple and cousin-style variants. Unlocks
-      the edges/paths and family sections of such-that.smli
-      and much of fixed-point.smli.
+- [ ] 106b. Transitive-closure generators: the
+      transitive-closure and bounded-iterate *inversions* of
+      `Relational.iterate` (the builtin lands in task 106,
+      phase J), including the tuple and cousin-style variants.
+      Unlocks the edges/paths and family sections of
+      such-that.smli.
 - [ ] 107. `Sys.planEx` (morel#329): re-run compilation of
       the last declaration up to a numbered pass and print
       the Core (builds on task 75's plan printing). Pull the
       plan-assertion hunks — 33 uses in such-that.smli, 38 in
       optimize.smli.
 
-### L. Remaining surface (108-110)
+### L. Remaining surface (109-110)
 
-- [ ] 108. Record update: `{e with deptno = 0}` (morel#249);
-      used by relational.smli and blog.smli.
 - [ ] 109. `use` and `useSilently` (morel#198), with
       `--maxUseDepth`; unlocks scott-queries.smli.
 - [ ] 110. Unparser (morel#41, #293): render AST back to
