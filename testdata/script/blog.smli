@@ -800,10 +800,22 @@ from e in emps
 >   [{deptno=10,id=100,name="Fred"},{deptno=20,id=101,name="Velma"},
 >    {deptno=30,id=103,name="Scooby"},{deptno=30,id=102,name="Shaggy"}]
 >   : {deptno:int, id:int, name:string} list
+from d in scott.depts
+  where empty (from e in scott.emps
+    where e.deptno = d.deptno
+    andalso e.job = "CLERK");
+> val it = [{deptno=40,dname="OPERATIONS",loc="BOSTON"}]
+>   : {deptno:int, dname:string, loc:string} bag
 
 (*) Integration with Apache Calcite - relational algebra
 Sys.set ("hybrid", true);
 > val it = () : unit
+from d in scott.depts
+  where empty (from e in scott.emps
+    where e.deptno = d.deptno
+    andalso e.job = "CLERK");
+> val it = [{deptno=40,dname="OPERATIONS",loc="BOSTON"}]
+>   : {deptno:int, dname:string, loc:string} bag
 
 (*) Functional programming <=> relational programming
 fun squareList [] = []
@@ -934,6 +946,17 @@ from p in produceSales
 > val it =
 >   [{c=1,item="peanuts",total=120},{c=1,item="apples",total=200},
 >    {c=1,item="almonds",total=150}] : {c:int, item:string, total:int} list
+
+(*) Billion dollar mistake
+from e in scott.emps
+  where e.deptno = 10
+    andalso
+    (forall e2 in scott.emps
+      where e2.deptno = 20
+        andalso e2.job = "PROGRAMMER"
+      require e.sal > e2.sal)
+  yield e.ename;
+> val it = ["CLARK","KING","MILLER"] : string bag
 val primes = [2, 3, 5, 7, 11];
 > val primes = [2,3,5,7,11] : int list
 val bands = [["john", "paul", "george", "ringo"], ["simon", "garfunkel"]];
@@ -948,6 +971,39 @@ from i in [1, 2],
 > val it =
 >   [{i=1,j="a",k=3},{i=1,j="a",k=4},{i=1,j="b",k=3},{i=1,j="b",k=4},
 >    {i=2,j="a",k=3},{i=2,j="b",k=3}] : {i:int, j:string, k:int} list
+from dept in [10, 30],
+    e in scott.emps
+  where e.deptno = dept
+  yield e.ename;
+> val it =
+>   ["CLARK","KING","MILLER","ALLEN","WARD","MARTIN","BLAKE","TURNER","JAMES"]
+>   : string bag
+
+(*) DML
+(* Delete employees who earn more than 1,000. *)
+val emps2 =
+  from e in scott.emps
+    where not (e.sal > 1000.0);
+> val emps2 =
+>   [{comm=0,deptno=20,empno=7369,ename="SMITH",hiredate="1980-12-17",
+>     job="CLERK",mgr=7902,sal=800},
+>    {comm=0,deptno=30,empno=7900,ename="JAMES",hiredate="1981-12-03",
+>     job="CLERK",mgr=7698,sal=950}]
+>   : {comm:real, deptno:int, empno:int, ename:string, hiredate:string,
+>       job:string, mgr:int, sal:real} bag
+(* Add one employee. *)
+val emps3 = from e in emps2 union
+  [{empno = 100, deptno = 20, ename = "HYDE", job = "ANALYST",
+    sal = 1150.0, hiredate = "2023-10-01", mgr = 7902, comm = 0.0}];
+> val emps3 =
+>   [{comm=0,deptno=20,empno=7369,ename="SMITH",hiredate="1980-12-17",
+>     job="CLERK",mgr=7902,sal=800},
+>    {comm=0,deptno=30,empno=7900,ename="JAMES",hiredate="1981-12-03",
+>     job="CLERK",mgr=7698,sal=950},
+>    {comm=0,deptno=20,empno=100,ename="HYDE",hiredate="2023-10-01",
+>     job="ANALYST",mgr=7902,sal=1150}]
+>   : {comm:real, deptno:int, empno:int, ename:string, hiredate:string,
+>       job:string, mgr:int, sal:real} bag
 
 (*) Empty summary table.
 val summary = [] : {c:int, deptno:int, sum_sal:real} list;
@@ -969,6 +1025,23 @@ from (parent, child) in parents
 > val it =
 >   [{child="arwen",parent="elrond"},{child="elladan",parent="elrond"},
 >    {child="elrohir",parent="elrond"}] : {child:string, parent:string} list
+
+(* Morel "forwards" relation *)
+(* Relation defined using algebra. *)
+fun clerks () =
+  from e in scott.emps
+    where e.job = "CLERK";
+> val clerks = fn
+>   : unit
+>      -> {comm:real, deptno:int, empno:int, ename:string, hiredate:string,
+>           job:string, mgr:int, sal:real} bag
+(* Query uses regular iteration. *)
+from e in clerks (),
+    d in scott.depts
+  where d.deptno = e.deptno
+    andalso d.loc = "DALLAS"
+  yield e.ename;
+> val it = ["SMITH","ADAMS"] : string bag
 
 (* --- GCD and LCM ------------------------------------------------ *)
 
@@ -1079,11 +1152,33 @@ from i in [1, 2, 3]
   yield current;
 > val it = [1,0,1] : int list
 
+(* Single field named "dname". Current is an atom, but you
+   can also refer to the field by name. *)
+from d in scott.depts
+  yield d.dname
+  yield current;
+> val it = ["ACCOUNTING","RESEARCH","SALES","OPERATIONS"]
+>   : string bag
+
+from d in scott.depts
+  yield d.dname
+  yield dname;
+> val it = ["ACCOUNTING","RESEARCH","SALES","OPERATIONS"]
+>   : string bag
+
 (* I have two sodas and three candies and give my friend
    one soda and two candies. What do I have left? *)
 from i in ["candy", "soda", "soda", "candy", "candy"]
   except ["soda", "candy"];
 > val it = ["soda","candy","candy"] : string list
+
+(* One group key and no compute expressions gives an
+   atomic result. *)
+(* The "order deptno unorder" line is added for determinism across JDK versions. *)
+from e in scott.emps
+  group e.deptno
+  order deptno unorder;
+> val it = [10,20,30] : int bag
 
 (* I have two sodas and three candies, and my friend
    has one soda, one donut, and four candies. What do we
@@ -1134,6 +1229,51 @@ from i in ["candy", "soda", "soda", "candy", "candy"]
   union ["soda", "candy"];
 > val it = ["candy","soda","soda","candy","candy","soda","candy"]
 >   : string list
+
+(* Return a list of strings describing each employee in
+   department 20. *)
+from e in scott.emps
+  where e.deptno = 20
+  yield e.ename ^ " is a " ^ e.job;
+> val it =
+>   ["SMITH is a CLERK","JONES is a MANAGER","SCOTT is a ANALYST",
+>    "ADAMS is a CLERK","FORD is a ANALYST"] : string bag
+
+(* Check whether all employees earn more than $2000. *)
+forall e in scott.emps
+  require e.sal > 2000.0;
+> val it = false : bool
+
+(* Check whether all managers earn more than $2000. *)
+forall e in scott.emps
+  where e.job = "MANAGER"
+  require e.sal > 2000.0;
+> val it = true : bool
+
+(* Do any employees earn more than $3,000? *)
+exists e in scott.emps
+  where e.sal > 3000.0;
+> val it = true : bool
+
+(* Do all employees have a job title of clerk, manager or
+   president? *)
+forall e in scott.emps
+  require e.job elem ["CLERK", "MANAGER", "PRESIDENT"];
+> val it = false : bool
+
+(* Do all employees in department 10 have a job title of
+   clerk, manager or president? *)
+forall e in scott.emps
+  where e.deptno = 10
+  require e.job elem ["CLERK", "MANAGER", "PRESIDENT"];
+> val it = true : bool
+
+(* Are all employees in department 10 and have a job
+   title of clerk, manager or president? *)
+forall e in scott.emps
+  require e.deptno = 10
+    andalso e.job elem ["CLERK", "MANAGER", "PRESIDENT"];
+> val it = false : bool
 
 (* --- Datalog ---------------------------------------------------- *)
 fun edge (x, y) =

@@ -38,6 +38,12 @@ Sys.set ("stringDepth", ~1);
 Sys.set ("output", "tabular");
 > val it = () : unit
 
+from e in scott.emps yield e.deptno;
+> val it = [20,30,30,20,30,30,10,20,10,30,20,30,20,10] : int bag
+
+from e in scott.emps yield ();
+> val it = [(),(),(),(),(),(),(),(),(),(),(),(),(),()] : unit bag
+
 from n in [1,2,3] yield n;
 > val it = [1,2,3] : int list
 from n in [1,2,3] where n mod 2 = 1 andalso n < 3 yield n;
@@ -81,6 +87,31 @@ yield {a, a2 = a + b, sb};
 >
 > val it : {a:int, a2:int, sb:int} list
 
+from e in scott.emps,
+  d in scott.depts
+where e.deptno = d.deptno
+andalso e.job = "CLERK"
+group e.mgr;
+> val it = [7902,7788,7698,7782] : int bag
+
+from e in scott.emps,
+  d in scott.depts,
+  g in scott.salgrades
+where e.sal >= g.losal
+  andalso e.sal < g.hisal
+  andalso d.deptno = e.deptno
+group g.grade compute {c = count over ()}
+order grade;
+> c grade
+> - -----
+> 3     1
+> 3     2
+> 2     3
+> 3     4
+> 1     5
+>
+> val it : {c:int, grade:int} list
+
 from i in [1, 2, 3] union [2, 5, 4];
 > val it = [1,2,3,2,5,4] : int list
 from i in [1, 2, 3] union [2, 5, 4], [2, 1, 7];
@@ -95,6 +126,38 @@ from i in [1, 2, 3] except [2, 5, 4];
 > val it = [1,3] : int list
 from i in [1, 2, 3] except [2, 5, 4], [2, 1, 6];
 > val it = [3] : int list
+from i in [10, 15, 20] union (from d in scott.depts yield d.deptno);
+> val it = [10,15,20,10,20,30,40] : int bag
+from i in [10, 15, 20] except (from d in scott.depts yield d.deptno);
+> val it = [15] : int bag
+from i in [10, 15, 20] intersect (from d in scott.depts yield d.deptno);
+> val it = [10,20] : int bag
+
+(*) The following 4 are equivalent.
+from e in scott.emps where e.deptno = 30 yield e.empno;
+> val it = [7499,7521,7654,7698,7844,7900] : int bag
+let
+  val emps = #emps scott
+in
+  from e in emps
+  where e.deptno = 30
+  yield e.empno
+end;
+> val it = [7499,7521,7654,7698,7844,7900] : int bag
+
+let
+  val emps = #emps scott
+  val thirty = 30
+in
+  from e in emps
+  where e.deptno = thirty
+  yield e.empno
+end;
+> val it = [7499,7521,7654,7698,7844,7900] : int bag
+
+Bag.map (fn e => (#empno e))
+  (Bag.filter (fn e => (#deptno e) = 30) (#emps scott));
+> val it = [7499,7521,7654,7698,7844,7900] : int bag
 
 (*) Intersect, except, concat via List methods
 List.`except` [[1, 2, 3], [2, 5, 4]];

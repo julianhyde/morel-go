@@ -631,6 +631,31 @@ from i in [1,2,3] group (h = i);
 from i in [1,2,3] group b = (h = i);
 > val it = [false,true] : bool list
 
+(*) Binder applied to a record.
+from d in scott.depts yield f = d take 1;
+> val it = [{deptno=10,dname="ACCOUNTING",loc="NEW YORK"}]
+>   : {deptno:int, dname:string, loc:string} bag
+from d in scott.depts yield f = d yield f.deptno;
+> val it = [10,20,30,40] : int bag
+from d in scott.depts yield f = d yield d.deptno;
+> stdIn:1.41 Error: unbound variable or constructor: d
+>   raised at: stdIn:1.41
+from d in scott.depts yield f = d yield deptno;
+> stdIn:1.41-1.47 Error: unbound variable or constructor: deptno
+>   raised at: stdIn:1.41-1.47
+from d in scott.depts order d.deptno yield f = d take 2;
+> val it =
+>   [{deptno=10,dname="ACCOUNTING",loc="NEW YORK"},
+>    {deptno=20,dname="RESEARCH",loc="DALLAS"}]
+>   : {deptno:int, dname:string, loc:string} list
+from d in scott.depts order d.deptno yield f = d take 2 yield f.deptno;
+> val it = [10,20] : int list
+from d in scott.depts order d.deptno yield f = d skip 3;
+> val it = [{deptno=40,dname="OPERATIONS",loc="BOSTON"}]
+>   : {deptno:int, dname:string, loc:string} list
+from d in scott.depts order d.deptno yield f = d skip 3 yield f.deptno;
+> val it = [40] : int list
+
 (*) Single-field record, possibly capturing 'h' from environment.
 from i in [1,2,3] yield h = {x = i};
 > val it = [{x=1},{x=2},{x=3}] : {x:int} list
@@ -1010,6 +1035,16 @@ from i in [2, 1, 2, 2, 2, 3] except [2, 2, 4], [2, 2, 2];
 (*) 2 occurs twice on left, once on right, so should be output once.
 from i in [1,2,3,4,5,1,5,1,2] except [2,4];
 > val it = [1,3,5,1,5,1,2] : int list
+
+(*) Hybrid union/intersect/except (list and bag) yields bag
+from d in scott.depts yield d.deptno;
+> val it = [10,20,30,40] : int bag
+from i in [10, 15, 20] union (from d in scott.depts yield d.deptno);
+> val it = [10,15,20,10,20,30,40] : int bag
+from i in [10, 15, 20] intersect (from d in scott.depts yield d.deptno);
+> val it = [10,20] : int bag
+from i in [10, 15, 20] except (from d in scott.depts yield d.deptno);
+> val it = [15] : int bag
 
 (*) Set operators are not "lateral". They can't see the "current row".
 val orders = [{id=1, items=["beer"]}, {id=2, items=[]}];
@@ -1592,6 +1627,24 @@ from i in [1,2,3]
   through xs in (List.map (fn x => x * 10));
 > val it = [10,20,30] : int list
 
+let
+  fun clean emps =
+    from e in emps
+    where e.sal > 1000.0
+
+  fun process emps =
+    from e in emps
+    group e.deptno compute {count over (), sum over e.sal}
+
+  fun pipeline emps =
+    from e in process (clean emps)
+    yield {i = e.deptno + e.count}
+    order i
+in
+  pipeline scott.emps
+end;
+> val it = [{i=13},{i=24},{i=35}] : {i:int} list
+
 (*) "threes" is a function that groups a list into sublists of 3
 (* (or fewer) elements each. *)
 fun threes list =
@@ -1630,6 +1683,36 @@ fun threeBag list = bag (threes list);
 from i in [0,1,2,3,4,5,6,7,8,9,10]
   through j in threeBag;
 > val it = [[9,10],[6,7,8],[3,4,5],[0,1,2]] : int list bag
+
+let
+  fun clean emps =
+    from e in emps
+    where e.sal > 1000.0
+
+  fun process emps =
+    from e in emps
+    group e.deptno compute {count over (), sum over e.sal}
+    order deptno
+
+  fun pipeline emps =
+    from e in emps
+      through e2 in clean
+      into process
+in
+  pipeline scott.emps
+end;
+> val it =
+>   [{count=3,deptno=10,sum=8750},{count=4,deptno=20,sum=10075},
+>    {count=5,deptno=30,sum=8450}] : {count:int, deptno:int, sum:real} list
+
+from d in scott.depts
+  through i2 in (Bag.map (fn x => [x]));
+> val it =
+>   [[{deptno=10,dname="ACCOUNTING",loc="NEW YORK"}],
+>    [{deptno=20,dname="RESEARCH",loc="DALLAS"}],
+>    [{deptno=30,dname="SALES",loc="CHICAGO"}],
+>    [{deptno=40,dname="OPERATIONS",loc="BOSTON"}]]
+>   : {deptno:int, dname:string, loc:string} list bag
 
 (* let ------------------------------------------------------------ *)
 
