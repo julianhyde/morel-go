@@ -1008,7 +1008,7 @@ Ordering per the rust retrospective: polymorphic datatypes
 before type-based orderings; overloading before aggregate
 adaptation is complete.
 
-- [ ] 92. Polymorphic datatypes (morel#70, #205):
+- [x] 92. Polymorphic datatypes (morel#70, #205):
       `datatype 'a tree = ...`; constructors instantiate at
       use sites; the (datatype, ordinal) value representation
       and type-directed comparators already fit. Big
