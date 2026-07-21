@@ -491,6 +491,14 @@ func (s *GroupStage) partition(q *fromCode, f *Frame, rows [][]Val,
 		}
 		g.rows = append(g.rows, row)
 	}
+	// A group with no keys ("group {}") is over a zero-field
+	// relation: it always produces exactly one output row, even
+	// when the input is empty (morel#328).
+	if len(s.Keys) == 0 && len(order) == 0 {
+		gk := PlanString(Val([]Val{}))
+		groups[gk] = &groupRows{key: []Val{}}
+		order = append(order, gk)
+	}
 	return order, groups, nil
 }
 
