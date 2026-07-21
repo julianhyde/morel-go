@@ -1013,7 +1013,7 @@ adaptation is complete.
       use sites; the (datatype, ordinal) value representation
       and type-directed comparators already fit. Big
       convergence step for type.smli and datatype.smli.
-- [ ] 93. `Descending` datatype and `Relational.compare`
+- [x] 93. `Descending` datatype and `Relational.compare`
       (morel#282): type-based orderings; `order (DESC e)`
       evaluation via task 87's comparators.
 - [ ] 94. `over`/`inst` overloading (morel#237): `over`
