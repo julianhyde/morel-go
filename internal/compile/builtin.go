@@ -59,6 +59,7 @@ var topBuiltins = map[string]topBuiltin{
 	"bag":       {"'a list -> 'a bag", ""},
 	"ceil":      {realToInt, ""},
 	"chr":       {"int -> char", ""},
+	"compare":   {"'a * 'a -> `order`", ""},
 	"concat":    {"string list -> string", ""},
 	"count":     {"'a bag -> int", ""},
 	"empty":     {"'a bag -> bool", ""},
