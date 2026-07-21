@@ -1033,13 +1033,24 @@ adaptation is complete.
       type (the paper's `demo`). Blocked on `let`-generalization
       (morel-go has none). Enables overload.smli's first pull.
       See `etc/issue-overload-let-polymorphism.md`.
-- [ ] 95. Aggregate adaptation, completed (morel#271):
+- [x] 95. Aggregate adaptation, completed (morel#271):
       the POLYMORPHIC `AggKind` — an overloaded aggregate's
       instance is selected by the input's orderedness; the
       zero-field relation rule (`distinct` vs `group {}`,
       morel#328); `Relational` structure completion
       (built-in/relational.smli). Pull the overload.smli
       aggregate sections.
+      Done: aggregates/`only` accept a list or a bag (via a
+      free-orderedness collection type) at top level and as
+      `Relational` members; the `group {}` zero-field rule.
+- [ ] 95b. Type-directed method dispatch, "receiver.member arg"
+      (`(bag [..]).max ()`, `(~3).abs ()`, postfix.smli): the
+      receiver's type picks the structure. morel-go rewrites
+      methods before type inference, so it cannot resolve a
+      bound-variable receiver; this needs dispatch integrated
+      with inference. Low corpus value (~2 built-in/relational
+      lines, plus postfix.smli). overload.smli aggregate
+      sections also await top-level `over`/`inst` (task 94b).
 
 ### J. Inlining and analysis (96-98)
 
