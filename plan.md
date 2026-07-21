@@ -1016,7 +1016,7 @@ adaptation is complete.
 - [x] 93. `Descending` datatype and `Relational.compare`
       (morel#282): type-based orderings; `order (DESC e)`
       evaluation via task 87's comparators.
-- [ ] 94. `over`/`inst` overloading (morel#237): `over`
+- [x] 94. `over`/`inst` overloading (morel#237): `over`
       declarations, instance registry, constraint-based
       dispatch at application sites (the "A Second Look at
       Overloading" approach); `MultiType` builtins — `elem`/
@@ -1024,6 +1024,15 @@ adaptation is complete.
       overloaded `abs` (#318). Unblocks the `op` and numeric
       hunks noted at task 43c, and overload.smli's first
       pull.
+      Done: `elem`/`notelem`/`only` (via a free-orderedness
+      collection type), `abs` (already correct), and local
+      (`let`-scoped) `over`/`val inst` type dispatch. `abs`
+      needed no change.
+- [ ] 94b. Cross-statement (top-level) `over`/`val inst`, and
+      qualified types for an overloaded name used at an abstract
+      type (the paper's `demo`). Blocked on `let`-generalization
+      (morel-go has none). Enables overload.smli's first pull.
+      See `etc/issue-overload-let-polymorphism.md`.
 - [ ] 95. Aggregate adaptation, completed (morel#271):
       the POLYMORPHIC `AggKind` — an overloaded aggregate's
       instance is selected by the input's orderedness; the
