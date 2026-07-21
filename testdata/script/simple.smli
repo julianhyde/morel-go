@@ -1074,4 +1074,14 @@ from r in bag [{x=1, y="a"}, {x=1, y="b"}, {x=2, y="c"}]
 {a = 0w5};
 > val it = {a=0wx5} : {a:word}
 
+(*) word literal patterns in 'case' and 'fn'
+case 0w1 of 0w1 => "one" | _ => "other";
+> val it = "one" : string
+val classify = fn 0w0 => "zero" | _ => "nonzero";
+> val classify = fn : word -> string
+classify 0w0;
+> val it = "zero" : string
+classify 0w7;
+> val it = "nonzero" : string
+
 (*) End simple.smli
