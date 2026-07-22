@@ -1122,7 +1122,7 @@ traversals, `Relational` aggregates) native.
       in a scoped environment and wires the derived members into
       their slots; `id`/`o`/`repeat` and `getOpt`/`isSome`/`valOf`
       stay native. Behaviour-preserving (no corpus delta).
-- [ ] 114. Make `PP` a `structLib` client (the mechanism now
+- [x] 114. Make `PP` a `structLib` client (the mechanism now
       exists from task 113): add `PP` to `structLibs()`, move its
       ~15 derived combinators (`hsep`, `vsep`, `sep`, `cat`,
       `fill*`, `parens`/`braces`/`brackets`, `punctuate`,
@@ -1131,6 +1131,12 @@ traversals, `Relational` aggregates) native.
       `nest`, `group`, `align`, `fill`, `render`, ...), which are
       seeded unqualified by the implicit open. Shrinks
       `eval/pp.go` to those primitives.
+      Done: 15 derived combinators in `internal/shell/lib/pp.sml`
+      (`fillSep`/`fillCat` stay native as they need the internal
+      `Fill`). Structure records are now built before the
+      structLib sources so `pp.sml` can reference `List`, then
+      rebuilt to wire in the derived members. Behaviour-preserving;
+      built-in/pp.smli stays 121/121.
 - [ ] 115. Phase 2: convert the remaining clear wins — `Bool`,
       `Either`, `ListPair`, `Math` (folding `e`/`pi` to literals,
       not inlining `exp 1.0`), and the derivable subsets of
