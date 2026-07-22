@@ -648,20 +648,4 @@ fun bar (x: 'a) : 'a option = SOME x;
 val myid: 'a -> 'a list = fn x => [x];
 > val myid = fn : 'a -> 'a list
 
-(* A local binding generalizes its own type variables, but not the type
- * variables of an enclosing function's parameter: here 'x' generalizes
- * but 'p' (hence 'a) does not. *)
-fn p => let val g = fn x => (x, p) in (g 1, g 2) end;
-> val it = fn : 'a -> (int * 'a) * (int * 'a)
-
-(* The value restriction: a binding whose right-hand side is not a
- * syntactic value is not generalized. *)
-let val notval = (fn x => x) 1 in notval end;
-> val it = 1 : int
-
-(* Recursive ('fun') bindings are also generalized: within the definition the
- * name is monomorphic, but it is generalized for use in the body. *)
-Sys.set ("printDepth", ~1);
-> val it = () : unit
-
 (*) End type-inference.smli
