@@ -45,15 +45,17 @@ This generalizes the existing `loadScott` precedent (an embedded Morel `val scot
 
 ## Non-function members work too
 
-The loader evaluates arbitrary declarations, so a member's value can be a plain value as well as a closure. `PP.softLine = group line` is already a non-function derived `doc`. The same enables constant members such as `Math.e = exp 1.0`, `Math.pi = 3.14159265358979`, `Real.posInf = 1.0 / 0.0`, `Real.negInf = ~1.0 / 0.0`, and `Char.minChar = chr 0`. Math is a good phase-1 case precisely because it exercises both a non-function value (`e`, `pi`) and derived functions (`tan`, `log10`, `sinh`).
+The loader evaluates arbitrary declarations, so a member's value can be a plain value as well as a closure. `PP.softLine = group line` is already a non-function derived `doc`. The same enables constant members such as `Math.e = exp 1.0`, `Math.pi = 3.14159265358979`, `Real.posInf = 1.0 / 0.0`, `Real.negInf = ~1.0 / 0.0`, and `Char.minChar = chr 0`.
 
 ## Phased plan
 
-Phase 1 — the mechanism, landed before the PP change. Build the general `structLib` loader and prove it on two structures with different shapes: `Math` (a non-function constant `e`, plus `tan = sin/cos`, `log10`, `sinh`, `cosh`, `tanh`, `pow`, `asin`, `acos`, over native `sin`/`cos`/`exp`/`ln`/`atan`/`sqrt`) and `Bool` (`not`, `andalso`, `orelse`, `implies`, `toString`, `fromString`, a purely-derivable structure).
+The deciding property for what to convert is recursion, because the Inliner (task 96) inlines only non-recursive bindings. A non-recursive member is inlined at its call sites — the call disappears and the body is exposed to constant-folding, case-of-known-constructor, and predicate inversion, ending up as fast as native or faster. A recursive or hot member is not inlined and runs through the evaluator instead of a Go loop, so it regresses. Convert structures whose members are all small and non-recursive; leave the recursive/hot ones native. (Rationale expanded in the comment thread.)
 
-PP — the task-111 follow-up: move PP's ~15 derived combinators from `eval/pp.go` into `lib/PP.sml`, keeping the ~12 native primitives. Builds directly on phase 1; no new mechanism.
+Phase 1 — the mechanism, and two clients chosen as inlining sweet spots (non-recursive throughout): `Fn` (`id`/`const`/`o`/`curry`/`uncurry`/`flip`/`apply`/`equal`/`notEqual` — pure combinators; recursive `repeat` stays native, which tests a mixed native+Morel structure) and `Option` (`isSome`/`getOpt`/`valOf`/`map`/`join`/`filter`/`mapPartial`/`compose` — datatype case-analysis whose inlining unlocks case-of-known-constructor in query predicates).
 
-Phase 2 — convert the remaining clear wins across the library (see the manifest below), leaving hot or genuinely-primitive members native.
+PP — move PP's ~15 derived combinators from `eval/pp.go` into `lib/PP.sml`, keeping the ~12 native primitives; a `structLib` client once phase 1 has proven the mechanism. No new machinery.
+
+Phase 2 — convert the remaining clear wins across the library (see the manifest below): `Bool`, `Either`, `ListPair`, `Math` (folding `e`/`pi` to literals rather than inlining `exp 1.0`), and the derivable subsets, leaving hot or genuinely-primitive members native.
 
 ## Conversion manifest
 

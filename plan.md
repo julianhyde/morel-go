@@ -1097,21 +1097,37 @@ the `loadScott` precedent. Values as well as functions convert
 (e.g. `Math.e = exp 1.0`). No corpus convergence; a code-structure
 change. See `etc/issue-structlib.md`.
 
-- [ ] 113. The `structLib` mechanism, and its first two clients:
-      convert `Math` (a non-function constant `e`/`pi`, plus
-      `tan`/`log10`/`sinh`/... over native `sin`/`cos`/`exp`/`ln`/
-      `atan`/`sqrt`) and `Bool` (`not`/`andalso`/`orelse`/
-      `implies`/`toString`/`fromString`, fully derivable). Lands
-      before task 114.
+Convert only members that will not become less efficient. The
+deciding property is recursion: the task-96 Inliner inlines only
+non-recursive bindings, so a non-recursive member is inlined at its
+call sites (the call disappears and the body is exposed to
+constant-folding, case-of-known-constructor, and predicate
+inversion — as fast as native, usually faster), whereas a recursive
+or hot member runs through the evaluator instead of a Go loop and
+regresses. Pick structures whose members are all small and
+non-recursive; leave the recursive/hot ones (`List`/`Vector`
+traversals, `Relational` aggregates) native.
+
+- [ ] 113. The `structLib` mechanism, and its first two clients,
+      chosen as inlining sweet spots (non-recursive throughout):
+      `Fn` (`id`/`const`/`o`/`curry`/`uncurry`/`flip`/`apply`/
+      `equal`/`notEqual` — pure combinators; recursive `repeat`
+      stays native, testing a mixed structure) and `Option`
+      (`isSome`/`getOpt`/`valOf`/`map`/`join`/`filter`/
+      `mapPartial`/`compose` — datatype case-analysis whose
+      inlining unlocks case-of-known-constructor in query
+      predicates).
 - [ ] 114. Convert `PP`'s derived combinators to `lib/PP.sml`
-      over its native primitives (builds on task 113); shrinks
-      `eval/pp.go` to the ~12 primitives.
-- [ ] 115. Phase 2: convert the remaining clear wins — the
-      fully-derivable structures (Option, Either, Fn, ListPair,
-      List) and the derivable subsets of Char/String/Int/Real/
-      Vector/Relational/General. Keep hot traversals native
-      (evaluator vs Go loop) and reproduce native edge cases
-      (`Int.abs minInt`, `Real.abs nan`, `Char.chr` bounds).
+      over its native primitives; a `structLib` client once
+      task 113 has proven the mechanism. Shrinks `eval/pp.go` to
+      the ~12 primitives.
+- [ ] 115. Phase 2: convert the remaining clear wins — `Bool`,
+      `Either`, `ListPair`, `Math` (folding `e`/`pi` to literals,
+      not inlining `exp 1.0`), and the derivable subsets of
+      Char/String/Int/Real/Vector/Relational/General. Keep hot
+      traversals native (evaluator vs Go loop) and reproduce
+      native edge cases (`Int.abs minInt`, `Real.abs nan`,
+      `Char.chr` bounds).
 
 ### K. Unbounded variables, such-that, Datalog (96-97, 99-107)
 
