@@ -1006,6 +1006,31 @@ val emps3 = from e in emps2 union
 >     job="ANALYST",mgr=7902,sal=1150}]
 >   : {comm:real, deptno:int, empno:int, ename:string, hiredate:string,
 >       job:string, mgr:int, sal:real} bag
+(* Double the salary of all managers. *)
+val emps4 =
+  from e in emps3
+    yield if e.job = "MANAGER"
+      then {e with sal = e.sal * 2.0}
+      else e;
+> val emps4 =
+>   [{comm=0,deptno=20,empno=7369,ename="SMITH",hiredate="1980-12-17",
+>     job="CLERK",mgr=7902,sal=800},
+>    {comm=0,deptno=30,empno=7900,ename="JAMES",hiredate="1981-12-03",
+>     job="CLERK",mgr=7698,sal=950},
+>    {comm=0,deptno=20,empno=100,ename="HYDE",hiredate="2023-10-01",
+>     job="ANALYST",mgr=7902,sal=1150}]
+>   : {comm:real, deptno:int, empno:int, ename:string, hiredate:string,
+>       job:string, mgr:int, sal:real} bag
+(* Commit. *)
+(*) TODO commit {scott with emps = emps4};
+
+(* New and removed employees. *)
+val empsAdded = from e in emps4 except scott.emps;
+> val empsAdded =
+>   [{comm=0,deptno=20,empno=100,ename="HYDE",hiredate="2023-10-01",
+>     job="ANALYST",mgr=7902,sal=1150}]
+>   : {comm:real, deptno:int, empno:int, ename:string, hiredate:string,
+>       job:string, mgr:int, sal:real} bag
 
 (*) Empty summary table.
 val summary = [] : {c:int, deptno:int, sum_sal:real} list;
