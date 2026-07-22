@@ -1072,8 +1072,12 @@ predicate-inversion machinery of phase K. Do these next.
       pretty-printer (a single engine, no duplicate); abstract
       (zero-constructor) types now print as `-`. built-in/pp.smli
       121/121.
-- [ ] 108. Record update: `{e with deptno = 0}` (morel#249);
+- [x] 108. Record update: `{e with deptno = 0}` (morel#249);
       used by relational.smli and blog.smli.
+      Done: lowered to a let binding the base once, then a record
+      built from update expressions and base-field selections;
+      typing (unify each update with its base field) was already
+      present. blog.smli +25, relational.smli +12, type.smli +14.
 - [ ] 112. Range-list syntax and finite evaluation:
       `[1 .. 5]`, `[0 ..^ 10, 20]` (morel#372) as list
       constructors that enumerate via task 70's `Range`,
