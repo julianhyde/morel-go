@@ -1068,8 +1068,10 @@ predicate-inversion machinery of phase K. Do these next.
       arithmetic reasoning can follow if needed.
 - [x] 111. `PP` pretty-printer structure (`PP.render`,
       `PP.text`, `PP.line`, ...): built-in/pp.smli, ~19
-      statements. Done via Lindig's "Strictly Pretty" render
-      over a doc tree; built-in/pp.smli +78.
+      statements. Built on the shared internal/pp Wadler-Leijen
+      pretty-printer (a single engine, no duplicate); abstract
+      (zero-constructor) types now print as `-`. built-in/pp.smli
+      121/121.
 - [ ] 108. Record update: `{e with deptno = 0}` (morel#249);
       used by relational.smli and blog.smli.
 - [ ] 112. Range-list syntax and finite evaluation:
@@ -1083,6 +1085,33 @@ predicate-inversion machinery of phase K. Do these next.
       built-in/relational.smli and much of fixed-point.smli.
       Its generator inversions (transitive-closure and
       bounded-iterate) belong to phase K.
+
+### J2. Library structures in Morel (113-115, morel-go#2)
+
+Most built-in structure members are thin wrappers derivable from
+a few native primitives. A general `structLib` loader supplies a
+structure's members partly natively and partly from an embedded
+`lib/<name>.sml`, evaluated at boot with the natives in scope (an
+implicit `open`) and wired into the member slots — generalizing
+the `loadScott` precedent. Values as well as functions convert
+(e.g. `Math.e = exp 1.0`). No corpus convergence; a code-structure
+change. See `etc/issue-structlib.md`.
+
+- [ ] 113. The `structLib` mechanism, and its first two clients:
+      convert `Math` (a non-function constant `e`/`pi`, plus
+      `tan`/`log10`/`sinh`/... over native `sin`/`cos`/`exp`/`ln`/
+      `atan`/`sqrt`) and `Bool` (`not`/`andalso`/`orelse`/
+      `implies`/`toString`/`fromString`, fully derivable). Lands
+      before task 114.
+- [ ] 114. Convert `PP`'s derived combinators to `lib/PP.sml`
+      over its native primitives (builds on task 113); shrinks
+      `eval/pp.go` to the ~12 primitives.
+- [ ] 115. Phase 2: convert the remaining clear wins — the
+      fully-derivable structures (Option, Either, Fn, ListPair,
+      List) and the derivable subsets of Char/String/Int/Real/
+      Vector/Relational/General. Keep hot traversals native
+      (evaluator vs Go loop) and reproduce native edge cases
+      (`Int.abs minInt`, `Real.abs nan`, `Char.chr` bounds).
 
 ### K. Unbounded variables, such-that, Datalog (96-97, 99-107)
 
