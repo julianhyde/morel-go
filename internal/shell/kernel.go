@@ -138,33 +138,15 @@ func NewKernel(name string) *Kernel {
 	// The Sys implementations read and write session state, so
 	// the kernel supplies them.
 	maps.Copy(values, k.sysBuiltins())
-	// Some structures define their derivable members in embedded
-	// Morel source over a few native primitives (morel-go#2); this
-	// evaluates that source and fills in the derived members before
-	// the structure records are built.
+	// Build the structure records first, so that a structure defined
+	// in embedded Morel source (morel-go#2) can reference any other
+	// structure; then evaluate those sources and rebuild, wiring in
+	// the members they derive.
+	buildStructureRecords(values, result.Bindings)
 	for _, l := range structLibs() {
 		k.loadStructLib(l, values, result.Bindings)
 	}
-	// A structure is a record value whose fields are its
-	// members' implementations. A member without one gets a
-	// placeholder that fails if it is ever applied, so unpulled
-	// corpus statements stay silent rather than wrong.
-	for _, b := range result.Bindings {
-		record, isRecord := b.Type.(*types.Record)
-		if !isRecord {
-			continue
-		}
-		fields := make([]eval.Val, len(record.Fields))
-		for i, field := range record.Fields {
-			qualified := b.Name + "." + field.Label
-			if fn, ok := values[qualified]; ok {
-				fields[i] = fn
-			} else {
-				fields[i] = notImplemented(qualified)
-			}
-		}
-		values[b.Name] = fields
-	}
+	buildStructureRecords(values, result.Bindings)
 	k.values = values
 	k.loadScott()
 	return k
@@ -183,6 +165,9 @@ var fnSrc string
 
 //go:embed lib/option.sml
 var optionSrc string
+
+//go:embed lib/pp.sml
+var ppSrc string
 
 // Config returns the kernel's configuration; the kernel is its
 // sole owner.
@@ -335,6 +320,33 @@ func parseDecl(name, src string) ast.Decl {
 	return decl
 }
 
+// buildStructureRecords sets values[Name] to each structure's
+// record value: a slice of its members' implementations, with a
+// placeholder for any member that has none, so unpulled corpus
+// statements stay silent rather than wrong. It is idempotent, and
+// is run again after the structLib sources so the members they
+// derive replace their placeholders.
+func buildStructureRecords(values map[string]eval.Val,
+	bindings []compile.Binding,
+) {
+	for _, b := range bindings {
+		record, isRecord := b.Type.(*types.Record)
+		if !isRecord {
+			continue
+		}
+		fields := make([]eval.Val, len(record.Fields))
+		for i, field := range record.Fields {
+			qualified := b.Name + "." + field.Label
+			if fn, ok := values[qualified]; ok {
+				fields[i] = fn
+			} else {
+				fields[i] = notImplemented(qualified)
+			}
+		}
+		values[b.Name] = fields
+	}
+}
+
 // structLib is a built-in structure whose derivable members are
 // defined in embedded Morel source, evaluated at boot with the
 // structure's native members in scope (morel-go#2).
@@ -350,6 +362,8 @@ func structLibs() []structLib {
 	return []structLib{
 		{name: "Fn", src: fnSrc},         // native: id, o, repeat
 		{name: "Option", src: optionSrc}, // native: getOpt, isSome, valOf
+		// native: the doc constructors, fillSep/fillCat, render.
+		{name: "PP", src: ppSrc},
 	}
 }
 
