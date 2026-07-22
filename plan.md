@@ -1108,7 +1108,7 @@ regresses. Pick structures whose members are all small and
 non-recursive; leave the recursive/hot ones (`List`/`Vector`
 traversals, `Relational` aggregates) native.
 
-- [ ] 113. The `structLib` mechanism, and its first two clients,
+- [x] 113. The `structLib` mechanism, and its first two clients,
       chosen as inlining sweet spots (non-recursive throughout):
       `Fn` (`id`/`const`/`o`/`curry`/`uncurry`/`flip`/`apply`/
       `equal`/`notEqual` — pure combinators; recursive `repeat`
@@ -1117,10 +1117,20 @@ traversals, `Relational` aggregates) native.
       `mapPartial`/`compose` — datatype case-analysis whose
       inlining unlocks case-of-known-constructor in query
       predicates).
-- [ ] 114. Convert `PP`'s derived combinators to `lib/PP.sml`
-      over its native primitives; a `structLib` client once
-      task 113 has proven the mechanism. Shrinks `eval/pp.go` to
-      the ~12 primitives.
+      Done: a boot-time `loadStructLib` evaluates each structure's
+      embedded Morel source (`internal/shell/lib/{fn,option}.sml`)
+      in a scoped environment and wires the derived members into
+      their slots; `id`/`o`/`repeat` and `getOpt`/`isSome`/`valOf`
+      stay native. Behaviour-preserving (no corpus delta).
+- [ ] 114. Make `PP` a `structLib` client (the mechanism now
+      exists from task 113): add `PP` to `structLibs()`, move its
+      ~15 derived combinators (`hsep`, `vsep`, `sep`, `cat`,
+      `fill*`, `parens`/`braces`/`brackets`, `punctuate`,
+      `encloseSep`, ...) into `internal/shell/lib/pp.sml` over the
+      ~12 native primitives (`empty`, `line`, `text`, `beside`,
+      `nest`, `group`, `align`, `fill`, `render`, ...), which are
+      seeded unqualified by the implicit open. Shrinks
+      `eval/pp.go` to those primitives.
 - [ ] 115. Phase 2: convert the remaining clear wins — `Bool`,
       `Either`, `ListPair`, `Math` (folding `e`/`pi` to literals,
       not inlining `exp 1.0`), and the derivable subsets of
