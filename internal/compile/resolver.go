@@ -813,7 +813,7 @@ func (r *resolver) toFn(env *coreEnv, fn *ast.Fn,
 			Msg:  "function does not have function type",
 		}
 	}
-	if len(fn.Matches) == 1 {
+	if len(fn.Matches) == 1 && r.irrefutable(fn.Matches[0].Pat) {
 		match := fn.Matches[0]
 		switch match.Pat.(type) {
 		case *ast.IDPat, *ast.WildcardPat:
@@ -841,9 +841,25 @@ func (r *resolver) toFn(env *coreEnv, fn *ast.Fn,
 		T:       fnType.Result,
 		Exp:     &core.ID{Pat: param},
 		Matches: matches,
-		Span:    matchesSpan(fn.Matches),
+		Span:    fn.Span(),
 	}
 	return &core.Fn{T: fnType, IDPat: param, Exp: body}, nil
+}
+
+// irrefutable reports whether a pattern always matches — a
+// wildcard, or a name that binds a variable rather than a
+// constructor (so "true", "nil", and other constructors are
+// refutable, even though they parse as identifiers).
+func (r *resolver) irrefutable(pat ast.Pat) bool {
+	switch p := pat.(type) {
+	case *ast.WildcardPat:
+		return true
+	case *ast.IDPat:
+		_, isCon := r.typeMap.sys.LookupTyCon(p.Name)
+		return !isCon
+	default:
+		return false
+	}
 }
 
 // toIf translates "if c then a else b" as if the user had written
@@ -1158,7 +1174,7 @@ func (r *resolver) toMatches(env *coreEnv,
 		if err != nil {
 			return nil, err
 		}
-		result[i] = core.Match{Pat: pat, Exp: body}
+		result[i] = core.Match{Pat: pat, Exp: body, Span: m.Span()}
 	}
 	return result, nil
 }
