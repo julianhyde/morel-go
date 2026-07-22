@@ -37,6 +37,10 @@ Sys.set ("lineWidth", 78);
 > val it : int
 :t 1.0 / 0.0;
 > val it : real
+:t fn 1 => "a";
+> stdIn:1.14-1.25 Warning: match nonexhaustive
+>   raised at: stdIn:1.14-1.25
+> val it : int -> string
 
 (*) Type tests
 :t #"h";
@@ -145,6 +149,23 @@ Sys.set ("lineWidth", 78);
 > val it : real * real -> real
 :t fn (x, y) => x * y * 1;
 > val it : int * int -> int
+:t
+fn NONE => 0;
+> stdIn:1.1-1.13 Warning: match nonexhaustive
+>   raised at: stdIn:1.1-1.13
+> val it : 'a option -> int
+
+:t
+fn (SOME x) => 0;
+> stdIn:1.1-1.17 Warning: match nonexhaustive
+>   raised at: stdIn:1.1-1.17
+> val it : 'a option -> int
+
+:t
+fn (SOME x) => x + 1;
+> stdIn:1.1-1.21 Warning: match nonexhaustive
+>   raised at: stdIn:1.1-1.21
+> val it : int option -> int
 
 (* Basic type tests (migrated from MainTest.testType) *)
 :t 1;
@@ -316,6 +337,10 @@ end;
 > val it : int list
 :t 1 :: 2 :: [];
 > val it : int list
+:t fn [] => 0;
+> stdIn:1.14-1.24 Warning: match nonexhaustive
+>   raised at: stdIn:1.14-1.24
+> val it : 'a list -> int
 
 (*) Cannot be typed, since the parameter f is in a monomorphic position
 :t fn f => (f true, f 0);
@@ -622,5 +647,21 @@ fun bar (x: 'a) : 'a option = SOME x;
 (*) Type var in val declaration
 val myid: 'a -> 'a list = fn x => [x];
 > val myid = fn : 'a -> 'a list
+
+(* A local binding generalizes its own type variables, but not the type
+ * variables of an enclosing function's parameter: here 'x' generalizes
+ * but 'p' (hence 'a) does not. *)
+fn p => let val g = fn x => (x, p) in (g 1, g 2) end;
+> val it = fn : 'a -> (int * 'a) * (int * 'a)
+
+(* The value restriction: a binding whose right-hand side is not a
+ * syntactic value is not generalized. *)
+let val notval = (fn x => x) 1 in notval end;
+> val it = 1 : int
+
+(* Recursive ('fun') bindings are also generalized: within the definition the
+ * name is monomorphic, but it is generalized for use in the body. *)
+Sys.set ("printDepth", ~1);
+> val it = () : unit
 
 (*) End type-inference.smli
