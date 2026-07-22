@@ -18,10 +18,43 @@
 package pp_test
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/hydromatic/morel-go/internal/pp"
 )
+
+// TestFillNotExponential guards against a regression in which
+// rendering a wrapped fill was exponential in the number of
+// elements: a fill nests one union per element, and fits recursed
+// into each union's wide branch (which contains the next union).
+// With the fix, rendering is linear, so many elements render fast;
+// the buggy form would take longer than the deadline well before
+// this size.
+func TestFillNotExponential(t *testing.T) {
+	const n = 40
+	docs := make([]pp.Doc, n)
+	for i := range docs {
+		docs[i] = pp.Text("int")
+	}
+	// The width must be wide enough that col does not exceed it
+	// early: that is what let the buggy fits recurse to full depth
+	// (2^n). With this config the buggy form runs for far longer
+	// than the deadline, while the fixed form is instant.
+	d := pp.Fill(pp.Text(" "), docs)
+	done := make(chan string, 1)
+	go func() { done <- pp.Render(200, d) }()
+	select {
+	case out := <-done:
+		if strings.Count(out, "int") != n {
+			t.Fatalf("got %d ints, want %d", strings.Count(out, "int"), n)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Render did not finish in 5s: fill rendering is " +
+			"exponential again")
+	}
+}
 
 func TestGroup(t *testing.T) {
 	// A group lays out flat when it fits, broken when it does

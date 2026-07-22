@@ -393,16 +393,14 @@ func fits(width, col int, it *item) bool {
 			col += len([]rune(d.text))
 			it = next
 		case unionDoc:
-			wideItem := &item{
-				d:      d.wide,
-				indent: i,
-				flat:   true,
-				next:   next,
-			}
-			if !fits(width, col, wideItem) {
-				return true
-			}
-			it = wideItem
+			// A union marks a break opportunity: the current line
+			// may end here, so whatever precedes it fits (col is
+			// within width, guaranteed at the top of the loop).
+			// This is what the old recursive form always concluded
+			// too, but a fill nests one union per element, so
+			// measuring into each union's wide branch — which
+			// itself contains the next union — was exponential.
+			return true
 		}
 	}
 }
