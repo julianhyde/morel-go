@@ -157,18 +157,6 @@ func NewKernel(name string) *Kernel {
 //go:embed scott.sml
 var scottSrc string
 
-// fnSrc and optionSrc define the derivable members of the Fn and
-// Option structures (morel-go#2).
-//
-//go:embed lib/fn.sml
-var fnSrc string
-
-//go:embed lib/option.sml
-var optionSrc string
-
-//go:embed lib/pp.sml
-var ppSrc string
-
 // Config returns the kernel's configuration; the kernel is its
 // sole owner.
 func (k *Kernel) Config() *Config {
@@ -355,15 +343,27 @@ type structLib struct {
 	src  string
 }
 
+// mustReadLib reads a library Morel source (lib/*.sml) from the
+// embedded library; the files are embedded and tested, so a failure
+// is a programming error and panics.
+func mustReadLib(name string) string {
+	data, err := lib.FS.ReadFile(name)
+	if err != nil {
+		panic(err)
+	}
+	return string(data)
+}
+
 // structLibs returns the structures whose members are defined this
 // way. Each keeps a few members native — recursive, hot, or
 // primitive — and derives the rest in Morel.
 func structLibs() []structLib {
 	return []structLib{
-		{name: "Fn", src: fnSrc},         // native: id, o, repeat
-		{name: "Option", src: optionSrc}, // native: getOpt, isSome, valOf
+		{name: "Fn", src: mustReadLib("fn.sml")}, // native: id, o, repeat
+		// native: getOpt, isSome, valOf.
+		{name: "Option", src: mustReadLib("option.sml")},
 		// native: the doc constructors, fillSep/fillCat, render.
-		{name: "PP", src: ppSrc},
+		{name: "PP", src: mustReadLib("pp.sml")},
 	}
 }
 
