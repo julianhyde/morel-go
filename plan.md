@@ -1053,12 +1053,19 @@ once hydromatic/morel#426 is fixed. See
 Contained features that converge whole corpus sections without the
 predicate-inversion machinery of phase K. Do these next.
 
-- [ ] 98. Satisfiability prover + match-coverage analysis
+- [x] 98. Satisfiability prover + match-coverage analysis
       (morel#55): redundant- and missed-case warnings.
       Budget the prover generously (rust's 315-line first cut
       was rewritten within a month). Unlocks the
       type-inference.smli warning hunks deferred since
       task 28, and most of match.smli.
+      Done via Maranget's usefulness algorithm (not a SAT
+      prover) over every case/fn/fun, with a targeted "e mod k"
+      heuristic; a prerequisite fn-miscompilation bug (a
+      constructor-name single-clause pattern bound as a
+      variable) was fixed. match.smli +104, type-inference
+      +41, datatype +21. A full SAT prover for richer
+      arithmetic reasoning can follow if needed.
 - [ ] 111. `PP` pretty-printer structure (`PP.render`,
       `PP.text`, `PP.line`, ...): built-in/pp.smli, ~19
       statements.
