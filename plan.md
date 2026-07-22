@@ -1066,9 +1066,10 @@ predicate-inversion machinery of phase K. Do these next.
       variable) was fixed. match.smli +104, type-inference
       +41, datatype +21. A full SAT prover for richer
       arithmetic reasoning can follow if needed.
-- [ ] 111. `PP` pretty-printer structure (`PP.render`,
+- [x] 111. `PP` pretty-printer structure (`PP.render`,
       `PP.text`, `PP.line`, ...): built-in/pp.smli, ~19
-      statements.
+      statements. Done via Lindig's "Strictly Pretty" render
+      over a doc tree; built-in/pp.smli +78.
 - [ ] 108. Record update: `{e with deptno = 0}` (morel#249);
       used by relational.smli and blog.smli.
 - [ ] 112. Range-list syntax and finite evaluation:
