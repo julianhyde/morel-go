@@ -1183,14 +1183,18 @@ differences:
       `General.ignore`; `=`/`<`/`div`/`elem` stay bare). Matches
       71 -> 77; corpus built-in +8, general +4, string +4, list
       +2, sys +2.
-- [ ] 116b. Collapse curried builtin application to
+- [x] 116b. Collapse curried builtin application to
       `apply2`/`apply3` (java `apply2(fnValue List.app, f, xs)`
-      vs go's nested `apply(fnCode apply(...), argCode ...)`);
-      needs a per-builtin curried-arity notion (java's
-      Applicable2/3).
-- [ ] 116c. `let1(expCode ..., resultCode ...)` for a single
-      non-recursive binding (vs go's `let(..., ...)`).
-- [ ] 116d. `tailApply` in tail position (vs go's `apply`).
+      vs go's nested `apply(fnCode apply(...), argCode ...)`).
+      Done via a per-builtin curried-arity (arrows in its type);
+      the applyCode spine collapses when fully applied. Matches
+      77 -> 93; corpus list +7-ish, string, vector.
+- [x] 116c. `let1(expCode ..., resultCode ...)` for a single
+      non-recursive binding (vs go's `let(..., ...)`). 93 -> 94.
+      (Recursive let is java's `let(matchCode0 ..., resultCode
+      ...)` — folded into 116e.)
+- [ ] 116d. `tailApply` in tail position (vs go's `apply`);
+      needs tail-position tracking in the compiler.
 - [ ] 116e. case/match representation: java's
       `match(...)`/`tailApply(fnCode match(...))` vs go's
       `case(...)` (structural).
