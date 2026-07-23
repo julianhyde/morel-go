@@ -264,10 +264,19 @@ func (c *compiler) builtinFnInfo(fnExp core.Exp,
 	}
 }
 
-// curriedArity is the number of curried arguments a built-in takes
-// — the number of arrows in its type — used to collapse a fully
-// applied curried built-in to apply2/apply3 in the plan.
+// curriedArity is the number of curried arguments a built-in takes,
+// used to collapse a fully applied curried built-in to apply2/apply3
+// in the plan. It is the number of arrows in the type — except that
+// a built-in whose parameter is a tuple takes it as a single
+// argument (rendered via the tuple form) and its result, if a
+// function, is applied separately, so its arity is 1. This keeps
+// "(f o g) x" from folding the outer application into the compose.
 func curriedArity(t types.Type) int {
+	if fn, isFn := t.(*types.Fn); isFn {
+		if _, isTuple := fn.Param.(*types.Tuple); isTuple {
+			return 1
+		}
+	}
 	n := 0
 	for {
 		fn, isFn := t.(*types.Fn)
