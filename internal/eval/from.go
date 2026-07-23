@@ -260,7 +260,10 @@ type SetOpStage struct {
 	Args     []Code
 	Kind     SetOpKind
 	Distinct bool
-	Multi    bool
+	// Vars is the number of variables the query's scans bind, which
+	// determines a row's value: unit for none, the sole value for
+	// one, the record of values for several.
+	Vars int
 }
 
 func (s *SetOpStage) transform(_ *fromCode, f *Frame, rows [][]Val,
@@ -294,23 +297,31 @@ func (s *SetOpStage) transform(_ *fromCode, f *Frame, rows [][]Val,
 	return out, nil
 }
 
-// rowValue is the value of a row: the record itself for several
-// variables, or the sole variable's value.
+// rowValue is the value of a row: unit for no variables, the sole
+// variable's value for one, the record itself for several.
 func (s *SetOpStage) rowValue(row []Val) Val {
-	if s.Multi {
+	switch s.Vars {
+	case 0:
+		return unitVal
+	case 1:
+		return row[0]
+	default:
 		return row
 	}
-	return row[0]
 }
 
 // snapshot is the frame-slot snapshot for a row value, the inverse
 // of rowValue.
 func (s *SetOpStage) snapshot(v Val) []Val {
-	if s.Multi {
+	switch s.Vars {
+	case 0:
+		return nil
+	case 1:
+		return []Val{v}
+	default:
 		vals, _ := v.([]Val)
 		return vals
 	}
-	return []Val{v}
 }
 
 // dedup returns the distinct values in first-occurrence order.
