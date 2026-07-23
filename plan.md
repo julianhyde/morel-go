@@ -1412,11 +1412,14 @@ wrong observable behavior:
       use-site args, so nested `int t t` still works); direct and
       mutual recursion report "recursive type alias". Regression
       test added.
-- [ ] R3. SetOpStage.rowValue does row[0] when the scan pattern
+- [x] R3. SetOpStage.rowValue does row[0] when the scan pattern
       binds zero variables: `from _ in [1,2] union [(),()];`
       panics (masked by the kernel recover, so the statement
       silently prints nothing; java returns 4 units). Birth
-      16e4b0f; internal/eval/from.go:303.
+      16e4b0f; internal/eval/from.go:303. Fixed (39a5929):
+      SetOpStage carries the variable count, so a row value is
+      unit for none, the sole value for one, the record for
+      several (symmetric rowValue/snapshot). Regression test added.
 - [ ] R4. relSumFn returns int32 0 for an empty collection of
       any element type; `sum (bag []: real bag) + 1.5;` silently
       prints nothing (swallowed panic). Zero must match the
