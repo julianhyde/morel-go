@@ -1169,6 +1169,38 @@ traversals, `Relational` aggregates) native.
       Int/Real/Char scalar subsets (`abs`/`min`/`sign`/predicates)
       remain a future increment.
 
+### K0. Sys.plan format parity (116, before phase K)
+
+Match morel-java's `Sys.plan()` output before inlining lands, so
+that phase K flips optimize.smli's plans to match rather than
+forcing a re-bless. Baseline (via the plan-score harness): of the
+216 plans whose query runs, 71 matched java and 145 differed only
+in plan format; 60 more need features not yet built. Six format
+differences:
+
+- [x] 116a. Type-directed, structure-qualified builtin names
+      (`Int.+`, `Real./`, `Int.mod`, `List.map`, `List.@`,
+      `General.ignore`; `=`/`<`/`div`/`elem` stay bare). Matches
+      71 -> 77; corpus built-in +8, general +4, string +4, list
+      +2, sys +2.
+- [ ] 116b. Collapse curried builtin application to
+      `apply2`/`apply3` (java `apply2(fnValue List.app, f, xs)`
+      vs go's nested `apply(fnCode apply(...), argCode ...)`);
+      needs a per-builtin curried-arity notion (java's
+      Applicable2/3).
+- [ ] 116c. `let1(expCode ..., resultCode ...)` for a single
+      non-recursive binding (vs go's `let(..., ...)`).
+- [ ] 116d. `tailApply` in tail position (vs go's `apply`).
+- [ ] 116e. case/match representation: java's
+      `match(...)`/`tailApply(fnCode match(...))` vs go's
+      `case(...)` (structural).
+- [ ] 116f. `from` plan shape: java's `sink join`/`sink where`
+      vs go's `from(stack(...))` (structural).
+
+optimize.smli's inlining-dependent plans (35) wait for phase K
+(tasks 96/97); this task makes their vocabulary correct first.
+The harness lives at `etc/` scratch (planscore.py).
+
 ### K. Unbounded variables, such-that, Datalog (96-97, 99-107)
 
 A large later phase. An unbounded variable
