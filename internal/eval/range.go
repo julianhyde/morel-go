@@ -642,8 +642,19 @@ func enumerateRangeItem(kind ast.RangeKind, lo, hi Val) ([]Val,
 		last = p
 	}
 	var out []Val
-	for cur := first; compareVals(cur, last) <= 0; {
+	cur := first
+	for {
+		c := compareVals(cur, last)
+		if c > 0 {
+			break
+		}
 		out = append(out, cur)
+		if c == 0 {
+			// At the last element; do not step past it, which
+			// would overflow (wrap) when last is the maximum value
+			// and loop forever.
+			break
+		}
 		nxt, ok := succVal(cur)
 		if !ok {
 			break
