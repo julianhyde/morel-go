@@ -165,14 +165,15 @@ func (c *makeClosureCode) Describe() string {
 // to render the compiled plan the way java does; fnName is empty
 // for any other function.
 func Apply(fn, arg Code, span token.Span, fnName string,
-	fnArity int,
+	fnArity, fnCurried int,
 ) Code {
 	return &applyCode{
-		fn:      fn,
-		arg:     arg,
-		span:    span,
-		fnName:  fnName,
-		fnArity: fnArity,
+		fn:        fn,
+		arg:       arg,
+		span:      span,
+		fnName:    fnName,
+		fnArity:   fnArity,
+		fnCurried: fnCurried,
 	}
 }
 
@@ -182,6 +183,10 @@ type applyCode struct {
 	fnName  string
 	span    token.Span
 	fnArity int
+	// fnCurried is the built-in's total number of curried
+	// arguments (arrows in its type), used to collapse a fully
+	// applied curried built-in to apply2/apply3 in the plan.
+	fnCurried int
 }
 
 func (c *applyCode) Eval(f *Frame) (Val, error) {
@@ -221,31 +226,63 @@ func ApplyVal(fn, arg Val) (Val, error) {
 }
 
 func (c *applyCode) Describe() string {
+	// A fully applied curried built-in "F a1 ... aN" is described
+	// as applyN(fnValue F, a1, ..., aN), as java collapses an
+	// Applicable2/Applicable3.
+	if name, args := c.curriedSpine(); name != "" {
+		return applyN(name, args)
+	}
 	// A built-in whose argument is a tuple of the arity it expects
-	// is described as apply2/apply3, with the tuple's elements
-	// spread as separate arguments — as java compiles a built-in
-	// applied to a tuple.
+	// is described the same way, with the tuple's elements spread.
 	if c.fnName != "" {
 		if tup, ok := c.arg.(*tupleCode); ok &&
 			len(tup.args) == c.fnArity &&
 			(c.fnArity == 2 || c.fnArity == 3) {
-			var b strings.Builder
-			b.WriteString("apply")
-			b.WriteString(strconv.Itoa(c.fnArity))
-			b.WriteString("(fnValue ")
-			b.WriteString(c.fnName)
-			for _, a := range tup.args {
-				b.WriteString(", ")
-				b.WriteString(a.Describe())
-			}
-			b.WriteString(")")
-			return b.String()
+			return applyN(c.fnName, tup.args)
 		}
 		return "apply(fnValue " + c.fnName + ", argCode " +
 			c.arg.Describe() + ")"
 	}
 	return "apply(fnCode " + c.fn.Describe() + ", argCode " +
 		c.arg.Describe() + ")"
+}
+
+// curriedSpine returns the built-in name and argument codes of a
+// fully applied curried built-in "F a1 ... aN" (2 or 3 args), or
+// "" if this application is not one.
+func (c *applyCode) curriedSpine() (string, []Code) {
+	args := []Code{c.arg}
+	cur := c.fn
+	for {
+		inner, ok := cur.(*applyCode)
+		if !ok {
+			return "", nil
+		}
+		args = append([]Code{inner.arg}, args...)
+		if inner.fnName != "" {
+			if inner.fnCurried == len(args) &&
+				(len(args) == 2 || len(args) == 3) {
+				return inner.fnName, args
+			}
+			return "", nil
+		}
+		cur = inner.fn
+	}
+}
+
+// applyN renders "applyN(fnValue name, arg0, arg1, ...)".
+func applyN(name string, args []Code) string {
+	var b strings.Builder
+	b.WriteString("apply")
+	b.WriteString(strconv.Itoa(len(args)))
+	b.WriteString("(fnValue ")
+	b.WriteString(name)
+	for _, a := range args {
+		b.WriteString(", ")
+		b.WriteString(a.Describe())
+	}
+	b.WriteString(")")
+	return b.String()
 }
 
 // recCell is the placeholder that a recursive binding's slot
@@ -322,7 +359,7 @@ func (c *letCode) Eval(f *Frame) (Val, error) {
 }
 
 func (c *letCode) Describe() string {
-	return "let(" + c.init.Describe() + ", " +
+	return "let1(expCode " + c.init.Describe() + ", resultCode " +
 		c.body.Describe() + ")"
 }
 

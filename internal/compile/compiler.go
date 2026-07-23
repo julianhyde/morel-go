@@ -153,8 +153,8 @@ func (c *compiler) compileExp(exp core.Exp) (eval.Code, error) {
 		if err != nil {
 			return nil, err
 		}
-		name, arity := c.builtinFnInfo(e.Fn, fn)
-		return eval.Apply(fn, arg, e.Span, name, arity), nil
+		name, arity, curried := c.builtinFnInfo(e.Fn, fn)
+		return eval.Apply(fn, arg, e.Span, name, arity, curried), nil
 	case *core.Case:
 		return c.compileCase(e)
 	case *core.Con:
@@ -237,27 +237,44 @@ func (c *compiler) compileExp(exp core.Exp) (eval.Code, error) {
 // resolves to a field selection over a structure value.
 func (c *compiler) builtinFnInfo(fnExp core.Exp,
 	fnCode eval.Code,
-) (string, int) {
+) (string, int, int) {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch fn := fnExp.(type) {
 	case *core.Apply:
 		sel, isSel := fn.Fn.(*core.Selector)
 		id, isID := fn.Arg.(*core.ID)
 		if !isSel || !isID {
-			return "", 0
+			return "", 0, 0
 		}
 		name := id.Pat.Name + "." + sel.Name
 		if _, ok := c.values[name]; !ok {
-			return "", 0
+			return "", 0, 0
 		}
-		return planFnName(name, fn.Type()), builtinArity(fn.Type())
+		return planFnName(name, fn.Type()),
+			builtinArity(fn.Type()), curriedArity(fn.Type())
 	case *core.ID:
 		if !eval.IsBuiltinFn(fnCode) {
-			return "", 0
+			return "", 0, 0
 		}
-		return planFnName(fn.Pat.Name, fn.Pat.T), builtinArity(fn.Pat.T)
+		return planFnName(fn.Pat.Name, fn.Pat.T),
+			builtinArity(fn.Pat.T), curriedArity(fn.Pat.T)
 	default:
-		return "", 0
+		return "", 0, 0
+	}
+}
+
+// curriedArity is the number of curried arguments a built-in takes
+// — the number of arrows in its type — used to collapse a fully
+// applied curried built-in to apply2/apply3 in the plan.
+func curriedArity(t types.Type) int {
+	n := 0
+	for {
+		fn, isFn := t.(*types.Fn)
+		if !isFn {
+			return n
+		}
+		n++
+		t = fn.Result
 	}
 }
 
