@@ -1193,8 +1193,11 @@ differences:
       non-recursive binding (vs go's `let(..., ...)`). 93 -> 94.
       (Recursive let is java's `let(matchCode0 ..., resultCode
       ...)` — folded into 116e.)
-- [ ] 116d. `tailApply` in tail position (vs go's `apply`);
-      needs tail-position tracking in the compiler.
+- [x] 116d. `tailApply` in tail position (vs go's `apply`).
+      Done: the compiler threads tail-ness (compileTail for a
+      closure body, flowing to a let body but not its init or an
+      apply argument); a tail single-arg apply renders tailApply.
+      94 -> 96; corpus list +4, vector +4.
 - [ ] 116e. case/match representation: java's
       `match(...)`/`tailApply(fnCode match(...))` vs go's
       `case(...)` (structural).
