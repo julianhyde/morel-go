@@ -655,7 +655,7 @@ func (c *compiler) compileSetOp(s *core.SetOp, scanPats []core.Pat,
 		Args:     args,
 		Kind:     setOpKinds[s.Kind],
 		Distinct: s.Distinct,
-		Multi:    len(sortedVarIDs(scanPats)) > 1,
+		Vars:     len(sortedVarIDs(scanPats)),
 	}, nil
 }
 

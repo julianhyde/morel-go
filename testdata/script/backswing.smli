@@ -40,3 +40,9 @@ type t = t list;
 val x = [] : t;
 > stdIn:1.14 Error: recursive type alias: t
 >   raised at: stdIn:1.14
+
+(* A wildcard scan binds no variables, so each row is unit; a set
+ * operation once read row[0] and panicked, printing nothing.
+ * Belongs in relational.smli. *)
+from _ in [1,2] union [(),()];
+> val it = [(),(),(),()] : unit list
