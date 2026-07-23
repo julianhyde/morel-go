@@ -1078,11 +1078,16 @@ predicate-inversion machinery of phase K. Do these next.
       built from update expressions and base-field selections;
       typing (unify each update with its base field) was already
       present. blog.smli +25, relational.smli +12, type.smli +14.
-- [ ] 112. Range-list syntax and finite evaluation:
+- [x] 112. Range-list syntax and finite evaluation:
       `[1 .. 5]`, `[0 ..^ 10, 20]` (morel#372) as list
       constructors that enumerate via task 70's `Range`,
       independent of the generator machinery. Infinite ranges
       in a list (`100..`, `[0..]`) still need phase K.
+      Done: new tokens `..`/`..^`/`^..`/`^..^`, ast/core
+      `RangeList` nodes, typing that unifies all bounds, and
+      finite enumeration over int/char/bool; an unbounded item
+      raises Size on enumeration. range.smli +69. Membership in
+      an unbounded range (`5 elem [0..]`) awaits phase K.
 - [ ] 106. Transitive closure builtin: `Relational.iterate`
       (semi-naive fixpoint) as a plain builtin, evaluated
       directly (not inverted). Unlocks the `iterate` uses in
