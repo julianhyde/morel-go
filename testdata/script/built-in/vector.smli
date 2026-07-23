@@ -153,6 +153,10 @@ Vector.app;
 > val it = fn : ('a -> unit) -> 'a vector -> unit
 Vector.app (fn s => ignore s) (Vector.fromList ["a", "b", "c"]);
 > val it = () : unit
+Sys.plan ();
+> val it =
+>   "apply2(fnValue Vector.app, match(s, tailApply(fnValue General.ignore, argCode stack(offset 1, name s))), apply(fnValue Vector.fromList, argCode tuple(constant(a), constant(b), constant(c))))"
+>   : string
 
 (*) Vector.mapi : (int * 'a -> 'b) -> 'a vector -> 'b vector
 Vector.mapi;

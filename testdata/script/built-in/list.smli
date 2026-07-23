@@ -258,6 +258,10 @@ List.app (fn x => ignore (x + 2)) [2,3,4];
 > val it = () : unit
 List.app (fn x => ignore (x + 2)) [];
 > val it = () : unit
+Sys.plan ();
+> val it =
+>   "apply2(fnValue List.app, match(x, tailApply(fnValue General.ignore, argCode apply2(fnValue Int.+, stack(offset 1, name x), constant(2)))), tuple)"
+>   : string
 
 (*) val mapi : (int * 'a -> 'b) -> 'a list -> 'b list
 List.mapi;
