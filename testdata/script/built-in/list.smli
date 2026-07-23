@@ -99,6 +99,8 @@ Sys.plan ();
 > val it = [1,2,3] : int list
 [] @ [];
 > val it = [] : 'a list
+Sys.plan ();
+> val it = "apply2(fnValue List.@, tuple, tuple)" : string
 
 (*) val hd : 'a list -> 'a
 List.hd;
