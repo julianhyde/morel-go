@@ -1404,10 +1404,14 @@ wrong observable behavior:
       internal/eval/range.go:508-543. Fixed (8014c6a): stop at the
       last element instead of stepping past it; regression test in
       kernel_test.go.
-- [ ] R2. A recursive type alias crashes the process:
+- [x] R2. A recursive type alias crashes the process:
       `type t = t list; val x = [] : t;` is a fatal stack
       overflow in astNamedTerm. Needs an occurs check on alias
-      bodies. Birth c0268eb; typeresolver.go:504-511.
+      bodies. Birth c0268eb; typeresolver.go:504-511. Fixed
+      (20fda2e): a static occurs check over the alias bodies (not
+      use-site args, so nested `int t t` still works); direct and
+      mutual recursion report "recursive type alias". Regression
+      test added.
 - [ ] R3. SetOpStage.rowValue does row[0] when the scan pattern
       binds zero variables: `from _ in [1,2] union [(),()];`
       panics (masked by the kernel recover, so the statement
