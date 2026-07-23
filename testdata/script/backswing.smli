@@ -31,3 +31,12 @@
 > val it = [1,2,3,4,5] : int list
 [2147483646 .. 2147483647];
 > val it = [2147483646,2147483647] : int list
+
+(* A recursive type alias must be rejected, not loop forever
+ * expanding itself (it once overflowed the stack).
+ * Belongs in type-alias.smli. *)
+type t = t list;
+> type t = t list
+val x = [] : t;
+> stdIn:1.14 Error: recursive type alias: t
+>   raised at: stdIn:1.14
