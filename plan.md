@@ -1198,8 +1198,13 @@ differences:
 - [ ] 116e. case/match representation: java's
       `match(...)`/`tailApply(fnCode match(...))` vs go's
       `case(...)` (structural).
-- [ ] 116f. `from` plan shape: java's `sink join`/`sink where`
-      vs go's `from(stack(...))` (structural).
+- [~] 116f. `from` plan shape: java's `sink join`/`sink where`
+      vs go's `from(stack(...))` (structural). Structure done:
+      `fromCode.Describe` walks the retained stages into the
+      nested sink chain (join/where/yield/collect), and selectors
+      render as `nth:N`. Remaining: align the inner `exp`/collect
+      code rendering so from-plans fully match, and render the
+      order/group/set-op sinks.
 
 optimize.smli's inlining-dependent plans (35) wait for phase K
 (tasks 96/97); this task makes their vocabulary correct first.
