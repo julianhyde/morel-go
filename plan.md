@@ -1151,13 +1151,23 @@ traversals, `Relational` aggregates) native.
       structLib sources so `pp.sml` can reference `List`, then
       rebuilt to wire in the derived members. Behaviour-preserving;
       built-in/pp.smli stays 121/121.
-- [ ] 115. Phase 2: convert the remaining clear wins — `Bool`,
+- [x] 115. Phase 2: convert the remaining clear wins — `Bool`,
       `Either`, `ListPair`, `Math` (folding `e`/`pi` to literals,
       not inlining `exp 1.0`), and the derivable subsets of
       Char/String/Int/Real/Vector/Relational/General. Keep hot
       traversals native (evaluator vs Go loop) and reproduce
       native edge cases (`Int.abs minInt`, `Real.abs nan`,
       `Char.chr` bounds).
+      Done the non-regressing clear wins: `Either` fully
+      (lib/either.sml, native either.go removed) and `Bool`'s
+      `toString`/`fromString`/`andalso`/`orelse`/`implies`
+      (lib/bool.sml; `not` and comparisons stay native).
+      Behaviour-preserving. Deliberately left native for now (would
+      regress or need machinery not yet built): `ListPair` and the
+      Char/String/Vector traversals (recursive, not inlinable),
+      and `Math` `e`/`pi` (need constant-folding, phase K); the
+      Int/Real/Char scalar subsets (`abs`/`min`/`sign`/predicates)
+      remain a future increment.
 
 ### K. Unbounded variables, such-that, Datalog (96-97, 99-107)
 
