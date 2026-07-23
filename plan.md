@@ -1398,10 +1398,12 @@ Fix these as ordinary commits on 1-bootstrap now; the
 reorganization then folds each into its birth commit. Confirmed
 wrong observable behavior:
 
-- [ ] R1. Range enumeration loops forever when the closed upper
+- [x] R1. Range enumeration loops forever when the closed upper
       bound is Int.maxInt: succVal wraps int32 and the loop never
       exits. `[2147483646 .. 2147483647];` hangs. Birth c5cd9f8;
-      internal/eval/range.go:508-543.
+      internal/eval/range.go:508-543. Fixed (8014c6a): stop at the
+      last element instead of stepping past it; regression test in
+      kernel_test.go.
 - [ ] R2. A recursive type alias crashes the process:
       `type t = t list; val x = [] : t;` is a fatal stack
       overflow in astNamedTerm. Needs an occurs check on alias
