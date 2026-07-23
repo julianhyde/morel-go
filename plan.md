@@ -1369,9 +1369,6 @@ in a quiet moment, replaying with `git rebase -f -x 'fullMake
       Comments should read as if the code had always been this way.
       Prefer folding each edit into the commit that introduced the
       comment.
-- [ ] H3. Rename `isASCIIChar` to `isAsciiChar` in its birth commit
-      ("Implement String and Char"), so the initialism matches the
-      `Ascii` casing of `Char.isAscii` and Go's mixed-caps style.
 - [ ] H4. Add `Propagates hydromatic/morel#NNN commit <sha>`
       footers to the two Real propagation commits ("Propagate
       morel-java's Real.floor/ceil/round fix", "Propagate
@@ -1392,9 +1389,8 @@ numbers R1-R44 are stable references. Two standing constraints
 from the first reorganization: commits already published on main
 are immutable (a fix whose birth commit is pre-capture becomes a
 standalone commit early in the new series, not a squash), and 18
-files carry main-only cleanup (comment sweep, isASCIIChar ->
-isAsciiChar, corpus trims) that will conflict with new commits on
-rebase.
+files carry main-only cleanup (comment sweep, corpus trims) that
+will conflict with new commits on rebase.
 
 ### Bugs to fix before surgery
 
@@ -1681,7 +1677,7 @@ Coverage gaps that let the above hide:
       94b" (7f09db9). Note the pre-capture files were swept on
       main only; on rebase the drift resolves them, but any
       new-commit hunk touching swept lines must adopt main's
-      wording (including isAsciiChar).
+      wording.
 
 ### Regression tests for the bug fixes
 
