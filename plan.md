@@ -1198,9 +1198,14 @@ differences:
       closure body, flowing to a let body but not its init or an
       apply argument); a tail single-arg apply renders tailApply.
       94 -> 96; corpus list +4, vector +4.
-- [ ] 116e. case/match representation: java's
+- [~] 116e. case/match representation: java's
       `match(...)`/`tailApply(fnCode match(...))` vs go's
-      `case(...)` (structural).
+      `case(...)` (structural). Done: a case renders as
+      apply/tailApply(fnCode match(pat, body, ...), argCode
+      scrutinee) with per-clause PatDesc and tail-context arm
+      bodies; constructors render as `fnValue tyCon`. 96 -> 97.
+      Remaining: constructor-body and other code sub-details in
+      case-heavy plans.
 - [~] 116f. `from` plan shape: java's `sink join`/`sink where`
       vs go's `from(stack(...))` (structural). Structure done:
       `fromCode.Describe` walks the retained stages into the
