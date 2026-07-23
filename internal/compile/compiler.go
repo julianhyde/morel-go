@@ -19,6 +19,7 @@ package compile
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/hydromatic/morel-go/internal/ast"
@@ -249,6 +250,10 @@ func (c *compiler) builtinFnInfo(fnExp core.Exp,
 		}
 		return planFnName(fn.Pat.Name, fn.Pat.T),
 			builtinArity(fn.Pat.T), curriedArity(fn.Pat.T)
+	case *core.Selector:
+		// A field/tuple selector applied to a record is java's
+		// "nth:N", where N is the field's canonical position.
+		return "nth:" + strconv.Itoa(fn.Index), 1, 1
 	default:
 		return "", 0, 0
 	}
@@ -588,7 +593,11 @@ func (c *compiler) compileStep(step core.FromStep,
 			return nil, err
 		}
 		*scanPats = append(*scanPats, s.Pat)
-		return &eval.ScanStage{Source: source, Pat: pat}, nil
+		name := ""
+		if id, ok := s.Pat.(*core.IDPat); ok {
+			name = id.Name
+		}
+		return &eval.ScanStage{Source: source, Pat: pat, Name: name}, nil
 	case *core.SetOp:
 		return c.compileSetOp(s, *scanPats)
 	case *core.Skip:
