@@ -1379,6 +1379,337 @@ in a quiet moment, replaying with `git rebase -f -x 'fullMake
       `check-convergence.py --ledger` records them; the ledger
       currently shows zero propagated commits.
 
+## Review: commits since the first mainlining
+
+Reviewed 2026-07-23: the 91 commits a5911d3..b2cac57 (54
+substantive, 37 plan-bookkeeping), ahead of the second
+history reorganization. (Shas reflect the 2026-07-23
+force-push, which amended f7a9384 and the four Sys.plan parity
+commits to seat the builtinFnInfo case-sort at its birth;
+every commit after f7a9384 was renumbered.) Findings feed the
+future ledger; item
+numbers R1-R44 are stable references. Two standing constraints
+from the first reorganization: commits already published on main
+are immutable (a fix whose birth commit is pre-capture becomes a
+standalone commit early in the new series, not a squash), and 18
+files carry main-only cleanup (comment sweep, isASCIIChar ->
+isAsciiChar, corpus trims) that will conflict with new commits on
+rebase.
+
+### Bugs to fix before surgery
+
+Fix these as ordinary commits on 1-bootstrap now; the
+reorganization then folds each into its birth commit. Confirmed
+wrong observable behavior:
+
+- [ ] R1. Range enumeration loops forever when the closed upper
+      bound is Int.maxInt: succVal wraps int32 and the loop never
+      exits. `[2147483646 .. 2147483647];` hangs. Birth c5cd9f8;
+      internal/eval/range.go:508-543.
+- [ ] R2. A recursive type alias crashes the process:
+      `type t = t list; val x = [] : t;` is a fatal stack
+      overflow in astNamedTerm. Needs an occurs check on alias
+      bodies. Birth c0268eb; typeresolver.go:504-511.
+- [ ] R3. SetOpStage.rowValue does row[0] when the scan pattern
+      binds zero variables: `from _ in [1,2] union [(),()];`
+      panics (masked by the kernel recover, so the statement
+      silently prints nothing; java returns 4 units). Birth
+      16e4b0f; internal/eval/from.go:303.
+- [ ] R4. relSumFn returns int32 0 for an empty collection of
+      any element type; `sum (bag []: real bag) + 1.5;` silently
+      prints nothing (swallowed panic). Zero must match the
+      element type. Birth afca64e; internal/eval/relational.go:111.
+- [ ] R5. The resolver ignores GroupStep.Binder, though typing
+      accepts it: `from i in [10,20,11] group b = i mod 2 order
+      b;` type-checks then silently prints nothing. Birth
+      afca64e; resolver.go toGroupStep.
+- [ ] R6. An `into` function is resolved in query scope instead
+      of root scope: `from i in [1,2,3] into (fn l => i);`
+      evaluates to 3 (reads a leftover frame slot); java rejects
+      i as unbound. Birth 5a3a419; resolver.go:511-513 (sibling
+      Skip/Take/SetOp cases use env correctly).
+- [ ] R7. Step-placement validation is missing across the typing
+      layer: `require` outside `forall`, `compute`/`into` inside
+      `exists`/`forall`, and non-last `into`/`require` are all
+      accepted, yielding wrong values (`from i in [1,2] require i
+      > 1;` gives [0,0]; `... into f order i` executes then
+      discards the order — a regression when d3b7361 removed the
+      yielded guard). One consolidated fix in compile/from.go,
+      mirroring java TypeResolver.java:1218-1249. Births
+      0e5cd41, 5a3a419, d3b7361.
+- [ ] R8. Match coverage treats a layered pattern as a wildcard
+      (no AsPat case in patInfo): `fun f (l as h::t) = 1;` gets
+      no nonexhaustive warning, and an `as` clause before `[]`
+      triggers a false "match redundant". Birth 056dfb5;
+      coverage.go:225-259.
+- [ ] R9. The empty-record pattern `{}` does not match unit:
+      `val {} = ();` raises Bind. 747620f converted only the
+      expression form; add the pattern counterpart
+      (resolver.go:931-936).
+- [ ] R10. Non-discrete range bounds silently mis-enumerate:
+      `[1.0 .. 2.5]` gives [1] : real list, `["a" .. "b"]` gives
+      ["a"]; open-bound succ/pred failure yields an empty item.
+      Should be an error (or restricted by typing). Birth
+      c5cd9f8; range.go:531,539.
+- [ ] R11. curriedSpine counts all top-level arrows, so a builtin
+      returning a function over-collapses:
+      `(String.str o Char.chr) 65` renders one apply2 where java
+      renders apply(fnCode apply2(...)). Affects o, Fn.curry,
+      Fn.repeat. Birth 326422a; compiler.go curriedArity,
+      code.go:254-270.
+- [ ] R12. Sys.plan after a `fun` returns "" and clears the
+      previous plan: RecValDecl never sets Plan, and kernel.go
+      assigns lastCode unconditionally. Birth f7a9384;
+      compiler.go:79, kernel.go:484.
+- [ ] R13. type_string parses its operand as a full application
+      chain; java parses at expression9 (atom + dot-chain), so
+      `type_string String.size "abc"` gives "int" here but is a
+      type error in java. Birth 973fde0; parser.go:358-370.
+- [ ] R14. Output matcher: after a Split error, the stale
+      expected block is never reset and concatenates onto the
+      next statement's expected output, silently disabling
+      semantic matching there (script.go:57-81). Also
+      splitOutput can panic on an inverted slice and sits outside
+      the recover wrapper (output_matcher.go:33-56,90). Birth
+      e965c32.
+- [ ] R15. setOrdinal is not wired into GroupStage.partition,
+      GroupAggCode, SetOpStage, or ThroughStage, so `ordinal`
+      read there sees a stale slot (group key example diverges
+      from java). Birth b0f0495.
+
+Latent divergences (no corpus line pins them yet — fix or record
+a deliberate decision):
+
+- [ ] R16. stack(offset) measures from frame bottom; java's
+      StackCode is 1-based from the top. Agrees only for
+      single-slot frames; every current pin is offset 1. Birth
+      e6eca8f; code.go:79-83.
+- [ ] R17. aggKind classifies an aggregate by top-level bindings
+      only, ignoring local shadowing (java consults the env);
+      and java's validateGroup checks are missing: no "cannot
+      derive label" error (silent "current"/"" fallback), no
+      duplicate-name check among keys + aggregates. Birth
+      66b5b7f; group.go:175.
+- [ ] R18. planFnName has no case for `o` (renders "fnValue o",
+      java "General.o"); `mod` hardcodes Int.mod; planAliases
+      covers only corpus-exercised aliases. Birth aae5246;
+      compiler.go:283-356.
+- [ ] R19. ScanStage.Name is set only for IDPat, so
+      `from (a, b) in ...` renders an empty pattern name in sink
+      plans (java prints "pat (a, b)"). Birth 5df965e;
+      compiler.go:605-609.
+- [x] R20. compileTail threads tail-ness only through Apply and
+      Let; a Case in tail position loses it. Resolved by 2571f7e
+      (case renders as a match function; arm bodies compile in
+      the case's tail context). Birth 1b05b12.
+- [ ] R21. Typing of a layered record pattern drops labelNames
+      (AsPat forwards nil), and deduceCase unwraps only a
+      top-level RecordPat; latent until `...` patterns evaluate.
+      Birth ecb4c40; typeresolver.go:788,1483.
+- [ ] R22. Overloads: unresolved constraints are silently
+      dropped at generalization (an unsound `'a -> 'b`), and a
+      bare reference to an overloaded name (not in application
+      position) falls through to an outer binding. Known,
+      documented limitation; decide scope. Birth a8da103;
+      typeresolver.go:1064,1349-1374.
+- [ ] R23. Minor: loadScott panics on any compile/eval failure
+      at kernel construction (6a87f68); alias arity mismatch
+      reports misleading "unbound type constructor" and
+      type-alias.smli has no negative tests (c0268eb);
+      canonicalTyVars breaks past 26 type variables and
+      unboundTyVar skips ExpressionType (fa48495); the unifier
+      renders a free-orderedness collection as "bag" in conflict
+      messages (e08ce9b); walkExp skips RangeList bounds
+      (056dfb5); lib/relational.sig:42 says NONE compares last
+      but the implementation and corpus put NONE first.
+
+Coverage gaps that let the above hide:
+
+- [ ] R24. Relational.iterate landed with type-assertion corpus
+      only — no functional transitive-closure test (java has
+      them). The sink-pipeline rendering (5df965e) has zero
+      corpus. No corpus line pins Sys.plan after `fun` (R12),
+      float-elem range membership (java's `5.5 elem
+      [0.0 .. 10.0]`), or unbounded-range Size. Port the java
+      lines when the bugs above are fixed.
+- [ ] R25. The kernel's blanket recover() converts evaluator
+      panics into "no output", which masked R3 and R4. Add a
+      debug escape hatch (env var or prop) that re-panics.
+
+### Content that must not reach main
+
+- [ ] R26. Remove etc/issue-structlib.md: it should never have
+      been added to git. Delete it from 1-bootstrap (a normal
+      commit now); in the reorganization drop 12f6946 entirely
+      and drop the plan commit 7535063's hunk to it. Nothing
+      else references the file.
+- [ ] R27. Decide the fate of the other morel-java working
+      notes: etc/issue-overload-let-polymorphism.md (7a7402d, a
+      draft issue for the morel-java repo) and
+      etc/survey-divergences.{md,py} (a3fce6e; the .md buckets
+      divergences vs morel-java and cites plan phase/task
+      numbers, the .py hardcodes ~/dev/morel-go.0 and
+      ~/dev/morel.0 paths and the .md cites a wrong script
+      name). Recommendation: keep all off main, like reorg.md;
+      the survey-driven fixes (6a87f68, ecb4c40, 52544ff,
+      5a9292e) have no code dependency on them. If all are
+      dropped, b4effe1 dissolves (its etc/*.md lint exemption
+      and py-header hunks lose their subjects) — but keep the
+      exemption on 1-bootstrap, where the notes live on.
+- [ ] R28. etc/push-green.sh is still untracked. Commit it on
+      1-bootstrap (with license header) or discard; decide
+      before the next push cycle.
+
+### Fixups: squash into birth commits
+
+- [ ] R29. b4effe1 -> a3fce6e (py license header) and the
+      etc/*.md lint exemption to the first surviving etc/*.md
+      commit. Note TestLint is red at 7a7402d and a3fce6e until
+      b4effe1 — the reorganization must not preserve that
+      window (subsumed by R27 if the notes are dropped).
+- [ ] R30. 52544ff (word-literal patterns, one parser-table
+      line) belongs to pre-capture 624ece5 "`Word` structure" —
+      published, so keep it as a standalone early commit in the
+      new series, not at the tail.
+- [ ] R31. 79397d1 (exponential fits()) fixes pre-capture
+      a61f86a (Wadler-Leijen engine) — published, so place it
+      as a standalone commit before e965c32 "Compare statement
+      output semantically", per the NOTE in its own message
+      (strip that NOTE when rewording).
+- [ ] R32. Overload series regroup: split the over/val-inst
+      parsing groundwork out of 8edfefe (OverDecl, Inst flag,
+      overDecl parsing, NewValDecl churn) and unite it with
+      a8da103 and 7f09db9 as one over/inst commit; 8edfefe
+      keeps elem/notelem/only. Also fold 0e5cd41's
+      unsupportedFrom2 -> unsupportedStep rename into 66b5b7f
+      so the intermediate name never exists, and drop the
+      unrelated sml-nj comment block a8da103 added at
+      type-inference.smli:358-366.
+- [ ] R33. PP chain: squash 6540673's PP-rewiring half into
+      0adcccb (write PP against internal/pp from the start; the
+      private ppDoc/ppFits/ppRender renderer never exists);
+      6540673's abstract-types-print-as-"-" half becomes its
+      own small commit or rides along. 2ac6f68 stays as the
+      structLib-client rework.
+- [ ] R34. structLib chain: fold 93f85fb (lib move) into the
+      births — fn.sml/option.sml and the lib.FS embed into
+      d771627, pp.sml into 2ac6f68 — so the files are born in
+      lib/; fold 8d0890e's src -> file field rename into
+      d771627. 8d0890e keeps the consistency tests.
+- [ ] R35. b7bf036 -> 056dfb5: drop the 16-line
+      type-inference.smli tail from 056dfb5's corpus addition
+      and b7bf036 disappears.
+- [ ] R36. scott: squash 8798bf6 and 6a87f68 into one "Add the
+      scott dataset" commit (corpus scott.smli, embedded
+      scott.sml global, dependent corpus pulls); optionally
+      split 8798bf6's print.go bag-type line-wrap fix into its
+      own printing commit first.
+- [ ] R37. Sys.plan parity cluster (aae5246, 326422a, 5df965e,
+      1b05b12, and tip commit 2571f7e — plus any further 116x
+      parity commits still being appended): each is a real
+      increment, but together they change the eval.Apply
+      signature twice more and rework applyCode.Describe twice
+      after birth. Either squash the cluster into one "match
+      java's plan format" commit placed next to
+      f7a9384/e6eca8f, or move it adjacent to those births.
+      e6eca8f itself is a natural squash into f7a9384 (no
+      corpus change).
+- [ ] R38. Query-evaluation churn: internal/eval/from.go is
+      architecturally rewritten twice in-range (8c260d2 flat
+      loop -> 8759818 recursion -> 333eeb1 row-list stages, the
+      survivor). Squash at least 8c260d2+8759818, or all three
+      into one "evaluate from" commit; this also collapses the
+      six-commit churn of TestExecuteItOnlyOnSuccess.
+- [ ] R39. d3b7361's stepBinder QuotedIdent support extends
+      pre-capture parser commit 8c477ce (published) — leave it
+      in d3b7361 or split as a small standalone parser commit.
+- [ ] R40. b55547c reworks 66b5b7f's aggregate builtins
+      (removes count/sum/max/min from topBuiltins for
+      CollectionAggType); consider partial squash so the
+      removed entries never exist, and note 66b5b7f's snapshot
+      briefly breaks the builtin table's alphabetical order.
+      Delete the now-dead bagToElem const (builtin.go:45)
+      wherever it lands.
+
+### Splits and re-orderings
+
+- [ ] R41. Split candidates beyond R32/R33/R36: 5a471ea
+      bundles five step families (fine together, but its
+      ordinal binding belongs with 3560535's row-keyword work);
+      b55547c mixes aggregate orderedness with the zero-field
+      group rule; 5df965e mixes nth:N selector naming with the
+      sink pipeline and smuggles a mechanical case re-sort.
+      8c260d2 misplaced toFrom between toFn's doc comment and
+      toFn — reattach the comment when rebasing (R23 tree fix
+      too).
+- [ ] R42. Re-order: 977d7a4 (Either/Bool to Morel) sits five
+      commits from the structLib cluster it belongs to — move
+      it adjacent to 8d0890e or squash with the phase-1
+      commits. ecb4c40/52544ff back-fill pattern features and
+      read better before the survey-driven corpus growth.
+
+### Message and comment policy
+
+- [ ] R43. Reword for main — subjects with issue/task refs:
+      e965c32 (#334), 8798bf6 (#255), 16e4b0f (#321), afca64e
+      (#271), 35755d6 (#249), c5cd9f8 (#372), d771627, 2ac6f68,
+      8d0890e, 977d7a4 (all morel-go#2), 1b05b12 (116d),
+      2571f7e (116e).
+      Bodies with phase/task/issue refs: e08ce9b (#407 + java
+      sha), c5cd9f8 ("phase K"), 71bcb04 ("phase K"), 977d7a4
+      ("Phase 2", "task-113"), ecb4c40 ("Task 14"), 52544ff
+      ("task 64"), 7f09db9 ("task 94"), 5df965e ("116f"),
+      b55547c (#271, #328), 79397d1 (reorg NOTE), fa48495 /
+      6a87f68 / 7a7402d (morel-java named in body); 056dfb5's
+      body says "+11" for a 41-line corpus change.
+- [ ] R44. Comment sweep for new code, at birth commits (the
+      H2 rule; corpus and etc/ exempt): morel-java/java named
+      in unparse.go:74,146 (fa48495); kernel.go:221-222,241,483
+      and scott.sml:20 (b55547c, 6a87f68, f7a9384);
+      code.go:165,234 (f7a9384, 326422a); group.go:31
+      (66b5b7f); compiler.go:254,278,332 (5df965e, aae5246);
+      coverage.go:36,45 (056dfb5); from.go:689 (5df965e);
+      lint_test.go:35; two more in 2571f7e (compiler.go: "is
+      java's fnValue tyCon", "java renders a case as...").
+      Issue numbers in comments:
+      builtin.go:171,191 and from.go:501 and kernel.go:222
+      (morel#271/328 — decide whether upstream-issue refs are
+      allowed in comments; they were swept last time);
+      kernel.go:142,340, export_test.go:37, lib/lib.go:21,
+      lib/either.sml:21 (morel-go#2 — clear violations;
+      lib/*.sml is not exempt). resolver.go:110 says "see task
+      94b" (7f09db9). Note the pre-capture files were swept on
+      main only; on rebase the drift resolves them, but any
+      new-commit hunk touching swept lines must adopt main's
+      wording (including isAsciiChar).
+
+### Regression tests for the bug fixes
+
+- [ ] R45. Every fix above carries a test, sourced one of two
+      ways. (a) If morel-java's corpus already pins the
+      behavior, the fix's test is the pull itself: re-run
+      pull-passing.py and adopt the newly passing lines. This
+      covers R7 (java logic.smli:209-248 pins the four
+      step-placement errors), the float-range membership and
+      unbounded Size gaps of R10/R24 (java range.smli:543,
+      505-513), and Relational.iterate's closure tests (java
+      built-in/relational.smli:104+). (b) Otherwise append the
+      test statements to a new go-local
+      testdata/script/backswing.smli, which the pull never touches
+      (the parse.smli precedent); TestScripts picks it up with
+      no harness change. Each entry is preceded by a concise
+      one- or two-line comment naming the bug and the upstream
+      .smli file the lines belong in (e.g. "a recursive type
+      alias must be rejected, not overflow the stack; belongs
+      in type.smli"). A future "backswing" task in morel-java
+      adopts backswing.smli entries into those upstream files; once a
+      pull returns them there, delete them from backswing.smli. When
+      creating the file, document the exception in agents.md
+      beside parse.smli and exempt it from the corpus
+      regeneration tooling (pull-passing --apply, era_trim,
+      whole-file regens). Go unit tests remain only for what a
+      script cannot express (none currently planned).
+
 ## After the endpoint
 
 Fast-follows, in rough order: TCO (morel#151 — frames are already
