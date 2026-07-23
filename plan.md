@@ -1447,12 +1447,16 @@ wrong observable behavior:
       ["a"]; open-bound succ/pred failure yields an empty item.
       Should be an error (or restricted by typing). Birth
       c5cd9f8; range.go:531,539.
-- [ ] R11. curriedSpine counts all top-level arrows, so a builtin
+- [x] R11. curriedSpine counts all top-level arrows, so a builtin
       returning a function over-collapses:
       `(String.str o Char.chr) 65` renders one apply2 where java
-      renders apply(fnCode apply2(...)). Affects o, Fn.curry,
-      Fn.repeat. Birth 326422a; compiler.go curriedArity,
-      code.go:254-270.
+      renders apply(fnCode apply2(...)). Birth 326422a; compiler.go
+      curriedArity, code.go:254-270. Fixed for `o` (9b51c6e): a
+      tuple-parameter builtin has curried arity 1, so its result
+      function is applied separately; option.smli +4. Residual:
+      `Fn.repeat` (a non-tuple builtin returning a function) still
+      over-collapses — needs a per-builtin arity, no corpus pin.
+      (`Fn.curry` is Morel-derived, a closure, so unaffected.)
 - [ ] R12. Sys.plan after a `fun` returns "" and clears the
       previous plan: RecValDecl never sets Plan, and kernel.go
       assigns lastCode unconditionally. Birth f7a9384;
