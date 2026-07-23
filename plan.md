@@ -1088,12 +1088,17 @@ predicate-inversion machinery of phase K. Do these next.
       finite enumeration over int/char/bool; an unbounded item
       raises Size on enumeration. range.smli +69. Membership in
       an unbounded range (`5 elem [0..]`) awaits phase K.
-- [ ] 106. Transitive closure builtin: `Relational.iterate`
+- [x] 106. Transitive closure builtin: `Relational.iterate`
       (semi-naive fixpoint) as a plain builtin, evaluated
       directly (not inverted). Unlocks the `iterate` uses in
       built-in/relational.smli and much of fixed-point.smli.
       Its generator inversions (transitive-closure and
       bounded-iterate) belong to phase K.
+      Done: `iterate init update` runs the semi-naive fixpoint
+      (dedup against seen rows terminates cyclic inputs), shared
+      by top-level `iterate` (list) and `Relational.iterate`
+      (bag). built-in.smli +4; the datalog/regex/fixed-point uses
+      need further features (phase K, regex).
 
 ### J2. Library structures in Morel (113-115, morel-go#2)
 
