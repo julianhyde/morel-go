@@ -1490,14 +1490,18 @@ a deliberate decision):
       derive label" error (silent "current"/"" fallback), no
       duplicate-name check among keys + aggregates. Birth
       66b5b7f; group.go:175.
-- [ ] R18. planFnName has no case for `o` (renders "fnValue o",
+- [x] R18. planFnName has no case for `o` (renders "fnValue o",
       java "General.o"); `mod` hardcodes Int.mod; planAliases
       covers only corpus-exercised aliases. Birth aae5246;
-      compiler.go:283-356.
-- [ ] R19. ScanStage.Name is set only for IDPat, so
+      compiler.go:283-356. Fixed `o` -> General.o and made `mod`
+      type-directed (65c8789). Residual: planAliases is still only
+      as complete as the corpus exercises — extend when new
+      aliases appear.
+- [x] R19. ScanStage.Name is set only for IDPat, so
       `from (a, b) in ...` renders an empty pattern name in sink
       plans (java prints "pat (a, b)"). Birth 5df965e;
-      compiler.go:605-609.
+      compiler.go:605-609. Fixed (65c8789): the name is now
+      corePatDesc(s.Pat), so tuple/other scan patterns render.
 - [x] R20. compileTail threads tail-ness only through Apply and
       Let; a Case in tail position loses it. Resolved by 2571f7e
       (case renders as a match function; arm bodies compile in
