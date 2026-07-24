@@ -1460,11 +1460,13 @@ wrong observable behavior:
       step spans now include their keyword as java's do. Test is
       the pull: +73 corpus lines across logic, relational, and
       type-inference.
-- [ ] R8. Match coverage treats a layered pattern as a wildcard
+- [x] R8. Match coverage treats a layered pattern as a wildcard
       (no AsPat case in patInfo): `fun f (l as h::t) = 1;` gets
       no nonexhaustive warning, and an `as` clause before `[]`
       triggers a false "match redundant". Birth 056dfb5;
-      coverage.go:225-259.
+      coverage.go:225-259. Fixed (70ea4e0): patInfo classifies an
+      AsPat by its body (it matches exactly what the body does).
+      Backswing test added (match.smli).
 - [ ] R9. The empty-record pattern `{}` does not match unit:
       `val {} = ();` raises Bind. 747620f converted only the
       expression form; add the pattern counterpart
