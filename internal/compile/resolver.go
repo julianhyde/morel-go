@@ -1354,6 +1354,11 @@ func (r *resolver) toPat(pat ast.Pat) (core.Pat, error) {
 					"with ellipsis",
 			}
 		}
+		// The empty record is unit, so "{}" matches unit -- like the
+		// empty tuple pattern "()".
+		if len(p.Fields) == 0 {
+			return &core.WildcardPat{T: t}, nil
+		}
 		sorted := make([]ast.PatField, len(p.Fields))
 		copy(sorted, p.Fields)
 		sort.Slice(sorted, func(i, j int) bool {

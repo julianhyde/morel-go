@@ -387,6 +387,9 @@ from i in [1,2,3]
 from i in [1,2,3],
   _ in [()];
 > val it = [1,2,3] : int list
+from i in [1,2,3],
+  {} in [()];
+> val it = [1,2,3] : int list
 from i in [1,2,3]
   join _ in [()];
 > val it = [1,2,3] : int list
@@ -424,11 +427,17 @@ from (i, j) in [(1, 2), (3, 4)],
 from (i, j) in [(1, 2), (3, 4)],
   () in bag [()];
 > val it = [{i=1,j=2},{i=3,j=4}] : {i:int, j:int} bag
+from (i, j) in [(1, 2), (3, 4)],
+  {} in bag [()];
+> val it = [{i=1,j=2},{i=3,j=4}] : {i:int, j:int} bag
 from (i, j) in [(1, 2), (3, 4)]
   join _ in bag [()];
 > val it = [{i=1,j=2},{i=3,j=4}] : {i:int, j:int} bag
 from (i, j) in [(1, 2), (3, 4)]
   join () in bag [()];
+> val it = [{i=1,j=2},{i=3,j=4}] : {i:int, j:int} bag
+from (i, j) in [(1, 2), (3, 4)]
+  join {} in bag [()];
 > val it = [{i=1,j=2},{i=3,j=4}] : {i:int, j:int} bag
 from (i, j) in [(1, 2), (3, 4)]
   join _ in bag ["a"];
@@ -450,6 +459,9 @@ from _ in ["a"],
 from () in [()],
     () in [(), ()];
 > val it = [(),()] : unit list
+from {} in [()],
+  {} in [()];
+> val it = [()] : unit list
 from _ in ["a","b","c"],
   _ in [true,false];
 > val it = [(),(),(),(),(),()] : unit list
@@ -458,8 +470,20 @@ from _ in ["a","b","c"],
 from _ in [()],
   i in [1,2,3];
 > val it = [1,2,3] : int list
+from {} in [()],
+  i in [1,2,3];
+> val it = [1,2,3] : int list
 from _ in [()],
   i in bag [1,2,3];
+> val it = [1,2,3] : int bag
+from {} in [()],
+  i in bag [1,2,3];
+> val it = [1,2,3] : int bag
+from {} in bag [()],
+  i in bag [1,2,3];
+> val it = [1,2,3] : int bag
+from {} in bag [()],
+  i in [1,2,3];
 > val it = [1,2,3] : int bag
 
 (*) 'yield' followed by 'join'
