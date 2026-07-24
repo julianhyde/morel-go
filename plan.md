@@ -1344,10 +1344,21 @@ ported directly:
       corpus (its int +/- algebra has no script coverage) —
       stubbed, revisit if a planEx pin ever needs it. Corpus
       such-that +27, optimize +8, range +3.
-- [ ] 104. Exists inversion: `Relational.nonEmpty` of a
+- [x] 104. Exists inversion: `Relational.nonEmpty` of a
       subquery in monotonic position becomes a join or
       semi-join generator; filtering by outer-scope variables
-      (morel#347).
+      (morel#347). Done — in go the conjunct is a From with
+      Kind exists, and the joined generator carries the body's
+      filters, so the extent-scanned bodies java leaves
+      ungrounded work here (no corpus pins java's error; safe
+      superset). The exists-over-grounded-variables semi-join
+      already worked via the projected-scan path. Deferred to
+      105 (which needs it for the inlined edge-fn family):
+      expandFrom2's sharedPats projection, for a raw composite
+      generator whose quantified variable leaks into the row
+      ("from x, y where exists z where (x,z) elem E andalso
+      (z,y) elem E"). Corpus such-that +22 (the 643-663
+      exists family).
 - [ ] 105. Function and case inversion: inline a user
       function's body into the constraint set and recurse
       (needs task 96); multi-arm `case` inversion
