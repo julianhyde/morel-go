@@ -1620,16 +1620,23 @@ a deliberate decision):
       needs user overloading implemented properly, which the plan
       schedules post-endpoint (see the overload regroup, R32).
       Revisit then.
-- [ ] R23. Minor: loadScott panics on any compile/eval failure
-      at kernel construction (6a87f68); alias arity mismatch
-      reports misleading "unbound type constructor" and
-      type-alias.smli has no negative tests (c0268eb);
-      canonicalTyVars breaks past 26 type variables and
-      unboundTyVar skips ExpressionType (fa48495); the unifier
-      renders a free-orderedness collection as "bag" in conflict
-      messages (e08ce9b); walkExp skips RangeList bounds
-      (056dfb5); lib/relational.sig:42 says NONE compares last
-      but the implementation and corpus put NONE first.
+- [x] R23. Minor cluster. Fixed (previous commit, +13 corpus
+      lines): alias/datatype arity mismatch now reports "type
+      constructor N given M argument(s), wants K" (matching java,
+      type.smli); canonicalTyVars uses a base-26 name so >26 type
+      variables no longer emit non-letter bytes; walkExp descends
+      into RangeList bounds so a nonexhaustive match inside
+      `[e .. f]` is reported; relational.sig now says NONE
+      compares first. Not changed (deliberate): loadScott panics
+      via the shared evalDecl boot path, which is documented as
+      panic-on-failure for embedded, tested resources (like
+      sig.Load); the unifier renders a free-orderedness collection
+      as "bag" -- consistent with go's type display (`'a bag`,
+      matching java's corpus) and unpinned, so changing it would
+      create inconsistency. Residual (obscure, unpinned):
+      unboundTyVar still skips ExpressionType (`typeof` in a
+      datatype-constructor argument), which would need an
+      expression walk.
 
 Coverage gaps that let the above hide:
 
