@@ -24,8 +24,8 @@ val scott = {
   emps = bag [
     {comm = 0.0, deptno = 20, empno = 7369, ename = "SMITH", hiredate = "1980-12-17", job = "CLERK", mgr = 7902, sal = 800.0},
     {comm = 300.0, deptno = 30, empno = 7499, ename = "ALLEN", hiredate = "1981-02-20", job = "SALESMAN", mgr = 7698, sal = 1600.0},
-    {comm = 500.0, deptno = 30, empno = 7521, ename = "WARD", hiredate = "1981-02-21", job = "SALESMAN", mgr = 7698, sal = 1250.0},
-    {comm = 0.0, deptno = 20, empno = 7566, ename = "JONES", hiredate = "1981-02-03", job = "MANAGER", mgr = 7839, sal = 2975.0},
+    {comm = 500.0, deptno = 30, empno = 7521, ename = "WARD", hiredate = "1981-02-22", job = "SALESMAN", mgr = 7698, sal = 1250.0},
+    {comm = 0.0, deptno = 20, empno = 7566, ename = "JONES", hiredate = "1981-02-04", job = "MANAGER", mgr = 7839, sal = 2975.0},
     {comm = 1400.0, deptno = 30, empno = 7654, ename = "MARTIN", hiredate = "1981-09-28", job = "SALESMAN", mgr = 7698, sal = 1250.0},
     {comm = 0.0, deptno = 30, empno = 7698, ename = "BLAKE", hiredate = "1981-01-05", job = "MANAGER", mgr = 7839, sal = 2850.0},
     {comm = 0.0, deptno = 10, empno = 7782, ename = "CLARK", hiredate = "1981-06-09", job = "MANAGER", mgr = 7839, sal = 2450.0},
