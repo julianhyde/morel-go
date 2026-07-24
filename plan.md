@@ -1438,11 +1438,14 @@ wrong observable behavior:
       atom), mirroring java Resolver; deduceGroup types it the
       same way. Test is the pull: java relational.smli binder
       tests now pass (+34 corpus lines).
-- [ ] R6. An `into` function is resolved in query scope instead
+- [x] R6. An `into` function is resolved in query scope instead
       of root scope: `from i in [1,2,3] into (fn l => i);`
       evaluates to 3 (reads a leftover frame slot); java rejects
       i as unbound. Birth 5a3a419; resolver.go:511-513 (sibling
-      Skip/Take/SetOp cases use env correctly).
+      Skip/Take/SetOp cases use env correctly). Fixed (a422c29):
+      resolve and type the into function in the root scope (both
+      toQueryStep and intoStep used the query scope). Backswing
+      test added (relational.smli).
 - [ ] R7. Step-placement validation is missing across the typing
       layer: `require` outside `forall`, `compute`/`into` inside
       `exists`/`forall`, and non-last `into`/`require` are all
