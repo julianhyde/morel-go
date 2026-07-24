@@ -1392,11 +1392,19 @@ ported directly:
       worth an R-item; MOREL_DEBUG now resurfaces masked
       panics (R25). Corpus such-that +171, blog +22,
       optimize +3.
-- [ ] 107. `Sys.planEx` (morel#329): re-run compilation of
+- [x] 107. `Sys.planEx` (morel#329): re-run compilation of
       the last declaration up to a numbered pass and print
       the Core (builds on task 75's plan printing). Pull the
       plan-assertion hunks — 33 uses in such-that.smli, 38 in
-      optimize.smli.
+      optimize.smli. Done: a Core unparser (compile/unparse.go)
+      following java's format rules, Replan mirroring the
+      pipeline with java's pass numbering (non-integer = raw,
+      0 = limited, 2+ = changing passes, past-the-end =
+      final), and kernel replay state that plan calls never
+      replace. Corpus: optimize +58, such-that +76, sys +8 —
+      the pins whose ground shapes go shares; those pinning
+      java's join-based inversion forms where go
+      generates-and-filters stay unpulled by design.
 
 ### L. Remaining surface (109-110)
 
