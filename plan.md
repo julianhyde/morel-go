@@ -1218,7 +1218,8 @@ optimize.smli's inlining-dependent plans (35) wait for phase K
 (tasks 96/97); this task makes their vocabulary correct first.
 The harness lives at `etc/` scratch (planscore.py).
 
-### K. Unbounded variables, such-that, Datalog (96-97, 99-107)
+### K. Unbounded variables, such-that, Datalog (96-97, 99-107,
+117-118)
 
 A large later phase. An unbounded variable
 (`from x where x > 3 andalso x < 10`) is grounded at compile time
@@ -1244,10 +1245,8 @@ ported directly:
   filters #347, merged ranges, one-sided ranges, the
   transitive-closure cousin fix) into each piece's first
   landing, so each is born final.
-- Out of scope, as before: FBBT (morel#373) — the
-  such-that.smli FBBT sections stay unpulled.
-- Datalog (morel#323) rides on the same machinery and lands in
-  this phase once the generators exist.
+- FBBT (morel#373) and Datalog (morel#323) close the phase, in
+  that order: tasks 117 and 118.
 
 - [x] 96. `Analyzer` + `Inliner`: inline non-recursive
       `val`/`fun` bindings into query predicates, with the
@@ -1405,6 +1404,34 @@ ported directly:
       the pins whose ground shapes go shares; those pinning
       java's join-based inversion forms where go
       generates-and-filters stay unpulled by design.
+
+- [ ] 117. FBBT (morel#373): feasibility-based bound
+      tightening. The applyFbbt pre-pass in expandFrom
+      (java Expander.java:123-201): collect the extent and
+      infinite-range scan variables, inject their implied
+      bounds into the filters, run Fbbt.strengthen to deduce
+      constant bounds (interval arithmetic over the linear
+      terms of Bounds.linearTerm — `x`, `x + 3`, `5`), then
+      strip the injected conjuncts; deduced bounds feed the
+      existing range generator. Unlocks the optimize.smli
+      FBBT sections (abs-bounds 410-427, nonlinear
+      monotonicity 432-451) and such-that's cyclic
+      variable-bound queries (310, 317: `x > 0 andalso x < y
+      andalso y < 10` gets constant OPEN(0,10) bounds for
+      both, residual filters kept).
+- [ ] 118. Datalog (morel#323): the `Datalog` structure —
+      validate, translate, execute — backed by a Datalog
+      parser, stratification analysis (negation must not
+      cycle), and a translator emitting Morel source that
+      calls `Relational.iterate` (the semi-naive
+      (allPath, newPath) shapes, empty-seed union forms for
+      n-ary and counter rules, stratified negation). Separate
+      from the Generators inversion; the iterate builtin it
+      targets is done (task 106). datalog.smli pins the
+      translator's exact emitted text (java lines 226, 468,
+      502, 617, 684), so the translation is convergence-
+      checked, not just the results. Unlocks datalog.smli
+      (~743 lines) and built-in/datalog.smli (~221).
 
 ### L. Remaining surface (109-110)
 
