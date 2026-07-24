@@ -46,3 +46,12 @@ val x = [] : t;
  * Belongs in relational.smli. *)
 from _ in [1,2] union [(),()];
 > val it = [(),(),(),()] : unit list
+
+(* An empty collection reveals no element type, so "sum" once
+ * returned the int zero for every type; a real sum then panicked
+ * when combined with a real. The zero must match the static
+ * element type. Belongs in relational.smli. *)
+sum (bag [] : real bag) + 1.5;
+> val it = 1.5 : real
+from r in (from e in ([] : {x:real} list) group {} compute s = sum over e.x) yield r + 1.5;
+> val it = [1.5] : real list
