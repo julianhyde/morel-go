@@ -110,3 +110,11 @@ from i in [10,20,30] group k = ordinal mod 2;
 > val it = [0,1] : int list
 from i in [5,6,7] group {} compute s = sum over ordinal;
 > val it = [3] : int list
+
+(* Relational.iterate computes a fixed point (a transitive closure):
+ * from the initial rows, the update function's new rows are added
+ * each round until it produces none. This is the functional test
+ * that the type-assertion corpus lacked. Belongs in
+ * built-in/relational.smli. *)
+Relational.iterate (bag [1]) (fn (oldList, newList) => (from n in newList where n < 4 yield n + 1));
+> val it = [1,2,3,4] : int bag
