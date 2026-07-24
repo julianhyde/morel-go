@@ -1467,10 +1467,13 @@ wrong observable behavior:
       coverage.go:225-259. Fixed (70ea4e0): patInfo classifies an
       AsPat by its body (it matches exactly what the body does).
       Backswing test added (match.smli).
-- [ ] R9. The empty-record pattern `{}` does not match unit:
+- [x] R9. The empty-record pattern `{}` does not match unit:
       `val {} = ();` raises Bind. 747620f converted only the
       expression form; add the pattern counterpart
-      (resolver.go:931-936).
+      (resolver.go:931-936). Fixed (previous commit): toPat
+      converts an empty record pattern to a wildcard, as the empty
+      tuple pattern `()` already is. Test is the pull: +24
+      relational.smli lines exercising `{}` scan patterns.
 - [ ] R10. Non-discrete range bounds silently mis-enumerate:
       `[1.0 .. 2.5]` gives [1] : real list, `["a" .. "b"]` gives
       ["a"]; open-bound succ/pred failure yields an empty item.
