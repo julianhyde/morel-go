@@ -101,3 +101,12 @@ Sys.plan ();
 type_string String.size "abc";
 > stdIn:1.1-1.30 Error: Cannot deduce type: conflict: fn(T2, T0) vs string
 >   raised at: stdIn:1.1-1.30
+
+(* "ordinal" is the input row's position where a group key or an
+ * aggregate argument reads it, so the enumeration must advance per
+ * row -- the position once stuck at 0, collapsing every row into one
+ * group. Belongs in relational.smli. *)
+from i in [10,20,30] group k = ordinal mod 2;
+> val it = [0,1] : int list
+from i in [5,6,7] group {} compute s = sum over ordinal;
+> val it = [3] : int list
