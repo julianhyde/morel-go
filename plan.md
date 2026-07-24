@@ -1428,10 +1428,16 @@ wrong observable behavior:
       and the compiler supplies it from the static result type at
       both apply sites (standalone and group aggregate), like java's
       RELATIONAL_SUM macro. Regression tests added.
-- [ ] R5. The resolver ignores GroupStep.Binder, though typing
+- [x] R5. The resolver ignores GroupStep.Binder, though typing
       accepts it: `from i in [10,20,11] group b = i mod 2 order
       b;` type-checks then silently prints nothing. Birth
-      afca64e; resolver.go toGroupStep.
+      afca64e; resolver.go toGroupStep. Fixed (f2b4682): a binder
+      group emits a following yield that assembles the key and
+      aggregate fields into the group row and binds it to the
+      binder (a record, or the bare value when the group is an
+      atom), mirroring java Resolver; deduceGroup types it the
+      same way. Test is the pull: java relational.smli binder
+      tests now pass (+34 corpus lines).
 - [ ] R6. An `into` function is resolved in query scope instead
       of root scope: `from i in [1,2,3] into (fn l => i);`
       evaluates to 3 (reads a leftover frame slot); java rejects
