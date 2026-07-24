@@ -1446,7 +1446,7 @@ wrong observable behavior:
       resolve and type the into function in the root scope (both
       toQueryStep and intoStep used the query scope). Backswing
       test added (relational.smli).
-- [ ] R7. Step-placement validation is missing across the typing
+- [x] R7. Step-placement validation is missing across the typing
       layer: `require` outside `forall`, `compute`/`into` inside
       `exists`/`forall`, and non-last `into`/`require` are all
       accepted, yielding wrong values (`from i in [1,2] require i
@@ -1454,7 +1454,12 @@ wrong observable behavior:
       discards the order — a regression when d3b7361 removed the
       yielded guard). One consolidated fix in compile/from.go,
       mirroring java TypeResolver.java:1218-1249. Births
-      0e5cd41, 5a3a419, d3b7361.
+      0e5cd41, 5a3a419, d3b7361. Fixed (4fab689):
+      checkStepPlacement validates container and last-step rules
+      for compute/into/require (a group's compute is exempt), and
+      step spans now include their keyword as java's do. Test is
+      the pull: +73 corpus lines across logic, relational, and
+      type-inference.
 - [ ] R8. Match coverage treats a layered pattern as a wildcard
       (no AsPat case in patInfo): `fun f (l as h::t) = 1;` gets
       no nonexhaustive warning, and an `as` clause before `[]`
