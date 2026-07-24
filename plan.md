@@ -1495,10 +1495,14 @@ wrong observable behavior:
       `Fn.repeat` (a non-tuple builtin returning a function) still
       over-collapses — needs a per-builtin arity, no corpus pin.
       (`Fn.curry` is Morel-derived, a closure, so unaffected.)
-- [ ] R12. Sys.plan after a `fun` returns "" and clears the
+- [x] R12. Sys.plan after a `fun` returns "" and clears the
       previous plan: RecValDecl never sets Plan, and kernel.go
       assigns lastCode unconditionally. Birth f7a9384;
-      compiler.go:79, kernel.go:484.
+      compiler.go:79, kernel.go:484. Fixed (1c6e4c8): RecValDecl
+      plans its first bound function, and the kernel keeps the
+      previous plan when a declaration has none (datatype/type).
+      Backswing test added (built-in.smli). Closes R24's
+      "Sys.plan after fun" coverage gap.
 - [ ] R13. type_string parses its operand as a full application
       chain; java parses at expression9 (atom + dot-chain), so
       `type_string String.size "abc"` gives "int" here but is a
@@ -1570,10 +1574,10 @@ Coverage gaps that let the above hide:
 - [ ] R24. Relational.iterate landed with type-assertion corpus
       only — no functional transitive-closure test (java has
       them). The sink-pipeline rendering (5df965e) has zero
-      corpus. No corpus line pins Sys.plan after `fun` (R12).
-      (Float-elem range membership and unbounded-range Size are now
-      pinned — pulled with the R10 fix.) Port the remaining java
-      lines when the bugs above are fixed.
+      corpus. (Sys.plan after `fun` is now pinned in backswing.smli
+      with the R12 fix; float-elem range membership and
+      unbounded-range Size are pinned — pulled with the R10 fix.)
+      Port the remaining java lines when the bugs above are fixed.
 - [ ] R25. The kernel's blanket recover() converts evaluator
       panics into "no output", which masked R3 and R4. Add a
       debug escape hatch (env var or prop) that re-panics.
