@@ -1483,6 +1483,14 @@ from e in emps
   into sum;
 > val it = 90 : int
 
+(*) Multiple 'into' is not allowed
+from e in emps
+  yield e.deptno
+  into sum
+  into sum;
+> stdIn:4.3-4.11 Error: 'into' step must be last in 'from'
+>   raised at: stdIn:4.3-4.11
+
 (*) Patterns left of 'in'
 fun sumPairs pairs =
   from (l, r) in (pairs : 'a list)
