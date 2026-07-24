@@ -1474,11 +1474,17 @@ wrong observable behavior:
       converts an empty record pattern to a wildcard, as the empty
       tuple pattern `()` already is. Test is the pull: +24
       relational.smli lines exercising `{}` scan patterns.
-- [ ] R10. Non-discrete range bounds silently mis-enumerate:
+- [x] R10. Non-discrete range bounds silently mis-enumerate:
       `[1.0 .. 2.5]` gives [1] : real list, `["a" .. "b"]` gives
       ["a"]; open-bound succ/pred failure yields an empty item.
       Should be an error (or restricted by typing). Birth
-      c5cd9f8; range.go:531,539.
+      c5cd9f8; range.go:531,539. Fixed (previous commit): a
+      bounded `..` range over a non-discrete type raises Size.
+      Because that would also break `elem`, membership now
+      compiles to interval containment, which additionally closed
+      R24's float-elem/unbounded-Size gap (`5.5 elem [0.0 ..
+      10.0]`, `5 elem [0..]`). Test is the pull: +41 range.smli
+      lines.
 - [x] R11. curriedSpine counts all top-level arrows, so a builtin
       returning a function over-collapses:
       `(String.str o Char.chr) 65` renders one apply2 where java
@@ -1564,9 +1570,9 @@ Coverage gaps that let the above hide:
 - [ ] R24. Relational.iterate landed with type-assertion corpus
       only — no functional transitive-closure test (java has
       them). The sink-pipeline rendering (5df965e) has zero
-      corpus. No corpus line pins Sys.plan after `fun` (R12),
-      float-elem range membership (java's `5.5 elem
-      [0.0 .. 10.0]`), or unbounded-range Size. Port the java
+      corpus. No corpus line pins Sys.plan after `fun` (R12).
+      (Float-elem range membership and unbounded-range Size are now
+      pinned — pulled with the R10 fix.) Port the remaining java
       lines when the bugs above are fixed.
 - [ ] R25. The kernel's blanket recover() converts evaluator
       panics into "no output", which masked R3 and R4. Add a
