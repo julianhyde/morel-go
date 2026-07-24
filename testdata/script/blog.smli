@@ -1204,6 +1204,21 @@ List.`except` [["candy", "soda", "soda", "candy", "candy"],
    ["soda", "candy"]];
 > val it = ["soda","candy","candy"] : string list
 
+(* Count employees and compute total salary for each
+   department. *)
+(* The "order deptno unorder" line is added for determinism across JDK versions. *)
+from e in scott.emps
+  group e.deptno
+    compute {count over (), sumSal = sum over e.sal}
+  order deptno unorder;
+> count deptno sumSal
+> ----- ------ ------
+>     3     10   8750
+>     5     20  10875
+>     6     30   9400
+>
+> val it : {count:int, deptno:int, sumSal:real} bag
+
 (* One group key and no compute expressions gives an
    atomic result. *)
 (* The "order deptno unorder" line is added for determinism across JDK versions. *)
@@ -1266,6 +1281,31 @@ from i in ["candy", "soda", "soda", "candy", "candy"]
   union ["soda", "candy"];
 > val it = ["candy","soda","soda","candy","candy","soda","candy"]
 >   : string list
+
+(* Create a new record from each employee with modified
+   fields. *)
+from e in scott.emps
+  yield {name = String.map Char.toUpper e.ename,
+      position = String.map Char.toLower e.job,
+      annualSalary = e.sal * 12.0};
+> annualSalary name   position
+> ------------ ------ ---------
+>         9600 SMITH  clerk
+>        19200 ALLEN  salesman
+>        15000 WARD   salesman
+>        35700 JONES  manager
+>        15000 MARTIN salesman
+>        34200 BLAKE  manager
+>        29400 CLARK  manager
+>        36000 SCOTT  analyst
+>        60000 KING   president
+>        18000 TURNER salesman
+>        13200 ADAMS  clerk
+>        11400 JAMES  clerk
+>        36000 FORD   analyst
+>        15600 MILLER clerk
+>
+> val it : {annualSalary:real, name:string, position:string} bag
 
 (* Return a list of strings describing each employee in
    department 20. *)

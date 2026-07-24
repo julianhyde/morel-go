@@ -44,6 +44,16 @@ from e in scott.emps yield e.deptno;
 from e in scott.emps yield ();
 > val it = [(),(),(),(),(),(),(),(),(),(),(),(),(),()] : unit bag
 
+from e in scott.emps where e.job = "CLERK" yield e;
+> comm deptno empno ename  hiredate   job   mgr  sal
+> ---- ------ ----- ------ ---------- ----- ---- ----
+>    0     20  7369 SMITH  1980-12-17 CLERK 7902  800
+>    0     20  7876 ADAMS  1987-05-23 CLERK 7788 1100
+>    0     30  7900 JAMES  1981-12-03 CLERK 7698  950
+>    0     10  7934 MILLER 1982-01-23 CLERK 7782 1300
+>
+> val it : {comm:real, deptno:int, empno:int, ename:string, hiredate:string, job:string, mgr:int, sal:real} bag
+
 from n in [1,2,3] yield n;
 > val it = [1,2,3] : int list
 from n in [1,2,3] where n mod 2 = 1 andalso n < 3 yield n;
@@ -86,6 +96,20 @@ yield {a, a2 = a + b, sb};
 > 1  4  3
 >
 > val it : {a:int, a2:int, sb:int} list
+
+from e in scott.emps,
+  d in scott.depts
+where e.deptno = d.deptno
+andalso e.job = "CLERK"
+yield d;
+> deptno dname      loc
+> ------ ---------- --------
+>     20 RESEARCH   DALLAS
+>     20 RESEARCH   DALLAS
+>     30 SALES      CHICAGO
+>     10 ACCOUNTING NEW YORK
+>
+> val it : {deptno:int, dname:string, loc:string} bag
 
 from e in scott.emps,
   d in scott.depts

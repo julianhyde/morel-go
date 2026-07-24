@@ -42,11 +42,11 @@ const outputTabular = "TABULAR"
 func (c *Config) tabularBinding(name string, v eval.Val,
 	t types.Type,
 ) (string, bool) {
-	list, ok := t.(*types.List)
-	if !ok {
+	elem := collectionElemType(t)
+	if elem == nil {
 		return "", false
 	}
-	rec, ok := list.Elem.(*types.Record)
+	rec, ok := elem.(*types.Record)
 	if !ok || len(rec.Fields) == 0 {
 		return "", false
 	}
@@ -147,6 +147,20 @@ func (c *Config) tabularCell(t types.Type, v eval.Val) string {
 	default:
 		return "()"
 	}
+}
+
+// collectionElemType returns the element type of a list or bag, or
+// nil if t is neither. A table can be printed from either.
+func collectionElemType(t types.Type) types.Type {
+	switch t := t.(type) {
+	case *types.List:
+		return t.Elem
+	case *types.Named:
+		if t.Name == "bag" && len(t.Args) == 1 {
+			return t.Args[0]
+		}
+	}
+	return nil
 }
 
 // isNumericType reports whether a table column of this type is
