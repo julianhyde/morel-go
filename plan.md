@@ -1727,6 +1727,22 @@ Coverage gaps that let the above hide:
       whole-file regens). Go unit tests remain only for what a
       script cannot express (none currently planned).
 
+- [ ] R46. Retire the runSession-based kernel execution tests in
+      internal/shell/kernel_test.go (24 functions: TestExecuteLiterals
+      through TestExecuteItOnlyOnSuccess), the same way R1-R4 were
+      moved out. For each statement, either (a) delete it when the
+      morel-java corpus already pins an equivalent query (most basics
+      -- literals, arithmetic, lists, closures, datatypes -- are
+      covered by simple.smli/type.smli/relational.smli and the
+      built-in/*.smli suites), or (b) append it to
+      testdata/script/backswing.smli with a comment naming the
+      upstream .smli file, when nothing equivalent exists upstream.
+      Behavior belongs in scripts, not Go unit tests; drop runSession
+      once the last caller is gone. Whatever genuinely cannot be a
+      script (e.g. TestExecuteItOnlyOnSuccess, which asserts "it" is
+      unchanged after a failed statement -- a session-state property)
+      stays as a Go test.
+
 ## After the endpoint
 
 Fast-follows, in rough order: TCO (morel#151 — frames are already
