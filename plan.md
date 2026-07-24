@@ -1503,10 +1503,15 @@ wrong observable behavior:
       previous plan when a declaration has none (datatype/type).
       Backswing test added (built-in.smli). Closes R24's
       "Sys.plan after fun" coverage gap.
-- [ ] R13. type_string parses its operand as a full application
+- [x] R13. type_string parses its operand as a full application
       chain; java parses at expression9 (atom + dot-chain), so
       `type_string String.size "abc"` gives "int" here but is a
-      type error in java. Birth 973fde0; parser.go:358-370.
+      type error in java. Birth 973fde0; parser.go:358-370. Fixed
+      (4f29f94): the operand is parsed with atomSuffixed and the
+      application loop juxtaposes any following args, so
+      `type_string f x` is `(type_string f) x`. Backswing test
+      added (type.smli); the java corpus's precedence tests were
+      already passing.
 - [ ] R14. Output matcher: after a Split error, the stale
       expected block is never reset and concatenates onto the
       next statement's expected output, silently disabling
