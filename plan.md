@@ -1374,12 +1374,24 @@ ported directly:
       wildcard) is replicated for convergence. Corpus
       such-that +277 (case, prefix, isEmp, edge/exists,
       happy/cheap/caskSells, sib, provenance families).
-- [ ] 106b. Transitive-closure generators: the
+- [x] 106b. Transitive-closure generators: the
       transitive-closure and bounded-iterate *inversions* of
       `Relational.iterate` (the builtin lands in task 106,
       phase J), including the tuple and cousin-style variants.
       Unlocks the edges/paths and family sections of
-      such-that.smli.
+      such-that.smli. Done: right-extension iterate for
+      carry-through recursion, bidirectional for cousin-style
+      rebinding, tuple/duplicate/constant call shapes, the
+      stripped-branches fallback for bounded shapes (java's
+      BoundedIterateGenerator is dead code — its recognizer
+      never fires — and is skipped here too), plus the field
+      machinery deferred from 101 (selections become field
+      variables, joined and reassembled). Discovered en
+      route: formatCompileError silently swallows zero-span
+      and "unsupported"-class errors — a debugging hazard
+      worth an R-item; MOREL_DEBUG now resurfaces masked
+      panics (R25). Corpus such-that +171, blog +22,
+      optimize +3.
 - [ ] 107. `Sys.planEx` (morel#329): re-run compilation of
       the last declaration up to a numbered pass and print
       the Core (builds on task 75's plan printing). Pull the
