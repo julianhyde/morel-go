@@ -1329,10 +1329,21 @@ ported directly:
       such-that.smli lands (89/213); corpus optimize +16,
       blog +16; four backswing point pins returned and were
       deleted.
-- [ ] 103. Union generator (`orelse` inverts to a union,
+- [x] 103. Union generator (`orelse` inverts to a union,
       deduplicated when non-unique) + the `Simplifier` and
       provenance-based cancellation of subsumed `where`
-      conjuncts.
+      conjuncts. Done: per-branch recursive inversion (a
+      failed branch abandons the union); disjoint literal
+      ranges merge into one Range.flatten, overlapping ones
+      into Range.discreteSetOf (sealed, conjunct deleted);
+      anything else concatenates with a distinct scan, the
+      disjunction surviving as a filter. Java's multi-var
+      orelse cross-product is replicated for convergence.
+      Interval enumeration generalized (tuple POINTs, succ
+      types). The Simplifier is a no-op on the whole union
+      corpus (its int +/- algebra has no script coverage) —
+      stubbed, revisit if a planEx pin ever needs it. Corpus
+      such-that +27, optimize +8, range +3.
 - [ ] 104. Exists inversion: `Relational.nonEmpty` of a
       subquery in monotonic position becomes a join or
       semi-join generator; filtering by outer-scope variables
