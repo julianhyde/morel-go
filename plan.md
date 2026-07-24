@@ -1264,8 +1264,12 @@ ported directly:
       folding still on) is simplified to "no passes";
       revisit with task 97, whose constant-case folding is
       what the corpus's 0-setting guards.
-- [ ] 97. Constant-`case` inlining (morel#330), so inverted
-      and specialized queries simplify to java's plans.
+- [x] 97. Constant-`case` inlining (morel#330), so inverted
+      and specialized queries simplify to java's plans. Done,
+      with java's limited mode at inlinePassCount 0 (folding
+      off; cross-unit, beta, singleton-case on). Plan-score
+      104 -> 112 matches (optimize 7 -> 15); corpus optimize
+      +16, variant +6.
 - [ ] 99. Extent representation: `RangeExtent` (type plus
       per-path range sets; finite extents materialize),
       internal `Z_EXTENT` builtin (panics if an infinite
