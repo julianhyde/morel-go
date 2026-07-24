@@ -1558,12 +1558,23 @@ a deliberate decision):
       misleading comment was corrected to state the convention
       accurately; revisit only if a multi-slot stack pin appears
       (would need to track live depth per read point).
-- [ ] R17. aggKind classifies an aggregate by top-level bindings
+- [x] R17. aggKind classifies an aggregate by top-level bindings
       only, ignoring local shadowing (java consults the env);
       and java's validateGroup checks are missing: no "cannot
       derive label" error (silent "current"/"" fallback), no
       duplicate-name check among keys + aggregates. Birth
-      66b5b7f; group.go:175.
+      66b5b7f; group.go:175. Fixed (6268f03, and the two commits
+      after): the "cannot derive label" errors now surface, for a
+      record field (with the expression text, part 1) and for a
+      non-atom group/compute expression (part 2); validateGroup
+      adds the keys-vs-aggregates duplicate check ("in group") and
+      deduceCompute the within-record one ("in record"). Pulled
+      ~31 corpus lines (simple, relational). Deferred sub-part:
+      aggKind still consults only top-level bindings, so a locally
+      shadowed aggregate name used in a group is misclassified
+      (and the resolver picks the builtin value too) -- obscure and
+      unpinned; a fix would thread the local env into aggKind and
+      the aggregate resolution. Revisit if a corpus line appears.
 - [x] R18. planFnName has no case for `o` (renders "fnValue o",
       java "General.o"); `mod` hardcodes Int.mod; planAliases
       covers only corpus-exercised aliases. Birth aae5246;
