@@ -1529,6 +1529,24 @@ wrong observable behavior:
       ThroughStage evaluate no per-row user expression, so ordinal
       is never read there (no change needed). Backswing test added
       (relational.smli).
+- [ ] R47. A record expression with a field-punning shorthand — an
+      unlabeled field whose label comes from a field selector, e.g.
+      `{e.x}` or `{r.x}` — produces no output. toRecord derives an
+      unlabeled field's label only from a bare `*ast.ID`, so a
+      selector `e.x` (an `*ast.Apply` of a RecordSelector) hits the
+      `cannotDeriveLabel` path (and the error is not even surfaced —
+      the statement prints nothing). stepFields/implicitLabel
+      already handle the selector case, so a group/compute step
+      field works, but a plain record expression — including a
+      final `yield {e.x, ...}` — does not. High impact:
+      field-shorthand yields (`yield {e.deptno, e.ename}`) are
+      ubiquitous in relational queries, blocking many
+      blog/dual/relational hunks (tabular and not). Fix: toRecord
+      should use implicitLabel (resolver.go:1020), as stepFields
+      does; also check why the cannotDeriveLabel error is swallowed.
+      Repro: `from e in [{x=1}] yield {e.x};` prints nothing.
+      Discovered while implementing tabular output (dual/blog
+      scott.emps yields).
 
 Latent divergences (no corpus line pins them yet — fix or record
 a deliberate decision):
