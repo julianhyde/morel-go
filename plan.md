@@ -1533,10 +1533,18 @@ wrong observable behavior:
 Latent divergences (no corpus line pins them yet — fix or record
 a deliberate decision):
 
-- [ ] R16. stack(offset) measures from frame bottom; java's
+- [x] R16. stack(offset) measures from frame bottom; java's
       StackCode is 1-based from the top. Agrees only for
       single-slot frames; every current pin is offset 1. Birth
-      e6eca8f; code.go:79-83.
+      e6eca8f; code.go:79-83. Decision (51e9c4f): deliberately not
+      changed. Java's offset is a live stack depth (a push/pop
+      model); go uses a flat pre-allocated frame with fixed slot
+      indices, and no simple slot->offset mapping matches java
+      universally (a read before a later push breaks NSlots-slot).
+      The divergence is latent (every pin is offset 1). The
+      misleading comment was corrected to state the convention
+      accurately; revisit only if a multi-slot stack pin appears
+      (would need to track live depth per read point).
 - [ ] R17. aggKind classifies an aggregate by top-level bindings
       only, ignoring local shadowing (java consults the env);
       and java's validateGroup checks are missing: no "cannot
