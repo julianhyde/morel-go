@@ -1591,10 +1591,21 @@ a deliberate decision):
       Let; a Case in tail position loses it. Resolved by 2571f7e
       (case renders as a match function; arm bodies compile in
       the case's tail context). Birth 1b05b12.
-- [ ] R21. Typing of a layered record pattern drops labelNames
+- [x] R21. Typing of a layered record pattern drops labelNames
       (AsPat forwards nil), and deduceCase unwraps only a
       top-level RecordPat; latent until `...` patterns evaluate.
-      Birth ecb4c40; typeresolver.go:788,1483.
+      Birth ecb4c40; typeresolver.go:788,1483. Fixed (previous
+      commit): the resolver now expands a record pattern (open or
+      closed) against its resolved record type -- named fields to
+      their sub-patterns, omitted fields to wildcards -- so `...`
+      patterns evaluate end-to-end. The typing infers the full
+      record type from the matched value via VarActions, so
+      known-type contexts (val, from, case, layered `x as {a,
+      ...}`, differing-field match lists) all work without further
+      typing changes; the labelNames/deduceCase nuances proved
+      moot there. Pulled +27 corpus lines (relational, optimize).
+      Deferred: an open-type function parameter `fun f {a, ...}`
+      needs row polymorphism (not in the corpus).
 - [ ] R22. Overloads: unresolved constraints are silently
       dropped at generalization (an unsound `'a -> 'b`), and a
       bare reference to an overloaded name (not in application
