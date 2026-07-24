@@ -151,3 +151,23 @@ from x, y where x = 1 andalso y = x + 1;
 exists w, x where x = 3;
 > val it = true : bool
 
+(*) Collection inversion of "elem"; belongs in such-that.smli.
+from x where x elem [1,2,3] andalso x > 1;
+> val it = [2,3] : int bag
+from x where x elem [1,2,2,3];
+> val it = [1,2,2,3] : int bag
+from y where y elem [1,2] andalso y elem [2,3];
+> val it = [2] : int bag
+
+(*) A tuple elem grounds all its variables; for such-that.smli.
+from x, y where (x, y) elem [(1,10),(2,20)];
+> val it = [{x=1,y=10},{x=2,y=20}] : {x:int, y:int} bag
+from x where (x, 20) elem [(1,10),(2,20)];
+> val it = [2] : int bag
+
+(*) A bound variable joins in a projected scan; such-that.smli.
+from x in [1,2,3], y where (x, y) elem [(1,10),(2,20)];
+> val it = [{x=1,y=10},{x=2,y=20}] : {x:int, y:int} bag
+from x in [1,2], y where y elem [x, x+1];
+> val it = [{x=1,y=1},{x=1,y=2},{x=2,y=2},{x=2,y=3}] : {x:int, y:int} bag
+
