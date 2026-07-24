@@ -1300,11 +1300,19 @@ ported directly:
       backswing.smli; such-that.smli now 48/213 pullable
       (needs 40% to land). FBBT (morel#373) remains a stub
       site in expandFrom, as planned.
-- [ ] 101. Collection generator: `x elem coll`; composite
+- [x] 101. Collection generator: `x elem coll`; composite
       patterns (`(x, y) elem pairs`) via per-field generators
       rejoined; dependent generators become filtered subquery
       scans with renamed patterns and join conditions;
-      `distinct` insertion rules.
+      `distinct` insertion rules. Done except two java pieces
+      deferred to the tasks that first exercise them: the
+      per-field derivation over record selectors
+      (deriveFieldGenerators — the inlined path/Datalog
+      family, task 106b) and the distinct rules (union 103,
+      projected-away inner variables 104; elem's generator is
+      unique, so nothing needs them yet). such-that.smli now
+      69/213 pullable (40% to land); elem pins in
+      backswing.smli.
 - [ ] 102. Range generator: lower/upper bound extraction
       (linear-term helpers; literal bounds pushed into
       infinite-range scans), emitting java's present-day
