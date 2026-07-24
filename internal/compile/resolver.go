@@ -1019,14 +1019,13 @@ func (r *resolver) toRecord(env *coreEnv, record *ast.Record,
 	for i, f := range record.Fields {
 		label := f.Label
 		if label == "" {
-			id, ok := f.Exp.(*ast.ID)
-			if !ok {
+			label = implicitLabel(f.Exp)
+			if label == "" {
 				return nil, &Error{
 					Span: record.Span(),
 					Msg:  cannotDeriveLabel,
 				}
 			}
-			label = id.Name
 		}
 		fields[i] = fieldExp{label: label, exp: f.Exp}
 	}

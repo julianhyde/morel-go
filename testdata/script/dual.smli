@@ -59,6 +59,67 @@ from e in scott.emps;
 
 from e in scott.emps yield e.deptno;
 > val it = [20,30,30,20,30,30,10,20,10,30,20,30,20,10] : int bag
+from e in scott.emps yield {e.deptno, e.ename};
+> deptno ename
+> ------ ------
+>     20 SMITH
+>     30 ALLEN
+>     30 WARD
+>     20 JONES
+>     30 MARTIN
+>     30 BLAKE
+>     10 CLARK
+>     20 SCOTT
+>     10 KING
+>     30 TURNER
+>     20 ADAMS
+>     30 JAMES
+>     20 FORD
+>     10 MILLER
+>
+> val it : {deptno:int, ename:string} bag
+
+from e in scott.emps yield {e.ename, e.deptno};
+> deptno ename
+> ------ ------
+>     20 SMITH
+>     30 ALLEN
+>     30 WARD
+>     20 JONES
+>     30 MARTIN
+>     30 BLAKE
+>     10 CLARK
+>     20 SCOTT
+>     10 KING
+>     30 TURNER
+>     20 ADAMS
+>     30 JAMES
+>     20 FORD
+>     10 MILLER
+>
+> val it : {deptno:int, ename:string} bag
+
+from e in scott.emps
+  yield {e.ename, x = e.deptno + e.empno, b = true, i = 3, r = 3.14,
+    s = "hello"};
+> b    ename  i r    s     x
+> ---- ------ - ---- ----- ----
+> true SMITH  3 3.14 hello 7389
+> true ALLEN  3 3.14 hello 7529
+> true WARD   3 3.14 hello 7551
+> true JONES  3 3.14 hello 7586
+> true MARTIN 3 3.14 hello 7684
+> true BLAKE  3 3.14 hello 7728
+> true CLARK  3 3.14 hello 7792
+> true SCOTT  3 3.14 hello 7808
+> true KING   3 3.14 hello 7849
+> true TURNER 3 3.14 hello 7874
+> true ADAMS  3 3.14 hello 7896
+> true JAMES  3 3.14 hello 7930
+> true FORD   3 3.14 hello 7922
+> true MILLER 3 3.14 hello 7944
+>
+> val it : {b:bool, ename:string, i:int, r:real, s:string, x:int} bag
 
 from e in scott.emps yield ();
 > val it = [(),(),(),(),(),(),(),(),(),(),(),(),(),()] : unit bag
@@ -100,6 +161,16 @@ from n in [1,2,3] where false yield n;
 > val it = [] : int list
 from n in [1,2,3] where n < 2 orelse n > 2 yield n * 3;
 > val it = [3,9] : int list
+from r in [{a=1,b=2},{a=1,b=0},{a=2,b=1}]
+  order (DESC r.a, r.b)
+  yield {r.a, b10 = r.b * 10};
+> a b10
+> - ---
+> 2  10
+> 1   0
+> 1  20
+>
+> val it : {a:int, b10:int} list
 
 from r in [{a=2,b=3},{a=2,b=1},{a=1,b=1}]
   group r.a
@@ -136,6 +207,27 @@ yield {a, a2 = a + b, sb};
 > val it : {a:int, a2:int, sb:int} list
 
 from e in scott.emps
+yield {e.ename, x = e.deptno * 2};
+> ename  x
+> ------ --
+> SMITH  40
+> ALLEN  60
+> WARD   60
+> JONES  40
+> MARTIN 60
+> BLAKE  60
+> CLARK  20
+> SCOTT  40
+> KING   20
+> TURNER 60
+> ADAMS  40
+> JAMES  60
+> FORD   40
+> MILLER 20
+>
+> val it : {ename:string, x:int} bag
+
+from e in scott.emps
 order e.ename;
 > comm deptno empno ename  hiredate   job       mgr  sal
 > ---- ------ ----- ------ ---------- --------- ---- ----
@@ -166,6 +258,29 @@ take 3;
 >    0     20  7369 SMITH  1980-12-17 CLERK    7902  800
 >
 > val it : {comm:real, deptno:int, empno:int, ename:string, hiredate:string, job:string, mgr:int, sal:real} list
+
+from e in scott.emps,
+  d in scott.depts
+where e.deptno = d.deptno
+yield {e.ename, d.dname};
+> dname      ename
+> ---------- ------
+> RESEARCH   SMITH
+> SALES      ALLEN
+> SALES      WARD
+> RESEARCH   JONES
+> SALES      MARTIN
+> SALES      BLAKE
+> ACCOUNTING CLARK
+> RESEARCH   SCOTT
+> ACCOUNTING KING
+> SALES      TURNER
+> RESEARCH   ADAMS
+> SALES      JAMES
+> RESEARCH   FORD
+> ACCOUNTING MILLER
+>
+> val it : {dname:string, ename:string} bag
 
 from e in scott.emps,
   d in scott.depts
@@ -297,6 +412,32 @@ order grade;
 > 1     5
 >
 > val it : {c:int, grade:int} list
+
+from x in (from e in scott.emps yield {e.deptno, z = 1})
+  union (from d in scott.depts yield {d.deptno, z = 2})
+  order (x.deptno, x.z);
+> deptno z
+> ------ -
+>     10 1
+>     10 1
+>     10 1
+>     10 2
+>     20 1
+>     20 1
+>     20 1
+>     20 1
+>     20 1
+>     20 2
+>     30 1
+>     30 1
+>     30 1
+>     30 1
+>     30 1
+>     30 1
+>     30 2
+>     40 2
+>
+> val it : {deptno:int, z:int} list
 
 from i in [1, 2, 3] union [2, 5, 4];
 > val it = [1,2,3,2,5,4] : int list

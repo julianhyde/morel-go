@@ -1265,14 +1265,13 @@ func (r *typeResolver) deduceRecordFields(env typeEnv,
 	for _, f := range record.Fields {
 		label := f.Label
 		if label == "" {
-			id, ok := f.Exp.(*ast.ID)
-			if !ok {
+			label = implicitLabel(f.Exp)
+			if label == "" {
 				return nil, &Error{
 					Span: record.Span(),
 					Msg:  cannotDeriveLabel,
 				}
 			}
-			label = id.Name
 		}
 		if _, dup := byLabel[label]; dup {
 			span := f.LabelSpan
