@@ -63,3 +63,14 @@ from r in (from e in ([] : {x:real} list) group {} compute s = sum over e.x) yie
 from i in [1,2,3] into (fn l => i);
 > stdIn:1.33 Error: unbound variable or constructor: i
 >   raised at: stdIn:1.33
+
+(* A layered pattern "x as pat" matches exactly what pat matches, so
+ * it must not count as a wildcard for coverage: "l as h :: t" leaves
+ * [] uncovered (nonexhaustive), and an "as" clause before [] is not
+ * redundant. Belongs in match.smli. *)
+fun f (l as h :: t) = 1;
+> stdIn:1.5-1.24 Warning: match nonexhaustive
+>   raised at: stdIn:1.5-1.24
+> val f = fn : 'a list -> int
+fun g (l as h :: t) = 1 | g [] = 0;
+> val g = fn : 'a list -> int
