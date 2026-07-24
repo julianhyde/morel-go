@@ -1359,10 +1359,21 @@ ported directly:
       ("from x, y where exists z where (x,z) elem E andalso
       (z,y) elem E"). Corpus such-that +22 (the 643-663
       exists family).
-- [ ] 105. Function and case inversion: inline a user
+- [x] 105. Function and case inversion: inline a user
       function's body into the constraint set and recurse
       (needs task 96); multi-arm `case` inversion
-      (morel#341); the `String.isPrefix` generator.
+      (morel#341); the `String.isPrefix` generator. Done.
+      Go's pre-grounding inliner subsumes java's
+      maybeFunction (env lookup, consumed set,
+      provenance-through-function all fall out of inlining
+      first), and generators always project, so java's
+      sharedPats leak machinery is unneeded — plans differ
+      (generate-and-filter vs join), results match; planEx
+      parity is 107's concern. Java's wildcard-arm drop
+      (case x of 1 => true | _ => true silently loses the
+      wildcard) is replicated for convergence. Corpus
+      such-that +277 (case, prefix, isEmp, edge/exists,
+      happy/cheap/caskSells, sib, provenance families).
 - [ ] 106b. Transitive-closure generators: the
       transitive-closure and bounded-iterate *inversions* of
       `Relational.iterate` (the builtin lands in task 106,
