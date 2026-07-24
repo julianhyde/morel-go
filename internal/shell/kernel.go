@@ -100,6 +100,9 @@ type Kernel struct {
 	// grounding pass can invert a recursive predicate into a
 	// fixed-point iteration.
 	recFns map[string]*core.Fn
+	// planExDecl is the most recent statement's resolved (not yet
+	// optimized) declaration; Sys.planEx re-plans it.
+	planExDecl core.Decl
 }
 
 // NewKernel returns a kernel; name (e.g. "stdIn" or a file name)
@@ -489,6 +492,11 @@ func (k *Kernel) runStatement(n ast.Node) string {
 	if covErr != nil {
 		return formatCompileError(covErr)
 	}
+	if !isPlanCall(coreDecl) {
+		// A Sys.plan or Sys.planEx call must not replace the
+		// statement it describes.
+		k.planExDecl = coreDecl
+	}
 	coreDecl = compile.Inline(
 		coreDecl, k.inlineEnv(), k.inlinePassCount())
 	// Later statements inline the pre-grounding form: grounding
@@ -555,6 +563,21 @@ func (k *Kernel) runStatement(n ast.Node) string {
 // defaultInlinePassCount is the number of inlining passes to run
 // when the "inlinePassCount" property is unset.
 const defaultInlinePassCount = 5
+
+// isPlanCall reports whether a declaration is a call of Sys.plan
+// or Sys.planEx.
+func isPlanCall(decl core.Decl) bool {
+	d, ok := decl.(*core.NonRecValDecl)
+	if !ok {
+		return false
+	}
+	apply, ok := d.Exp.(*core.Apply)
+	if !ok {
+		return false
+	}
+	name := compile.BuiltinName(apply.Fn)
+	return name == "Sys.plan" || name == "Sys.planEx"
+}
 
 // inlinePassCount returns the number of inlining passes to run: the
 // "inlinePassCount" property, or its default.
