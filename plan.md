@@ -1405,8 +1405,17 @@ ported directly:
       java's join-based inversion forms where go
       generates-and-filters stay unpulled by design.
 
-- [ ] 117. FBBT (morel#373): feasibility-based bound
-      tightening. The applyFbbt pre-pass in expandFrom
+- [x] 117. FBBT (morel#373): feasibility-based bound
+      tightening. Done: linear (constant, two-variable, and
+      equality shifts), abs upper bounds, positive-quadrant
+      product division, 8-round fixpoint, input-baseline
+      snapshot so only strictly-tighter bounds are emitted
+      (prepended, name-sorted, so the extractor's first-match
+      prefers them); one-sided range scans inject and strip
+      their implied bounds. All eleven verification queries
+      match java, including the deliberate failures (disjoint
+      abs, equality product, tilted polytope). Corpus
+      optimize +48, such-that +13. The applyFbbt pre-pass in expandFrom
       (java Expander.java:123-201): collect the extent and
       infinite-range scan variables, inject their implied
       bounds into the filters, run Fbbt.strengthen to deduce
