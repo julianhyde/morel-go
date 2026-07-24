@@ -41,6 +41,8 @@ const (
 	opDiv      = "op div"
 	opMod      = "op mod"
 	opNegate   = "op ~"
+	opElem     = "op elem"
+	opNotElem  = "op notelem"
 	comparison = "'a * 'a -> bool"
 	bagToElem  = "'a bag -> 'a"
 	realToInt  = "real -> int"
@@ -121,8 +123,8 @@ var infixOpNames = map[ast.Op]string{
 	ast.CaretOp:   "op ^",
 	ast.ComposeOp: "op o",
 	ast.ConsOp:    "op ::",
-	ast.ElemOp:    "op elem",
-	ast.NotElemOp: "op notelem",
+	ast.ElemOp:    opElem,
+	ast.NotElemOp: opNotElem,
 	ast.DivOp:     opDiv,
 	ast.DivideOp:  "op /",
 	ast.EqOp:      "op =",
@@ -174,8 +176,8 @@ func collectionBindings(sys *types.System) []Binding {
 	collToInt := sys.Fn(coll, sys.Int)   // count
 	collToBool := sys.Fn(coll, sys.Bool) // empty, nonEmpty
 	return []Binding{
-		{Name: "op elem", Type: elemType},
-		{Name: "op notelem", Type: elemType},
+		{Name: opElem, Type: elemType},
+		{Name: opNotElem, Type: elemType},
 		{Name: "count", Type: collToInt},
 		{Name: "empty", Type: collToBool},
 		{Name: "nonEmpty", Type: collToBool},
