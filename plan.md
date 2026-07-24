@@ -1606,12 +1606,20 @@ a deliberate decision):
       moot there. Pulled +27 corpus lines (relational, optimize).
       Deferred: an open-type function parameter `fun f {a, ...}`
       needs row polymorphism (not in the corpus).
-- [ ] R22. Overloads: unresolved constraints are silently
+- [x] R22. Overloads: unresolved constraints are silently
       dropped at generalization (an unsound `'a -> 'b`), and a
       bare reference to an overloaded name (not in application
       position) falls through to an outer binding. Known,
       documented limitation; decide scope. Birth a8da103;
-      typeresolver.go:1064,1349-1374.
+      typeresolver.go:1064,1349-1374. Decision: deferred. User
+      overloading (`over`/`val inst`) is not functional
+      end-to-end -- `over f` neither binds nor echoes, and
+      overload.smli stays deferred (13% pass) -- so both soundness
+      gaps are unreachable and unpinned. (The built-in numeric
+      operator overload, a separate mechanism, works.) A real fix
+      needs user overloading implemented properly, which the plan
+      schedules post-endpoint (see the overload regroup, R32).
+      Revisit then.
 - [ ] R23. Minor: loadScott panics on any compile/eval failure
       at kernel construction (6a87f68); alias arity mismatch
       reports misleading "unbound type constructor" and
