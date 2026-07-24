@@ -1249,12 +1249,21 @@ ported directly:
 - Datalog (morel#323) rides on the same machinery and lands in
   this phase once the generators exist.
 
-- [ ] 96. `Analyzer` + `Inliner`: inline non-recursive
+- [x] 96. `Analyzer` + `Inliner`: inline non-recursive
       `val`/`fun` bindings into query predicates, with the
       pass-count loop in the compile driver; cross-unit
       inlining (morel#223). A prerequisite for predicate
       inversion — inversion must see through user-defined
       predicates — and for java-matching plans (task 75).
+      Done: use analysis (dead/atomic/once-safe), let
+      elimination, beta-reduction, singleton-case
+      substitution, cross-unit val/fun inlining with
+      capture-safe invalidation, rec demotion; plan-score
+      98 -> 104 matches (optimize 1 -> 7). Java's limited
+      mode at inlinePassCount 0 (cross-unit and constant
+      folding still on) is simplified to "no passes";
+      revisit with task 97, whose constant-case folding is
+      what the corpus's 0-setting guards.
 - [ ] 97. Constant-`case` inlining (morel#330), so inverted
       and specialized queries simplify to java's plans.
 - [ ] 99. Extent representation: `RangeExtent` (type plus
