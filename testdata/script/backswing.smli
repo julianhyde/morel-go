@@ -135,3 +135,19 @@ from bc where bc = (true, ()) orelse true;
 exists b where b;
 > val it = true : bool
 
+(*) Point inversion of an equality; belongs in such-that.smli.
+from i where i = 0;
+> val it = [0] : int bag
+from s where s = "abc";
+> val it = ["abc"] : string bag
+from x where x = 3 andalso x < 10;
+> val it = [3] : int bag
+
+(*) A dependent point orders after its dependency; for such-that.smli.
+from x, y where x = 1 andalso y = x + 1;
+> val it = [{x=1,y=2}] : {x:int, y:int} bag
+
+(*) An unused unbounded variable is dropped; for such-that.smli.
+exists w, x where x = 3;
+> val it = true : bool
+
