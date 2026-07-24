@@ -55,3 +55,11 @@ sum (bag [] : real bag) + 1.5;
 > val it = 1.5 : real
 from r in (from e in ([] : {x:real} list) group {} compute s = sum over e.x) yield r + 1.5;
 > val it = [1.5] : real list
+
+(* An "into" function is applied to the whole query result in the
+ * enclosing scope, so a query variable is out of scope inside it:
+ * referencing one is an unbound-variable error, not a read of a
+ * leftover row slot. Belongs in relational.smli. *)
+from i in [1,2,3] into (fn l => i);
+> stdIn:1.33 Error: unbound variable or constructor: i
+>   raised at: stdIn:1.33
