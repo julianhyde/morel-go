@@ -431,6 +431,12 @@ func (k *Kernel) executeStatement(n ast.Node) string {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
+				// A blanket recover keeps the session alive, but it
+				// also hides evaluator bugs as "no output". Setting
+				// MOREL_DEBUG re-panics so the failure is visible.
+				if os.Getenv("MOREL_DEBUG") != "" {
+					panic(r)
+				}
 				out = ""
 			}
 		}()
