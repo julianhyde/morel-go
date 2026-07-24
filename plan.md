@@ -1283,7 +1283,7 @@ ported directly:
       argCode constant(bool))). Corpus: optimize char-extent
       line, blog +28; the bool/option/tuple pins live in the
       new backswing.smli until such-that.smli is pullable.
-- [ ] 100. The `Expander`/`Generators` framework skeleton:
+- [x] 100. The `Expander`/`Generators` framework skeleton:
       the generator abstraction (cardinality, freePats,
       unique, sealed, provenance, simplify), the monotonic
       per-pattern cache, conjunct accumulation via
@@ -1291,7 +1291,15 @@ ported directly:
       ("pattern 'x' is not grounded") and cycle check, the
       shuttle dispatcher gated on containsUnbounded (skipping
       recursive-function bodies). First generators: point
-      (`x = e`) and finite-extent.
+      (`x = e`) and finite-extent. Done: conjuncts decompose
+      from the boolCase form (go lowers andalso to a case);
+      provenance is pointer identity; simplify and the
+      distinct wrap for non-unique generators are deferred to
+      the tasks that first need them (103). Corpus: optimize
+      +26 (the not-grounded family); point pins in
+      backswing.smli; such-that.smli now 48/213 pullable
+      (needs 40% to land). FBBT (morel#373) remains a stub
+      site in expandFrom, as planned.
 - [ ] 101. Collection generator: `x elem coll`; composite
       patterns (`(x, y) elem pairs`) via per-field generators
       rejoined; dependent generators become filtered subquery
