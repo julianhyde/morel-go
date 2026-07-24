@@ -1420,10 +1420,14 @@ wrong observable behavior:
       SetOpStage carries the variable count, so a row value is
       unit for none, the sole value for one, the record for
       several (symmetric rowValue/snapshot). Regression test added.
-- [ ] R4. relSumFn returns int32 0 for an empty collection of
+- [x] R4. relSumFn returns int32 0 for an empty collection of
       any element type; `sum (bag []: real bag) + 1.5;` silently
       prints nothing (swallowed panic). Zero must match the
       element type. Birth afca64e; internal/eval/relational.go:111.
+      Fixed (a0a703e): SumFn takes the additive zero as a parameter,
+      and the compiler supplies it from the static result type at
+      both apply sites (standalone and group aggregate), like java's
+      RELATIONAL_SUM macro. Regression tests added.
 - [ ] R5. The resolver ignores GroupStep.Binder, though typing
       accepts it: `from i in [10,20,11] group b = i mod 2 order
       b;` type-checks then silently prints nothing. Birth
