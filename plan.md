@@ -1640,16 +1640,27 @@ a deliberate decision):
 
 Coverage gaps that let the above hide:
 
-- [ ] R24. Relational.iterate landed with type-assertion corpus
+- [x] R24. Relational.iterate landed with type-assertion corpus
       only — no functional transitive-closure test (java has
       them). The sink-pipeline rendering (5df965e) has zero
       corpus. (Sys.plan after `fun` is now pinned in backswing.smli
       with the R12 fix; float-elem range membership and
       unbounded-range Size are pinned — pulled with the R10 fix.)
-      Port the remaining java lines when the bugs above are fixed.
-- [ ] R25. The kernel's blanket recover() converts evaluator
+      Fixed (5417dac): added a functional transitive-closure
+      iterate test to backswing.smli; verified the sink-pipeline
+      plan renders in java's `from(sink join(... sink where(...
+      sink collect(...))))` form. Residuals: Relational.iterate is
+      typed `'a bag` (fixed), so java's list-based test does not
+      pull -- it needs a free-orderedness collection, a
+      higher-order adaptation CollectionAggType does not cover; and
+      java's sink-plan corpus region (relational.smli:3043+) is
+      blocked by other unported features.
+- [x] R25. The kernel's blanket recover() converts evaluator
       panics into "no output", which masked R3 and R4. Add a
-      debug escape hatch (env var or prop) that re-panics.
+      debug escape hatch (env var or prop) that re-panics. Fixed
+      (1e3caf2): setting the MOREL_DEBUG environment variable
+      re-panics instead of swallowing, so an evaluator bug is
+      visible when debugging.
 
 ### Content that must not reach main
 
