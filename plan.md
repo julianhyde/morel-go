@@ -1521,10 +1521,14 @@ wrong observable behavior:
       e965c32. Fixed (65092eb): flush() always drops the expected
       block; splitOutput guards the inverted slice. Go regression
       tests added (harness logic a script cannot express).
-- [ ] R15. setOrdinal is not wired into GroupStage.partition,
+- [x] R15. setOrdinal is not wired into GroupStage.partition,
       GroupAggCode, SetOpStage, or ThroughStage, so `ordinal`
       read there sees a stale slot (group key example diverges
-      from java). Birth b0f0495.
+      from java). Birth b0f0495. Fixed (332ced0): setOrdinal now
+      runs per row in partition and GroupAggCode. SetOpStage and
+      ThroughStage evaluate no per-row user expression, so ordinal
+      is never read there (no change needed). Backswing test added
+      (relational.smli).
 
 Latent divergences (no corpus line pins them yet — fix or record
 a deliberate decision):
