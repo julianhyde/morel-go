@@ -55,12 +55,13 @@ func (c *Config) tabularBinding(name string, v eval.Val,
 	right := make([]bool, n)
 	labels := make([]string, n)
 	for i, f := range rec.Fields {
-		if _, ok := f.Type.(*types.Primitive); !ok {
+		prim, _, ok := scalarField(f.Type)
+		if !ok {
 			return "", false
 		}
 		labels[i] = f.Label
 		widths[i] = len(f.Label)
-		right[i] = isNumericType(f.Type)
+		right[i] = isNumericType(prim)
 	}
 
 	rows := asVals(v)
@@ -116,14 +117,64 @@ func tabularLine(cells []string, widths []int, right []bool) string {
 	return strings.TrimRight(b.String(), " ")
 }
 
-// tabularCell renders one primitive value as it appears in a table
-// cell: an int in plain decimal (with a leading "-" when negative,
-// unlike the "~" of classic output), a string unquoted.
+// scalarField returns the primitive type of a table column that is a
+// primitive or an option of a primitive, and whether it is an
+// option. ok is false for any other field type.
+func scalarField(t types.Type) (types.Type, bool, bool) {
+	if p, isPrim := t.(*types.Primitive); isPrim {
+		return p, false, true
+	}
+	if n, isNamed := t.(*types.Named); isNamed &&
+		n.Name == "option" && len(n.Args) == 1 {
+		if p, isPrim := n.Args[0].(*types.Primitive); isPrim {
+			return p, true, true
+		}
+	}
+	return nil, false, false
+}
+
+// tabularCell renders one scalar value as it appears in a table
+// cell: an int in plain decimal, a string unquoted, a word in hex.
+// An option field renders NONE as a blank cell and SOME x as x; a
+// string option quotes x when empty or containing a double-quote, so
+// it cannot be confused with the blank NONE cell.
 func (c *Config) tabularCell(t types.Type, v eval.Val) string {
-	prim, ok := t.(*types.Primitive)
+	prim, isOption, ok := scalarField(t)
 	if !ok {
 		return ""
 	}
+	if isOption {
+		con, _ := v.(eval.Con)
+		if con.Name != "SOME" {
+			return ""
+		}
+		v = con.Arg
+		if prim.String() == stringType {
+			s, _ := v.(string)
+			return c.optionString(s)
+		}
+	}
+	return c.scalarString(prim, v)
+}
+
+// optionString renders a string-option's SOME value so it is never
+// blank: an SML string literal (double-quoted, with backslashes and
+// double-quotes escaped) when empty or containing a double-quote,
+// else verbatim.
+func (c *Config) optionString(s string) string {
+	if s == "" || strings.Contains(s, `"`) {
+		r := strings.ReplaceAll(s, `\`, `\\`)
+		r = strings.ReplaceAll(r, `"`, `\"`)
+		return `"` + r + `"`
+	}
+	if c.StringDepth >= 0 && len(s) > c.StringDepth {
+		return s[:c.StringDepth] + "#"
+	}
+	return s
+}
+
+// scalarString renders a primitive value unquoted for a table cell.
+func (c *Config) scalarString(prim types.Type, v eval.Val) string {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch prim.String() {
 	case boolType:
@@ -144,6 +195,9 @@ func (c *Config) tabularCell(t types.Type, v eval.Val) string {
 			return s[:c.StringDepth] + "#"
 		}
 		return s
+	case wordType:
+		w, _ := v.(uint64)
+		return "0wx" + strings.ToUpper(strconv.FormatUint(w, 16))
 	default:
 		return "()"
 	}
