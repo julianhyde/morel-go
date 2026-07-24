@@ -1270,13 +1270,19 @@ ported directly:
       off; cross-unit, beta, singleton-case on). Plan-score
       104 -> 112 matches (optimize 7 -> 15); corpus optimize
       +16, variant +6.
-- [ ] 99. Extent representation: `RangeExtent` (type plus
+- [x] 99. Extent representation: `RangeExtent` (type plus
       per-path range sets; finite extents materialize),
       internal `Z_EXTENT` builtin (panics if an infinite
       extent reaches evaluation), resolver emits extent scans
       for sourceless `from p` and unorders the query. Finite
       types (bool, unit, char, options over them) evaluate
-      end to end: `from b where b orelse not b`.
+      end to end: `from b where b orelse not b`. Done, as
+      "$.extent" with the full per-path map and finiteness
+      recursion (int-with-bounds included, dead until 100/102).
+      Plan format matches java (apply(fnValue $.extent,
+      argCode constant(bool))). Corpus: optimize char-extent
+      line, blog +28; the bool/option/tuple pins live in the
+      new backswing.smli until such-that.smli is pullable.
 - [ ] 100. The `Expander`/`Generators` framework skeleton:
       the generator abstraction (cardinality, freePats,
       unique, sealed, provenance, simplify), the monotonic
