@@ -1313,14 +1313,22 @@ ported directly:
       unique, so nothing needs them yet). such-that.smli now
       69/213 pullable (40% to land); elem pins in
       backswing.smli.
-- [ ] 102. Range generator: lower/upper bound extraction
+- [x] 102. Range generator: lower/upper bound extraction
       (linear-term helpers; literal bounds pushed into
       infinite-range scans), emitting java's present-day
       `Range`-based shapes — `Bag.fromList (Range.flatten
       [...])`, multi-interval `Range.discreteSetOf`,
       one-sided ranges combined with other constraints. The
       finite range-list syntax is task 112; this task inverts
-      the infinite cases.
+      the infinite cases. Done: two-sided/offset/variable
+      bounds with java's arg-side asymmetry; one-sided
+      `elem [a ..]` as a bound; range pushdown into
+      `from x in [1 ..]` scans (list-ness kept). Multi-interval
+      `Range.discreteSetOf` waits for union (103); tuple
+      ranges wait for tuple succVal in eval/range.go.
+      such-that.smli lands (89/213); corpus optimize +16,
+      blog +16; four backswing point pins returned and were
+      deleted.
 - [ ] 103. Union generator (`orelse` inverts to a union,
       deduplicated when non-unique) + the `Simplifier` and
       provenance-based cancellation of subsumed `where`
