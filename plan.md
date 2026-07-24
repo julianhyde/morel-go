@@ -1512,13 +1512,15 @@ wrong observable behavior:
       `type_string f x` is `(type_string f) x`. Backswing test
       added (type.smli); the java corpus's precedence tests were
       already passing.
-- [ ] R14. Output matcher: after a Split error, the stale
+- [x] R14. Output matcher: after a Split error, the stale
       expected block is never reset and concatenates onto the
       next statement's expected output, silently disabling
       semantic matching there (script.go:57-81). Also
       splitOutput can panic on an inverted slice and sits outside
       the recover wrapper (output_matcher.go:33-56,90). Birth
-      e965c32.
+      e965c32. Fixed (65092eb): flush() always drops the expected
+      block; splitOutput guards the inverted slice. Go regression
+      tests added (harness logic a script cannot express).
 - [ ] R15. setOrdinal is not wired into GroupStage.partition,
       GroupAggCode, SetOpStage, or ThroughStage, so `ordinal`
       read there sees a stale slot (group key example diverges
