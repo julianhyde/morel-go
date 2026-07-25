@@ -1477,8 +1477,25 @@ ported directly:
       built-in/sys.smli: the new constructor bindings appear
       in env listings, which may unlock or shift those pins.
 
-- [ ] 109. `use` and `useSilently` (morel#198), with
-      `--maxUseDepth`; unlocks scott-queries.smli.
+- [x] 109. `use` and `useSilently` (morel#198), with
+      `--maxUseDepth`; unlocks scott-queries.smli. Done:
+      Interact.use/useSilently (and top-level aliases) execute
+      a file's statements in the session, stripping "> "
+      expected-output lines so an idempotent script can be
+      used; "[opening f]" and "[use failed: Io: openIn failed
+      on f, ...]" reach the calling statement's output through
+      the kernel's pending-lines channel, and a failure raises
+      the Error exception, as java's shell does. Files resolve
+      against a new "scriptDirectory" config (defaulting to
+      the running script's own directory, as java's harness
+      sets it; --scriptDirectory= overrides), and
+      --maxUseDepth=N caps nesting (default unlimited, java's
+      "Too many open files" report). scott-queries.smli
+      created 4/6 (the rest needs outer joins and ?.);
+      useSilently pins pulled into bag, built-in, interact,
+      relational, and such-that. The Interact members left the
+      pinned unimplemented list, which is now only the four
+      Sys members. Net divergence 6320 -> 6258.
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
       text. Pull forward earlier (task 80's sort-key warning,
