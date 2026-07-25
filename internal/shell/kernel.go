@@ -570,6 +570,11 @@ func (k *Kernel) runStatement(n ast.Node) string {
 	case ast.Expr:
 		decl = compile.ItValDecl(node)
 	}
+	if sigDecl, isSig := decl.(*ast.SignatureDecl); isSig {
+		// A signature declaration only echoes; nothing ascribes
+		// signatures yet.
+		return ast.UnparseSignatureDecl(sigDecl)
+	}
 	k.methods.RewriteDecl(decl)
 	resolved, err := compile.Deduce(k.sys, k.bindings, decl)
 	if err != nil {
@@ -859,6 +864,11 @@ func (k *Kernel) executeTypeOnly(src string) string {
 		decl = node
 	case ast.Expr:
 		decl = compile.ItValDecl(node)
+	}
+	if sigDecl, isSig := decl.(*ast.SignatureDecl); isSig {
+		// A signature declaration only echoes; nothing ascribes
+		// signatures yet.
+		return ast.UnparseSignatureDecl(sigDecl)
 	}
 	k.methods.RewriteDecl(decl)
 	resolved, err := compile.Deduce(k.sys, k.bindings, decl)
