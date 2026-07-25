@@ -1456,7 +1456,7 @@ ported directly:
 
 ### L. Remaining surface (109-110, 119)
 
-- [ ] 119. First-class exceptions and `raise` (morel#364,
+- [x] 119. First-class exceptions and `raise` (morel#364,
       partial): the `exn` datatype with java's thirteen
       constructors (Bind, Chr, Div, Domain, Empty, Fail,
       Match, Overflow, Size, Span, Subscript, UnequalLengths,
