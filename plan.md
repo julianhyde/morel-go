@@ -1688,6 +1688,18 @@ ported directly:
       "morel-go cannot run it"). signature.smli created 7/7.
       Net divergence 4736 -> 4636.
 
+- [x] 131. Foreign relations print as "<relation>": a new
+      eval.Relation wrapper around the scott dataset's four
+      collections behaves as its rows everywhere (asList is
+      the funnel; the scan, set-op, and through stages'
+      soft type-asserts now route through it) but prints
+      opaquely, as java prints Calcite-backed relations. This
+      unblocked the files whose heads bind scott collections:
+      logic.smli went from 161 to complete (265/265, the
+      third fully-converged file after dual and signature),
+      blog +80, foreign +13 (the rest of foreign.smli needs
+      foodmart). Net divergence 4636 -> 4439.
+
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
       text. Pull forward earlier (task 80's sort-key warning,
