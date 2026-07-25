@@ -1629,6 +1629,22 @@ ported directly:
       expression_type annotations, plus a tail of grammar
       gaps (signature declarations, outer-join syntax).
 
+- [x] 127. BUG (crash): the top entry of the first MOREL_GAPS
+      inventory — 26 statements panicking with "index out of
+      range [1] with length 1" — was one root cause: a set-op
+      step (union/intersect/except) after a binder yield
+      ("from d in depts yield f = {...} union [...]").
+      SetOpStage built rows of width len(vars) while every
+      other stage exchanges full frame snapshots; after a
+      yield rebinds the row, the widths disagree and restore
+      indexes past the row. SetOpStage now carries the row
+      variables' slots and snapshots/restores full frames like
+      GroupStage. Found via the new gap-sample machinery
+      (gap reports now carry the first offending statement).
+      Pulled: relational +103, blog +65, fixed-point +53,
+      dual +13 — dual.smli is the first file fully converged
+      (551/551). Net divergence 5126 -> 4892.
+
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
       text. Pull forward earlier (task 80's sort-key warning,
