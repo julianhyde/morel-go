@@ -1645,6 +1645,24 @@ ported directly:
       dual +13 — dual.smli is the first file fully converged
       (551/551). Net divergence 5126 -> 4892.
 
+- [x] 128. BUG (crashes): the two comparator panic classes
+      from the gap inventory, three root causes. (a) distinct
+      compared raw frame rows, so slots a yield had rebound
+      away joined the comparison — panicking on nil (and a
+      latent wrong-dedup: rows differing only in dead slots
+      would not merge); DistinctStage now keys the current row
+      variables' slots by PlanString, like the group stage.
+      (b) compareVals lacked unit and nil cases ("order ()",
+      distinct over unit rows). (c) valsEqual fell to Go ==
+      for Variant values, panicking when the payload is a list
+      (variant.smli's testRoundTrip); variants now compare as
+      interned type plus payload. Pulled: relational +51,
+      variant +41, such-that +10, blog +7, bag +4. Net
+      divergence 4892 -> 4779. Remaining inventory is now
+      feature-shaped: over/inst declarations (26),
+      expression_type annotations (9), signature declarations
+      (7), outer-join grammar (8).
+
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
       text. Pull forward earlier (task 80's sort-key warning,
