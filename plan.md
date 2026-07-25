@@ -1600,6 +1600,17 @@ ported directly:
       built-in/range +7, built-in/bool +4. Net divergence
       5318 -> 5228.
 
+- [x] 125. Scalar scans: "from i in xs, odd = (i mod 2 = 1)"
+      failed silently — the type resolver supported the
+      "pat = exp" scan kind but the resolver's toScanStep did
+      not, and the "cannot convert to core" error is one the
+      shell suppresses as not-yet-implemented. It now lowers
+      to a scan of the singleton list of the value, in the
+      current scope, so later scans and steps see the binding.
+      Pulled: relational +46, wordle +37 (its best-guess
+      machinery was blocked on one scalar scan), blog +19.
+      Net divergence 5228 -> 5126.
+
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
       text. Pull forward earlier (task 80's sort-key warning,
