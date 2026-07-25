@@ -1496,6 +1496,30 @@ ported directly:
       relational, and such-that. The Interact members left the
       pinned unimplemented list, which is now only the four
       Sys members. Net divergence 6320 -> 6258.
+- [x] 120. Compute steps (picked as the largest single closer of
+      the corpus delta): standalone `compute` (desugared to
+      `only (from ... group {} ...)`, so the result is a
+      scalar and an empty input still yields one row); the
+      `elements` keyword (an ast node, typed as the pre-group
+      input collection, compiled as an identity aggregate over
+      the whole row, label back-quoted); and compute fields as
+      general expressions — each `over` aggregate and
+      `elements` occurrence is hoisted to a hidden group
+      aggregate, and the field is computed from them in a
+      following yield, so `1 + sum over i * 3`, aggregates in
+      subqueries, and `((min over j) + (max over j)) div 2`
+      all work. Also: `over`'s right argument now extends to
+      level 5 (java's grammar), over-arguments are typed in
+      the pre-group scope (keys shadow correctly), aggregate
+      functions may be closures over keys (keys now bind
+      before aggregates evaluate), aggregate errors carry the
+      aggregate's span (Empty from min/max of an empty group),
+      and the error pins for over/elements misuse match
+      byte-for-byte. Pulled: relational +369, blog +134,
+      dual +18, wordle +11, type-inference +11, hybrid +6.
+      Net divergence 6258 -> 5709 (-549), the largest
+      single-task drop after Datalog.
+
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
       text. Pull forward earlier (task 80's sort-key warning,
