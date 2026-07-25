@@ -569,7 +569,11 @@ const (
 // binding its dependencies, and drops the filter conjuncts that
 // the sealed generators subsume.
 func (x *expander) rebuild(from *core.From) (*core.From, error) {
-	r := &rebuilder{x: x, state: map[*core.IDPat]patState{}}
+	r := &rebuilder{
+		x:        x,
+		state:    map[*core.IDPat]patState{},
+		subsumed: map[core.Exp]bool{},
+	}
 	for _, step := range from.Steps {
 		// A generator whose dependencies a step uses must be
 		// scheduled before the step.
@@ -635,6 +639,13 @@ type rebuilder struct {
 	steps   []core.FromStep
 	state   map[*core.IDPat]patState
 	changed bool
+	// subsumed holds the provenance conjuncts of the generators
+	// whose scans this rebuild actually emitted; only those
+	// conjuncts leave the filters. A cached generator that was
+	// never scanned must not delete its conjunct (a variable may
+	// be bound by a different generator, leaving this conjunct as
+	// the only enforcement).
+	subsumed map[core.Exp]bool
 }
 
 // addGeneratorScan schedules the generator scan that binds a
@@ -686,6 +697,7 @@ func (r *rebuilder) addGeneratorScan(pat *core.IDPat) {
 			}
 		}
 		r.steps = append(r.steps, r.projectedScan(g, required))
+		r.subsume(g)
 		r.changed = true
 	default:
 		exp := g.exp
@@ -695,6 +707,7 @@ func (r *rebuilder) addGeneratorScan(pat *core.IDPat) {
 			exp = distinctScan(r.x.sys, g.pat, exp)
 		}
 		r.steps = append(r.steps, &core.Scan{Pat: g.pat, Exp: exp})
+		r.subsume(g)
 		if len(g.conds) > 0 {
 			r.steps = append(r.steps, &core.Where{
 				Exp: composeConjuncts(r.x.sys, g.conds),
@@ -832,20 +845,22 @@ func (x *expander) isExtentScanExp(e core.Exp) bool {
 	return extentOf(e) != nil
 }
 
-// filterStep re-emits a filter without the conjuncts that sealed
-// generators subsume; a filter with nothing left is dropped.
-func (r *rebuilder) filterStep(s *core.Where) {
-	subsumed := map[core.Exp]bool{}
-	for _, gens := range r.x.cache.m {
-		for _, g := range gens {
-			if !g.sealed {
-				continue
-			}
-			for conjunct := range g.provenance {
-				subsumed[conjunct] = true
-			}
-		}
+// subsume records that a sealed generator's scan was emitted, so
+// the conjuncts it enforces leave the filters.
+func (r *rebuilder) subsume(g *generator) {
+	if !g.sealed {
+		return
 	}
+	for conjunct := range g.provenance {
+		r.subsumed[conjunct] = true
+	}
+}
+
+// filterStep re-emits a filter without the conjuncts that this
+// rebuild's emitted generator scans subsume; a filter with
+// nothing left is dropped.
+func (r *rebuilder) filterStep(s *core.Where) {
+	subsumed := r.subsumed
 	var conjuncts []core.Exp
 	decomposeConjuncts(s.Exp, &conjuncts)
 	var remaining []core.Exp
