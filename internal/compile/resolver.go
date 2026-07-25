@@ -389,6 +389,9 @@ func (r *resolver) toLiteral(literal *ast.Literal,
 func (r *resolver) toApply(env *coreEnv, apply *ast.Apply,
 	t types.Type,
 ) (core.Exp, error) {
+	if sel, ok := apply.Fn.(*ast.RecordSelector); ok && sel.Safe {
+		return r.toSafeNav(env, apply, sel, t)
+	}
 	fn, err := r.toExp(env, apply.Fn)
 	if err != nil {
 		return nil, err
@@ -910,18 +913,26 @@ func (r *resolver) toScanStep(cur *coreEnv, s *ast.Scan) (
 			Msg:  "cannot convert to core: " + s.Op().String(),
 		}
 	}
-	steps := []core.FromStep{&core.Scan{Pat: pat, Exp: exp}}
+	scan := &core.Scan{Pat: pat, Exp: exp, Join: s.Join}
+	steps := []core.FromStep{scan}
 	for _, id := range core.PatIDs(pat) {
 		cur = cur.bind(id)
 	}
 	// A "join ... on" condition filters over the scan's variables,
-	// so it lowers to a where after the scan.
+	// so it lowers to a where after the scan — except for an outer
+	// join, which evaluates it over the unwrapped values inside
+	// the join itself.
 	if s.On != nil {
 		on, err := r.toExp(cur, s.On)
 		if err != nil {
 			return nil, nil, err
 		}
-		steps = append(steps, &core.Where{Exp: on})
+		if s.Join == ast.LeftJoinOp || s.Join == ast.RightJoinOp ||
+			s.Join == ast.FullJoinOp {
+			scan.On = on
+		} else {
+			steps = append(steps, &core.Where{Exp: on})
+		}
 	}
 	return steps, cur, nil
 }

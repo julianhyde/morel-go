@@ -415,7 +415,8 @@ func (p *Parser) atomSuffixed() (ast.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	for p.tok.Kind == token.Dot {
+	for p.tok.Kind == token.Dot || p.tok.Kind == token.QDot {
+		safe := p.tok.Kind == token.QDot
 		err := p.next()
 		if err != nil {
 			return nil, err
@@ -436,6 +437,7 @@ func (p *Parser) atomSuffixed() (ast.Expr, error) {
 			return nil, err
 		}
 		s := ast.NewRecordSelector(field.Span, fieldName)
+		s.Safe = safe
 		span := token.Span{
 			Start: e.Span().Start,
 			End:   field.Span.End,
