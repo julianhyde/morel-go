@@ -20,6 +20,7 @@ package shell
 import (
 	_ "embed"
 	"errors"
+	"fmt"
 	"maps"
 	"os"
 	"slices"
@@ -80,6 +81,14 @@ type Config struct {
 	// limit.
 	MaxUseDepth int
 
+	// ShowUnsupported surfaces not-yet-implemented compile errors
+	// and recovered panics instead of suppressing them. Script
+	// (idempotent) mode keeps them silent, so unpulled corpus
+	// statements replay quietly; the interactive shell and "-e"
+	// turn this on, so a user sees why a statement produced
+	// nothing.
+	ShowUnsupported bool
+
 	// props holds the explicitly set values of the properties
 	// that do not (yet) change behavior.
 	props map[string]string
@@ -123,6 +132,10 @@ type Kernel struct {
 	// built-ins have produced (use's "[opening f]"); runStatement
 	// drains it into the statement's output.
 	pendingLines []string
+	// gaps counts the not-yet-implemented errors and panics that
+	// suppression hid, by message — the inventory of what running
+	// the input would need. Gaps reports it.
+	gaps map[string]int
 	// useDepth is the current nesting depth of "use" calls.
 	useDepth int
 }
@@ -155,6 +168,7 @@ func NewKernel(name string) *Kernel {
 		bindings:   bindings,
 		inlineExps: map[string]core.Exp{},
 		recFns:     map[string]*core.Fn{},
+		gaps:       map[string]int{},
 	}
 	// Method overloads that the signature files cannot express (a
 	// record has one field per name): Range.contains dispatched on
@@ -221,6 +235,12 @@ func (k *Kernel) Config() *Config {
 	return &k.config
 }
 
+// Gaps reports what suppression hid: each not-yet-implemented
+// message with the number of statements it silenced.
+func (k *Kernel) Gaps() map[string]int {
+	return k.gaps
+}
+
 // EquivalentOutput reports whether an actual statement output is
 // semantically equivalent to an expected one — bag values compared
 // as multisets, whitespace normalized — unless the "matchStrict"
@@ -254,6 +274,13 @@ func (k *Kernel) Execute(stmt string) string {
 	}
 	n, err := parse.Stmt(k.name, stmt)
 	if err != nil {
+		// A parse failure is silent in script mode (the grammar
+		// gap inventory records it); the interactive shell shows
+		// it.
+		k.gaps[err.Error()]++
+		if k.config.ShowUnsupported {
+			return err.Error()
+		}
 		return k.lexValidate(stmt)
 	}
 	e, isExpr := n.(ast.Expr)
@@ -495,7 +522,12 @@ func (k *Kernel) executeStatement(n ast.Node) string {
 				if os.Getenv("MOREL_DEBUG") != "" {
 					panic(r)
 				}
+				msg := fmt.Sprintf("internal error: %v", r)
+				k.gaps[msg]++
 				out = ""
+				if k.config.ShowUnsupported {
+					out = msg
+				}
 			}
 		}()
 		out = k.runStatement(n)
@@ -515,7 +547,7 @@ func (k *Kernel) runStatement(n ast.Node) string {
 	k.methods.RewriteDecl(decl)
 	resolved, err := compile.Deduce(k.sys, k.bindings, decl)
 	if err != nil {
-		return formatCompileError(err)
+		return k.formatCompileError(err)
 	}
 	if datatypeDecl, isDatatype := resolved.Decl.(*ast.DatatypeDecl); isDatatype {
 		// The declaration registered its datatype and
@@ -532,11 +564,11 @@ func (k *Kernel) runStatement(n ast.Node) string {
 	}
 	coreDecl, err := compile.Resolve(resolved)
 	if err != nil {
-		return formatCompileError(err)
+		return k.formatCompileError(err)
 	}
 	warnings, covErr := compile.CheckCoverage(k.sys, coreDecl)
 	if covErr != nil {
-		return formatCompileError(covErr)
+		return k.formatCompileError(covErr)
 	}
 	if !isPlanCall(coreDecl) {
 		// A Sys.plan or Sys.planEx call must not replace the
@@ -559,7 +591,7 @@ func (k *Kernel) runStatement(n ast.Node) string {
 		coreDecl2, gerr := compile.Ground(coreDecl, k.sys,
 			k.recFns)
 		if gerr != nil {
-			return formatCompileError(gerr)
+			return k.formatCompileError(gerr)
 		}
 		if coreDecl2 == coreDecl {
 			break
@@ -568,7 +600,7 @@ func (k *Kernel) runStatement(n ast.Node) string {
 	}
 	compiled, err := compile.Statement(coreDecl, k.values, k.sys)
 	if err != nil {
-		return formatCompileError(err)
+		return k.formatCompileError(err)
 	}
 	var lines []string
 	for _, w := range warnings {
@@ -750,14 +782,22 @@ func notImplemented(name string) eval.Fn {
 //	stdIn:1.1-1.11 Error: literal '9999999999' is too large ...
 //	  raised at: stdIn:1.1-1.11
 //
-// An error that means "not implemented yet" produces no output,
-// so unpulled corpus statements stay silent.
-func formatCompileError(err error) string {
+// An error that means "not implemented yet" is counted as a gap
+// and, in script mode, produces no output, so unpulled corpus
+// statements stay silent; with ShowUnsupported (the interactive
+// shell) it is reported like any other error.
+func (k *Kernel) formatCompileError(err error) string {
 	var compileErr *compile.Error
 	if !errors.As(err, &compileErr) ||
-		compileErr.Span == (token.Span{}) ||
-		unsupported(compileErr.Msg) {
+		compileErr.Span == (token.Span{}) {
+		k.gaps[err.Error()]++
 		return ""
+	}
+	if unsupported(compileErr.Msg) {
+		k.gaps[compileErr.Msg]++
+		if !k.config.ShowUnsupported {
+			return ""
+		}
 	}
 	pos := "stdIn:" + compileErr.Span.String()
 	return pos + " Error: " + compileErr.Msg +
@@ -797,7 +837,7 @@ func (k *Kernel) executeTypeOnly(src string) string {
 	k.methods.RewriteDecl(decl)
 	resolved, err := compile.Deduce(k.sys, k.bindings, decl)
 	if err != nil {
-		return formatCompileError(err)
+		return k.formatCompileError(err)
 	}
 	valDecl, ok := resolved.Decl.(*ast.ValDecl)
 	if !ok {
@@ -811,7 +851,7 @@ func (k *Kernel) executeTypeOnly(src string) string {
 	if cerr == nil {
 		warnings, covErr := compile.CheckCoverage(k.sys, coreDecl)
 		if covErr != nil {
-			return formatCompileError(covErr)
+			return k.formatCompileError(covErr)
 		}
 		for _, w := range warnings {
 			lines = append(lines, w.String())
