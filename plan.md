@@ -1675,6 +1675,19 @@ ported directly:
       over/inst (26), signature declarations (7), and
       outer-join grammar (8).
 
+- [x] 130. Signature declarations parse and echo: "signature
+      NAME = sig spec ... end [and ...]" with type, val,
+      exception, and datatype specifications; the shell
+      echoes the one-line form java pins ("signature ORDERED
+      = sig type t val lt : t * t -> bool ... end"). Nothing
+      ascribes signatures yet, so no registry — the
+      declaration is parse-and-echo, like type aliases. Also
+      taught Sys.parseTree the new node (its dumper panicked
+      OUTSIDE the statement recover, killing the whole
+      process on attribute.smli — the crash had been mislabeled
+      "morel-go cannot run it"). signature.smli created 7/7.
+      Net divergence 4736 -> 4636.
+
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
       text. Pull forward earlier (task 80's sort-key warning,
