@@ -1641,6 +1641,13 @@ from e in scott.emps
 >
 > val it : {ename:string, rank:int, sal:real} list
 
+(* Compute the set of distinct rolls of two dice. *)
+from i in [1, 2, 3, 4, 5, 6],
+    j in [1, 2, 3, 4, 5, 6]
+  yield i + j
+  distinct;
+> val it = [2,3,4,5,6,7,8,9,10,11,12] : int list
+
 (* Which job titles exist in department 10 but not in
    department 20 or 30? *)
 from e in scott.emps

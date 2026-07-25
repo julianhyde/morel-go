@@ -886,11 +886,44 @@ from e in emps
   order d;
 > val it = [10,20,30] : int list
 
+(*) singleton record 'yield' followed by 'distinct'
+from e in emps
+  yield {d = e.deptno}
+  distinct
+  order d;
+> val it = [{d=10},{d=20},{d=30}] : {d:int} list
+
+(*) atom 'yield' with implicit name 'deptno' followed by 'distinct' and 'order'
+from e in emps
+  yield e.deptno
+  distinct
+  order deptno;
+> val it = [10,20,30] : int list
+
+(*) atom 'yield' followed by 'distinct' and 'order'
+from e in emps
+  yield e.deptno
+  distinct
+  order current;
+> val it = [10,20,30] : int list
+
+(*) anonymous 'yield' followed by 'distinct'
+from i in [1, 2, 3],
+    j in [1, 2, 3]
+  yield i + j
+  distinct;
+> val it = [2,3,4,5,6] : int list
+
 (* 'distinct' preserves arrival order: each value appears in the position
    of its first occurrence, not in sorted order. *)
 from i in [3, 1, 2, 1, 3]
   distinct;
 > val it = [3,1,2] : int list
+
+(*) 'distinct' applied to zero-field relation is non-empty
+from u in [(), (), ()]
+  distinct;
+> val it = [()] : unit list
 
 (*) 'distinct' applied to empty zero-field relation is empty
 from u in [(), (), ()]
@@ -1201,6 +1234,11 @@ from d in scott.depts yield f = {d.deptno, two = 2} intersect [{deptno = 10, two
 > val it = [{deptno=10,two=2}] : {deptno:int, two:int} bag
 from d in scott.depts yield f = {d.deptno, two = 2} intersect [{deptno = 10, two = 2}] yield f.deptno;
 > val it = [10] : int bag
+from e in scott.emps yield f = {e.deptno, two = 2} distinct;
+> val it = [{deptno=20,two=2},{deptno=30,two=2},{deptno=10,two=2}]
+>   : {deptno:int, two:int} bag
+from e in scott.emps yield f = {e.deptno, two = 2} distinct yield f.deptno;
+> val it = [20,30,10] : int bag
 from d in scott.depts order d.deptno yield f = d take 2;
 > val it =
 >   [{deptno=10,dname="ACCOUNTING",loc="NEW YORK"},
@@ -1418,6 +1456,19 @@ from e in emps
       x + y
     end;
 > val it = [200,202,204,206] : int list
+
+(* 'distinct' is equivalent to 'group' with all fields
+ * Query 1, using `distinct`
+ * (The 'order' clause is for deterministic results.) *)
+from e in scott.emps
+  yield {e.job, e.deptno}
+  distinct
+  order (job, deptno);
+> val it =
+>   [{deptno=20,job="ANALYST"},{deptno=10,job="CLERK"},{deptno=20,job="CLERK"},
+>    {deptno=30,job="CLERK"},{deptno=10,job="MANAGER"},{deptno=20,job="MANAGER"},
+>    {deptno=30,job="MANAGER"},{deptno=10,job="PRESIDENT"},
+>    {deptno=30,job="SALESMAN"}] : {deptno:int, job:string} list
 
 (* Query 2, using `group` with no aggregate functions, equivalent to query 1
  * (The 'order' clause is for deterministic results.) *)
