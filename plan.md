@@ -1663,6 +1663,18 @@ ported directly:
       expression_type annotations (9), signature declarations
       (7), outer-join grammar (8).
 
+- [x] 129. "typeof exp" type annotations (part of progressive
+      types, morel#209): the annotation's type is the deduced
+      type of the expression, resolved against the top-level
+      bindings — so "fun hasJob (e: typeof (Bag.hd
+      scott.emps), job)" types e as the emps row record. One
+      new case in astTypeTerm; the parser and AST node
+      already existed. Pulled: type +24 (its typeof section),
+      such-that +19 (the external-extent hasJob block). Net
+      divergence 4779 -> 4736. The gap inventory is down to
+      over/inst (26), signature declarations (7), and
+      outer-join grammar (8).
+
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
       text. Pull forward earlier (task 80's sort-key warning,
