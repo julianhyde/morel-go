@@ -1520,6 +1520,21 @@ ported directly:
       Net divergence 6258 -> 5709 (-549), the largest
       single-task drop after Datalog.
 
+- [x] 121. `yieldAll` (morel#257), picked as the next
+      delta-closer: "yieldAll [binder in] exp" evaluates a
+      collection per input row and emits each element
+      (monadic flatMap), the element becoming the whole row —
+      named by the binder, or reachable as `current` (the
+      typing exposes it as a single "current"-labelled field,
+      so `current.b` works and bare `b` does not). Typed as a
+      scan (the query's orderedness meets the source's);
+      resolved as a scan into a hidden variable plus a
+      rebinding yield, so the pre-flattening variables leave
+      the row; `ordinal` and `current` inside the expression
+      refer to the input row. All eight java pins match.
+      Pulled: relational +71, bag +10. Net divergence
+      5709 -> 5628.
+
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
       text. Pull forward earlier (task 80's sort-key warning,
