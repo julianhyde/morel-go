@@ -280,7 +280,8 @@ def make_runner(binary):
         with open(path, "w") as f:
             f.write(text)
         r = subprocess.run(
-            [binary, path], capture_output=True, text=True)
+            [binary, "--directory=testdata", path],
+            capture_output=True, text=True)
         return r.stdout
 
     return run
