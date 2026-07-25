@@ -1583,6 +1583,23 @@ ported directly:
       per-file regression check — backswing grows by design).
       Net divergence 5450 -> 5318.
 
+- [x] 124. Type-aware method dispatch and Range.contains on
+      sets. Postfix method calls on plain variables
+      ("cs.contains 2", "evens.toList ()") never dispatched:
+      the registry inferred receiver types syntactically, so
+      only "Structure.member"-shaped receivers worked. The
+      registry now consults the session's bindings for an
+      identifier receiver's declared type. On top of that,
+      Range.contains gained the continuous_set and
+      discrete_set overloads java has as same-named members —
+      a signature record cannot hold two fields of one name,
+      so OverloadMethods registers extra method candidates
+      whose calls rewrite to hidden typed bindings
+      (Range.$csContains, Range.$dsContains) backed by one
+      set-walking implementation. Pulled: range +79,
+      built-in/range +7, built-in/bool +4. Net divergence
+      5318 -> 5228.
+
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
       text. Pull forward earlier (task 80's sort-key warning,
