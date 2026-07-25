@@ -36,6 +36,13 @@ type MethodInfo struct {
 	Type      types.Type
 	Structure string
 	Name      string
+	// Target, when set, is the qualified binding the call
+	// rewrites to instead of "Structure.Name" — used by an
+	// overload (a second method of the same name dispatching on
+	// a different receiver type, e.g. Range.contains on a
+	// continuous_set) whose implementation hides behind its own
+	// binding.
+	Target string
 }
 
 // methodCandidate is a registered method: the structure whose member
@@ -44,20 +51,26 @@ type MethodInfo struct {
 type methodCandidate struct {
 	structure    string
 	receiverHead string
+	target       string
 	paramIsTuple bool
 }
 
 // MethodRegistry maps a method name to its candidates, and holds
-// each structure's member types for receiver-type inference.
+// each structure's member types for receiver-type inference. For
+// a plain identifier receiver, globalType reports the session's
+// binding for the name (methods rewrite before type deduction, so
+// only already-bound names dispatch).
 type MethodRegistry struct {
 	byName      map[string][]methodCandidate
 	memberTypes map[string]map[string]types.Type
+	globalType  func(string) types.Type
 }
 
 // NewMethodRegistry builds the registry from the signature's method
 // list and its structure bindings.
 func NewMethodRegistry(
 	methods []MethodInfo, bindings []Binding,
+	globalType func(string) types.Type,
 ) *MethodRegistry {
 	reg := &MethodRegistry{
 		byName:      map[string][]methodCandidate{},
@@ -79,9 +92,11 @@ func NewMethodRegistry(
 		reg.byName[mi.Name] = append(reg.byName[mi.Name], methodCandidate{
 			structure:    mi.Structure,
 			receiverHead: typeHead(recv),
+			target:       mi.Target,
 			paramIsTuple: isTuple,
 		})
 	}
+	reg.globalType = globalType
 	return reg
 }
 
@@ -222,8 +237,13 @@ func (reg *MethodRegistry) desugar(apply *ast.Apply) (ast.Expr, bool) {
 		return nil, false
 	}
 	span := apply.Span()
-	member := ast.NewApply(span, ast.NewRecordSelector(span, sel.Name),
+	var member ast.Expr = ast.NewApply(span,
+		ast.NewRecordSelector(span, sel.Name),
 		ast.NewID(span, cand.structure))
+	if cand.target != "" {
+		// An overload rewrites to its own hidden binding.
+		member = ast.NewID(span, cand.target)
+	}
 	arg := apply.Arg
 	if lit, ok := arg.(*ast.Literal); ok && lit.Kind == ast.UnitLiteralOp {
 		// receiver.f () → Structure.f receiver
@@ -247,6 +267,13 @@ func (reg *MethodRegistry) desugar(apply *ast.Apply) (ast.Expr, bool) {
 // expression structurally, for a "Structure.member" projection or a
 // "Structure.member arg" call whose member types are known.
 func (reg *MethodRegistry) receiverHead(recv ast.Expr) string {
+	if id, ok := recv.(*ast.ID); ok {
+		// A bound name's declared type gives the head directly.
+		if t := reg.globalType(id.Name); t != nil {
+			return typeHead(t)
+		}
+		return ""
+	}
 	r, ok := recv.(*ast.Apply)
 	if !ok {
 		return ""

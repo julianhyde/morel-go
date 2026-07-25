@@ -153,10 +153,17 @@ func NewKernel(name string) *Kernel {
 		config:     config,
 		sys:        sys,
 		bindings:   bindings,
-		methods:    compile.NewMethodRegistry(result.Methods, bindings),
 		inlineExps: map[string]core.Exp{},
 		recFns:     map[string]*core.Fn{},
 	}
+	// Method overloads that the signature files cannot express (a
+	// record has one field per name): Range.contains dispatched on
+	// the set types, targeting hidden bindings.
+	methods, overloadBindings := compile.OverloadMethods(sys)
+	k.bindings = append(k.bindings, overloadBindings...)
+	k.methods = compile.NewMethodRegistry(
+		append(result.Methods, methods...), bindings,
+		k.globalType)
 	values := make(map[string]eval.Val, len(eval.Builtins))
 	maps.Copy(values, eval.Builtins)
 	// The relational aggregates and functions are bound both at top
@@ -184,6 +191,9 @@ func NewKernel(name string) *Kernel {
 	values[compile.ExtentName] = eval.Fn(eval.ExtentValues)
 	// The internal raise builtin backs the "raise" expression.
 	values[compile.RaiseName] = eval.Fn(eval.RaiseFn)
+	// The Range.contains overloads on sets (OverloadMethods).
+	values[compile.CsContainsName] = eval.RangeSetContainsFn
+	values[compile.DsContainsName] = eval.RangeSetContainsFn
 	// Build the structure records first, so that a structure defined
 	// in embedded Morel source (morel-go#2) can reference any other
 	// structure; then evaluate those sources and rebuild, wiring in
@@ -692,6 +702,17 @@ func (k *Kernel) recordInlineExp(decl core.Decl) {
 			}
 		}
 	}
+}
+
+// globalType is the declared type of a top-level binding, or nil;
+// the method registry dispatches identifier receivers by it.
+func (k *Kernel) globalType(name string) types.Type {
+	for i := range k.bindings {
+		if k.bindings[i].Name == name {
+			return k.bindings[i].Type
+		}
+	}
+	return nil
 }
 
 // bindDatatypeCons binds a datatype declaration's constructors as
