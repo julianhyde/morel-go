@@ -61,7 +61,7 @@ func (s *ScanStage) transform(q *fromCode, f *Frame, rows [][]Val,
 		if err != nil {
 			return nil, err
 		}
-		elems, _ := coll.([]Val)
+		elems := asList(coll)
 		for _, elem := range elems {
 			if s.Pat.Match(elem, f) {
 				out = append(out, q.snapshot(f))
@@ -288,7 +288,7 @@ func (s *SetOpStage) transform(q *fromCode, f *Frame, rows [][]Val,
 		if err != nil {
 			return nil, err
 		}
-		args[i], _ = v.([]Val)
+		args[i] = asList(v)
 	}
 	var result []Val
 	// lint: sort until '^	}' where '^	case '
@@ -605,7 +605,7 @@ func (s *ThroughStage) transform(q *fromCode, f *Frame, rows [][]Val,
 	if err != nil {
 		return nil, err
 	}
-	elems, _ := out.([]Val)
+	elems := asList(out)
 	rows2 := make([][]Val, 0, len(elems))
 	for _, elem := range elems {
 		for _, slot := range q.slots {

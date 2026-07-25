@@ -356,6 +356,16 @@ func adaptRelationalAggregates(sys *types.System, b *compile.Binding) {
 func (k *Kernel) loadScott() {
 	decl := parseDecl(k.name, scottSrc)
 	for _, b := range k.evalDecl(k.bindings, k.values, decl) {
+		// scott's collections are foreign relations: they behave
+		// as their rows but print as "<relation>", as java prints
+		// Calcite-backed relations.
+		if fields, ok := b.val.([]eval.Val); ok {
+			for i, f := range fields {
+				if rows, ok := f.([]eval.Val); ok {
+					fields[i] = eval.Relation{Rows: rows}
+				}
+			}
+		}
 		k.bind(b.name, b.typ)
 		k.values[b.name] = b.val
 	}

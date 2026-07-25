@@ -22,6 +22,19 @@ Sys.set ("printLength", 64);
 > val it = () : unit
 Sys.set ("lineWidth", 78);
 > val it = () : unit
+
+scott;
+> val it =
+>   {bonuses=<relation>,depts=<relation>,emps=<relation>,salgrades=<relation>}
+>   : {bonuses:{comm:real, ename:string, job:string, sal:real} bag,
+>       depts:{deptno:int, dname:string, loc:string} bag,
+>       emps:{comm:real, deptno:int, empno:int, ename:string, hiredate:string,
+>              job:string, mgr:int, sal:real} bag,
+>       salgrades:{grade:int, hisal:real, losal:real} bag}
+#depts scott;
+> val it = <relation> : {deptno:int, dname:string, loc:string} bag
+scott.depts;
+> val it = <relation> : {deptno:int, dname:string, loc:string} bag
 from d in scott.depts;
 > val it =
 >   [{deptno=10,dname="ACCOUNTING",loc="NEW YORK"},
