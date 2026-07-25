@@ -1611,6 +1611,24 @@ ported directly:
       machinery was blocked on one scalar scan), blog +19.
       Net divergence 5228 -> 5126.
 
+- [x] 126. Silent-suppression policy rework. Script
+      (idempotent) mode still suppresses not-yet-implemented
+      compile errors, parse failures, and recovered panics,
+      so unpulled corpus statements replay quietly — but the
+      interactive shell and "-e" now print them (a statement
+      that produces nothing was hiding one-case resolver gaps
+      three times running: Datalog stubs, standalone compute,
+      scalar scans). Every suppression is counted: Kernel.Gaps
+      inventories message -> count, MOREL_GAPS=1 prints it to
+      stderr after a script run, and pull-passing aggregates
+      it across the corpus into a ranked worklist. First
+      sweep: 26 statements die on one index-out-of-range
+      panic, 13 each on "over"/"val inst" declarations
+      (overload.smli), 11 on comparing []interface{} (list
+      compare), 10 on "cannot compare <nil>", 9 on
+      expression_type annotations, plus a tail of grammar
+      gaps (signature declarations, outer-join syntax).
+
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
       text. Pull forward earlier (task 80's sort-key warning,
