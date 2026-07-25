@@ -254,24 +254,25 @@ const (
 // SetOpStage combines the input rows with the argument collections
 // by union, intersect, or except. With Distinct, duplicates are
 // removed; otherwise multiplicity is respected (a multiset union,
-// meet, or difference). Multi is true when a row is a record of
-// several variables, so a row value is the record itself; otherwise
-// a row is a single value.
+// meet, or difference).
 type SetOpStage struct {
 	Args     []Code
 	Kind     SetOpKind
 	Distinct bool
-	// Vars is the number of variables the query's scans bind, which
-	// determines a row's value: unit for none, the sole value for
-	// one, the record of values for several.
-	Vars int
+	// Slots holds the current row's variable slots in field
+	// (name) order; a row's value is unit for none, the sole
+	// slot's value for one, the record of them for several. Rows
+	// are always full frame snapshots, whatever earlier steps
+	// bound.
+	Slots []int
 }
 
-func (s *SetOpStage) transform(_ *fromCode, f *Frame, rows [][]Val,
+func (s *SetOpStage) transform(q *fromCode, f *Frame, rows [][]Val,
 ) ([][]Val, error) {
 	left := make([]Val, len(rows))
 	for i, row := range rows {
-		left[i] = s.rowValue(row)
+		q.restore(f, row)
+		left[i] = s.rowValue(f)
 	}
 	args := make([][]Val, len(s.Args))
 	for i, code := range s.Args {
@@ -293,36 +294,48 @@ func (s *SetOpStage) transform(_ *fromCode, f *Frame, rows [][]Val,
 	}
 	out := make([][]Val, len(result))
 	for i, v := range result {
-		out[i] = s.snapshot(v)
+		out[i] = s.snapshot(q, f, v)
 	}
 	return out, nil
 }
 
-// rowValue is the value of a row: unit for no variables, the sole
-// variable's value for one, the record itself for several.
-func (s *SetOpStage) rowValue(row []Val) Val {
-	switch s.Vars {
+// rowValue is the value of the row now in the frame: unit for no
+// variables, the sole slot's value for one, the record of them
+// for several.
+func (s *SetOpStage) rowValue(f *Frame) Val {
+	switch len(s.Slots) {
 	case 0:
 		return unitVal
 	case 1:
-		return row[0]
+		return f.Slots[s.Slots[0]]
 	default:
-		return row
+		vals := make([]Val, len(s.Slots))
+		for i, slot := range s.Slots {
+			vals[i] = f.Slots[slot]
+		}
+		return vals
 	}
 }
 
-// snapshot is the frame-slot snapshot for a row value, the inverse
-// of rowValue.
-func (s *SetOpStage) snapshot(v Val) []Val {
-	switch s.Vars {
+// snapshot is the full frame snapshot for a row value, the
+// inverse of rowValue; slots outside the row are cleared.
+func (s *SetOpStage) snapshot(q *fromCode, f *Frame, v Val) []Val {
+	for _, slot := range q.slots {
+		f.Slots[slot] = nil
+	}
+	switch len(s.Slots) {
 	case 0:
-		return nil
 	case 1:
-		return []Val{v}
+		f.Slots[s.Slots[0]] = v
 	default:
 		vals, _ := v.([]Val)
-		return vals
+		for i, slot := range s.Slots {
+			if i < len(vals) {
+				f.Slots[slot] = vals[i]
+			}
+		}
 	}
+	return q.snapshot(f)
 }
 
 // dedup returns the distinct values in first-occurrence order.

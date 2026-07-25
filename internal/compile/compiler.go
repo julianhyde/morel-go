@@ -707,11 +707,16 @@ func (c *compiler) compileSetOp(s *core.SetOp, scanPats []core.Pat,
 		}
 		args[i] = a
 	}
+	ids := sortedVarIDs(scanPats)
+	slots := make([]int, len(ids))
+	for i, id := range ids {
+		slots[i] = c.allocSlot(id)
+	}
 	return &eval.SetOpStage{
 		Args:     args,
 		Kind:     setOpKinds[s.Kind],
 		Distinct: s.Distinct,
-		Vars:     len(sortedVarIDs(scanPats)),
+		Slots:    slots,
 	}, nil
 }
 

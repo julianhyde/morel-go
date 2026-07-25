@@ -1200,6 +1200,22 @@ val empsRemoved = from e in scott.emps except emps4;
 val summary = [] : {c:int, deptno:int, sum_sal:real} list;
 > val summary = [] : {c:int, deptno:int, sum_sal:real} list
 
+(* Compute the updated summary table. *)
+val summary2 =
+  from s in (*scott.*)summary
+    union
+      (from e in empsAdded
+        yield {e.deptno, c = 1, sum_sal = e.sal})
+    union
+      (from e in empsRemoved
+        yield {e.deptno, c = ~1, sum_sal = ~e.sal})
+    group s.deptno compute {c = sum over s.c, sum_sal = sum over s.sum_sal}
+    order deptno
+    where c <> 0;
+> val summary2 =
+>   [{c=~3,deptno=10,sum_sal=~8750},{c=~3,deptno=20,sum_sal=~8925},
+>    {c=~5,deptno=30,sum_sal=~8450}] : {c:int, deptno:int, sum_sal:real} list
+
 (* Commit. *)
 (*) TODO commit {scott with summary = summary2};
 
@@ -1331,6 +1347,13 @@ fun lcm (m, n) =
 fun lcm' (m, n) =
   m * n div gcd (m, n);
 > val lcm' = fn : int * int -> int
+
+lcm (36, 120);
+> val it = 360 : int
+lcm' (36, 120);
+> val it = 360 : int
+gcd (36, 120);
+> val it = 12 : int
 
 (* --- Query.md --------------------------------------------------- *)
 
@@ -1618,6 +1641,20 @@ from e in scott.emps
 >
 > val it : {ename:string, rank:int, sal:real} list
 
+(* Which job titles exist in department 10 but not in
+   department 20 or 30? *)
+from e in scott.emps
+  where e.deptno = 10
+  yield e.job
+  except distinct
+    (from e in scott.emps
+      where e.deptno = 20
+      yield e.job),
+    (from e in scott.emps
+      where e.deptno = 30
+      yield e.job);
+> val it = ["PRESIDENT"] : string bag
+
 (* I have two sodas and three candies and give my friend
    one soda and two candies. What do I have left? *)
 from i in ["candy", "soda", "soda", "candy", "candy"]
@@ -1657,6 +1694,20 @@ from e in scott.emps
 from e in scott.emps
   group {} compute min over e.sal + e.comm;
 > val it = [800] : real bag
+
+(* Which job titles exist in department 10 and also in
+   departments 20 and 30? *)
+from e in scott.emps
+  where e.deptno = 10
+  yield e.job
+  intersect distinct
+    (from e in scott.emps
+      where e.deptno = 20
+      yield e.job),
+    (from e in scott.emps
+      where e.deptno = 30
+      yield e.job);
+> val it = ["MANAGER","CLERK"] : string bag
 
 (* I have two sodas and three candies, and my friend
    has one soda, one donut, and four candies. What do we
@@ -1752,6 +1803,20 @@ fun multiplesOf base (xs: int list) =
 from i in [1, 2, 3, 4, 5, 6, 7]
   through j in multiplesOf 3;
 > val it = [3,6] : int list
+
+(* Which job titles exist in departments 10, 20 and 30? *)
+from e in scott.emps
+  where e.deptno = 10
+  yield e.job
+  union distinct
+    (from e in scott.emps
+      where e.deptno = 20
+      yield e.job),
+    (from e in scott.emps
+      where e.deptno = 30
+      yield e.job);
+> val it = ["MANAGER","PRESIDENT","CLERK","ANALYST","SALESMAN"]
+>   : string bag
 
 (* I have two sodas and three candies, and my friend has
    one soda and one candy. What do we have if we combine

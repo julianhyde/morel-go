@@ -457,6 +457,8 @@ fun fixu_naive f a =
       fixu_naive f a3
   end;
 > val fixu_naive = fn : ('a list -> 'a list) -> 'a list -> 'a list
+from p in fixu_naive prefixes ["cat", "dog", "", "car", "cart"] order p;
+> val it = ["","c","ca","car","cart","cat","d","do","dog"] : string list
 
 (* Fixed-point over union, with an iteration limit 'n'.
  * A semi-naive algorithm applies the function only to
@@ -553,6 +555,17 @@ fun shortest_path (edges: 'a list) =
 > val shortest_path = fn
 >   : {source:'a, target:'a, weight:int} list
 >      -> {source:'a, target:'a, weight:int} list
+shortest_path edges;
+> val it =
+>   [{source="a",target="a",weight=0},{source="a",target="b",weight=~1},
+>    {source="a",target="c",weight=~2},{source="a",target="d",weight=0},
+>    {source="b",target="a",weight=4},{source="b",target="b",weight=0},
+>    {source="b",target="c",weight=2},{source="b",target="d",weight=4},
+>    {source="c",target="a",weight=5},{source="c",target="b",weight=1},
+>    {source="c",target="c",weight=0},{source="c",target="d",weight=2},
+>    {source="d",target="a",weight=3},{source="d",target="b",weight=~1},
+>    {source="d",target="c",weight=1},{source="d",target="d",weight=0}]
+>   : {source:string, target:string, weight:int} list
 
 (* -- Graph algorithms -----------------------------------------------
  * The paper "EmptyHeaded: A Relational Engine for Graph Processing"
@@ -982,5 +995,45 @@ from (x, x') in western_pairs,
 >    {x="NV",x'="UT",y="ID",y'="AZ",z="OR",z'="NM"},
 >    {x="NV",x'="UT",y="ID",y'="CO",z="OR",z'="NM"}]
 >   : {x:string, x':string, y:string, y':string, z:string, z':string} list
+
+(* 7. Single-Source Shortest Paths (SSSP) ----------------------------
+ * In Datalog:
+ *   SSSP(x; y: int) :- Edge("start", x); y = 1.
+ *   SSSP(x; y: int)* :- Edge(w, x), SSSP(w); y = <<MIN(w)>> + 1.
+ * BFS from "CA" using fixp: shortest hop count to each reachable
+ * state.
+ *)
+let
+  val source = "CA"
+  fun step d =
+    let
+      val extended =
+        from {node = n, dist = di} in d,
+             (x, y) in pairs
+          where x = n
+          yield {node = y, dist = di + 1}
+      val d2 =
+        from p in d union extended
+          group p.node compute {dist = min over p.dist}
+    in
+      from r in d2 order r.node
+    end
+in
+  fixp step [{node = source, dist = 0}]
+end;
+> val it =
+>   [{dist=6,node="AL"},{dist=4,node="AR"},{dist=1,node="AZ"},{dist=0,node="CA"},
+>    {dist=2,node="CO"},{dist=9,node="CT"},{dist=7,node="DC"},{dist=8,node="DE"},
+>    {dist=7,node="FL"},{dist=6,node="GA"},{dist=4,node="IA"},{dist=2,node="ID"},
+>    {dist=5,node="IL"},{dist=6,node="IN"},{dist=3,node="KS"},{dist=5,node="KY"},
+>    {dist=4,node="LA"},{dist=9,node="MA"},{dist=7,node="MD"},{dist=11,node="ME"},
+>    {dist=6,node="MI"},{dist=5,node="MN"},{dist=4,node="MO"},{dist=5,node="MS"},
+>    {dist=3,node="MT"},{dist=6,node="NC"},{dist=4,node="ND"},{dist=3,node="NE"},
+>    {dist=10,node="NH"},{dist=8,node="NJ"},{dist=2,node="NM"},{dist=1,node="NV"},
+>    {dist=8,node="NY"},{dist=6,node="OH"},{dist=3,node="OK"},{dist=1,node="OR"},
+>    {dist=7,node="PA"},{dist=10,node="RI"},{dist=7,node="SC"},{dist=4,node="SD"},
+>    {dist=5,node="TN"},{dist=3,node="TX"},{dist=2,node="UT"},{dist=6,node="VA"},
+>    {dist=9,node="VT"},{dist=2,node="WA"},{dist=5,node="WI"},{dist=6,node="WV"},
+>    {dist=3,node="WY"}] : {dist:int, node:string} list
 
 (*) End fixed-point.smli
