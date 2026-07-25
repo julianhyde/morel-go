@@ -236,6 +236,13 @@ def gate(go_repo, args):
         net_before += before
         net_after += after
         if after > before:
+            if not file_at(args.java_repo, java, JAVA_PREFIX,
+                           rel):
+                # A go-only file (backswing.smli, parse.smli) may
+                # grow by design; it is scaffolding, not
+                # divergence from java.
+                rows.append((rel, before, after))
+                continue
             regressions.append((rel, before, after))
         elif after < before:
             improvements.append((rel, before, after))
