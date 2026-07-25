@@ -1428,7 +1428,7 @@ ported directly:
       variable-bound queries (310, 317: `x > 0 andalso x < y
       andalso y < 10` gets constant OPEN(0,10) bounds for
       both, residual filters kept).
-- [ ] 118. Datalog (morel#323): the `Datalog` structure —
+- [x] 118. Datalog (morel#323): the `Datalog` structure —
       validate, translate, execute — backed by a Datalog
       parser, stratification analysis (negation must not
       cycle), and a translator emitting Morel source that
@@ -1441,6 +1441,18 @@ ported directly:
       502, 617, 684), so the translation is convergence-
       checked, not just the results. Unlocks datalog.smli
       (~743 lines) and built-in/datalog.smli (~221).
+      Done: internal/datalog (lexer/parser with javacc-format
+      parse errors, analyzer with pinned messages, translator,
+      CSV .input loading) plus shell glue compiling the
+      emitted Morel in a boot-environment snapshot; making
+      collections in one type instantiation share orderedness
+      let Relational.iterate be a list function on lists, as
+      java's paired overloads do, which also unlocked iterate
+      pins in relational.smli and regex-example.smli. java's
+      datalog.smli replays byte-for-byte (743/743, created);
+      built-in/datalog.smli 255/262 (the missing statement
+      pins an unrelated multiline error-span quirk,
+      "stdIn:-1.1-1.14"). Net divergence 7485 -> 6455.
 
 ### L. Remaining surface (109-110)
 
