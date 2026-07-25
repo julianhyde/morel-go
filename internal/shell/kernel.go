@@ -666,10 +666,12 @@ func (k *Kernel) recordInlineExp(decl core.Decl) {
 }
 
 // notImplemented is the placeholder value of a built-in that has
-// no implementation yet.
+// no implementation yet. Calling it reports an error — visible in
+// the shell, unlike a swallowed panic — while the placeholder
+// value itself still prints as "fn" in its structure's record.
 func notImplemented(name string) eval.Fn {
 	return func(eval.Val) (eval.Val, error) {
-		panic("not implemented: " + name)
+		return nil, errors.New("not implemented: " + name)
 	}
 }
 
