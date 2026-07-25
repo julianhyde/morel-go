@@ -1700,6 +1700,23 @@ ported directly:
       blog +80, foreign +13 (the rest of foreign.smli needs
       foodmart). Net divergence 4636 -> 4439.
 
+- [ ] 132. Outer joins (morel#75) and `?.` (morel#378): "left
+      join"/"right join"/"full join" scan forms (the
+      left/right/full tokens exist, reserved but unused;
+      ast.Scan gains a join kind), typing where the nullable
+      side's fields are reached via "e?.field : t option",
+      the independence validation for right/full joins
+      ("join source must not reference 'r' (right and full
+      joins must be independent)", span on the offending
+      reference), runtime null rows, and the "?." postfix
+      accessor (no token yet — lexer too). Unlocks
+      relational.smli's outer-join sections, the rest of
+      scott-queries.smli (to 6/6), postfix.smli (~68
+      statements), and blog.smli join sections. Java digest
+      commissioned; implement from its report: grammar
+      first, then typing/validation (error pins), then
+      runtime and ?..
+
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
       text. Pull forward earlier (task 80's sort-key warning,
