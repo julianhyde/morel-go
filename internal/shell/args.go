@@ -20,6 +20,7 @@ package shell
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 )
 
@@ -33,6 +34,15 @@ type Args struct {
 
 	// Directory overrides the working directory ("--directory=").
 	Directory string
+
+	// ScriptDirectory overrides the directory "use" resolves
+	// relative file names against ("--scriptDirectory="); when
+	// empty, each script's own directory is used.
+	ScriptDirectory string
+
+	// MaxUseDepth caps nested "use" calls ("--maxUseDepth=");
+	// negative (the default) means no limit.
+	MaxUseDepth int
 
 	// Files are the scripts to run, in order; "-" means standard
 	// input. Empty means read standard input.
@@ -61,11 +71,11 @@ type Args struct {
 // ParseArgs parses a command line into Args. Following java's
 // Shell, an unrecognized flag is ignored rather than rejected, so
 // that options morel-go does not implement (--foreign,
-// --color-scheme, --maxUseDepth, --system) are tolerated. A bare
+// --color-scheme, --system) are tolerated. A bare
 // "execute" is the default command and is accepted; "--build" and
 // "--no-build" are accepted no-ops (there is nothing to build).
 func ParseArgs(argv []string) *Args {
-	a := &Args{Banner: true}
+	a := &Args{Banner: true, MaxUseDepth: -1}
 	for i := 0; i < len(argv); i++ {
 		arg := argv[i]
 		switch {
@@ -86,6 +96,13 @@ func ParseArgs(argv []string) *Args {
 			a.Idempotent = true
 		case strings.HasPrefix(arg, "--directory="):
 			a.Directory = arg[len("--directory="):]
+		case strings.HasPrefix(arg, "--scriptDirectory="):
+			a.ScriptDirectory = arg[len("--scriptDirectory="):]
+		case strings.HasPrefix(arg, "--maxUseDepth="):
+			n, err := strconv.Atoi(arg[len("--maxUseDepth="):])
+			if err == nil {
+				a.MaxUseDepth = n
+			}
 		case arg == "--banner=false":
 			a.Banner = false
 		case arg == "--terminal=dumb":
@@ -117,6 +134,10 @@ Options:
   --idempotent        Treat input as SMLI (idempotent) format;
                       implicit when the first file ends in '.smli'.
   --directory=DIR     Set the working directory.
+  --scriptDirectory=DIR
+                      Set the directory 'use' resolves against
+                      (default: the script's own directory).
+  --maxUseDepth=N     Limit nested 'use' calls to N levels.
   --banner=false      Suppress the startup banner.
   --terminal=dumb     Disable interactive terminal features.
   -h, --help          Print this help, then exit.
