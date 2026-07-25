@@ -1535,6 +1535,21 @@ ported directly:
       Pulled: relational +71, bag +10. Net divergence
       5709 -> 5628.
 
+- [x] 122. Zero-scan queries and current-scope errors, the
+      next delta-closers: a query with no scans ("from;",
+      "from where b", "exists where p", "forall require p",
+      and the group/compute forms over them) iterates one row
+      of no variables — the resolver seeds a scan over the
+      unit singleton whose variable stays out of the row, so
+      "from;" is "[()] : unit list" and "from group {}
+      compute count over \"a\"" is "[1]". And a reference to
+      "current" or "ordinal" outside any query (or in a
+      root-scoped step argument such as skip/take/union)
+      reports "'current' is only valid in a query" instead of
+      unbound-variable, matching java's pins. Pulled:
+      relational +121, logic +22, blog +11, bag +4, dual +3.
+      Net divergence 5628 -> 5450.
+
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
       text. Pull forward earlier (task 80's sort-key warning,
