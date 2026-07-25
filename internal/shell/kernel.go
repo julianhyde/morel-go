@@ -536,7 +536,6 @@ func unsupported(msg string) bool {
 		"cannot compile",
 		"cannot convert to core",
 		"cannot deduce type for",
-		"cannot derive label",
 	} {
 		if strings.HasPrefix(msg, prefix) {
 			return true
