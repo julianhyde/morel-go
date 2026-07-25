@@ -1550,7 +1550,7 @@ ported directly:
       relational +121, logic +22, blog +11, bag +4, dual +3.
       Net divergence 5628 -> 5450.
 
-- [ ] 123. BUG (correctness, silent wrong answers): grounding
+- [x] 123. BUG (correctness, silent wrong answers): grounding
       drops a conjunct in multi-variable elem queries. Repro:
       `val ps = [(1,2),(2,1)]; from x, y, z, w where (x, y)
       elem ps andalso (y, z) elem ps andalso (x, z) elem ps
@@ -1570,6 +1570,18 @@ ported directly:
       scan is actually emitted (track per-rebuild), or make
       filter deletion part of the same pass's rebuild state.
       Add the repro to backswing.smli when fixed.
+      Fixed: the mechanism was single-pass, not cross-pass —
+      filterStep subsumed the provenance conjuncts of every
+      sealed generator in the cache, including generators
+      cached during dispatch but never scanned (the variable
+      having been bound by a different generator). The
+      rebuilder now records the provenance of each generator
+      scan it actually emits, and filters drop only those
+      conjuncts. fixed-point.smli +140 (4-Clique and PageRank
+      sections); repro pinned in backswing.smli (and
+      check-convergence.py now exempts go-only files from the
+      per-file regression check — backswing grows by design).
+      Net divergence 5450 -> 5318.
 
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
