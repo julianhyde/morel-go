@@ -1454,7 +1454,28 @@ ported directly:
       pins an unrelated multiline error-span quirk,
       "stdIn:-1.1-1.14"). Net divergence 7485 -> 6455.
 
-### L. Remaining surface (109-110)
+### L. Remaining surface (109-110, 119)
+
+- [ ] 119. First-class exceptions and `raise` (morel#364,
+      partial): the `exn` datatype with java's thirteen
+      constructors (Bind, Chr, Div, Domain, Empty, Fail,
+      Match, Overflow, Size, Span, Subscript, UnequalLengths,
+      Unordered; only Fail takes a payload, `string -> exn`),
+      bound as values; the `raise` expression (argument
+      unifies with `exn`, result a free type variable, so
+      `fun h x = raise Fail x` is `string -> 'a`); and
+      `General.exnName`/`exnMessage` (name, and bracketed
+      description or "Fail: <payload>"; both also top-level
+      aliases). `raise Fail "m"` reports "uncaught exception
+      Fail [Fail: m]" with the raise expression's span.
+      Deliberately excluded for now: `exception` declarations
+      and `handle` (the rest of morel#364). Unlocks
+      exception.smli (69 lines, 0/12 today), the exn sections
+      of built-in.smli and built-in/general.smli, and removes
+      General.exnMessage/exnName from the pinned
+      unimplemented-members list. Watch Sys.env pins in
+      built-in/sys.smli: the new constructor bindings appear
+      in env listings, which may unlock or shift those pins.
 
 - [ ] 109. `use` and `useSilently` (morel#198), with
       `--maxUseDepth`; unlocks scott-queries.smli.
