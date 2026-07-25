@@ -1700,7 +1700,7 @@ ported directly:
       blog +80, foreign +13 (the rest of foreign.smli needs
       foodmart). Net divergence 4636 -> 4439.
 
-- [ ] 132. Outer joins (morel#75) and `?.` (morel#378): "left
+- [x] 132. Outer joins (morel#75) and `?.` (morel#378): "left
       join"/"right join"/"full join" scan forms (the
       left/right/full tokens exist, reserved but unused;
       ast.Scan gains a join kind), typing where the nullable
@@ -1715,7 +1715,29 @@ ported directly:
       statements), and blog.smli join sections. Java digest
       commissioned; implement from its report: grammar
       first, then typing/validation (error pins), then
-      runtime and ?..
+      runtime and ?.. Done: joins are a Join op on the scan
+      (only the scan after the keywords carries it); typing
+      wraps the nullable side's variables in option (left:
+      new, right: prior, full: both; nested joins stack
+      layers), the on-condition sees unwrapped types, and a
+      right/full source types in the root scope after the
+      independence walk (exact spans on the offending
+      reference). ?. lexes as one token, parses at selector
+      level, types by tunneling functor layers (option, list,
+      bag, vector) with a post-unification retry for
+      layer-by-layer resolution, resolves to functor-map
+      chains (Option.map/List.map/Bag.map/Vector.map over a
+      Selector), and errors match java's three messages.
+      Runtime: JoinStage — left joins scan correlated sources
+      per row wrapping matches in SOME and emitting NONE rows
+      for unmatched inputs; right/full joins materialize the
+      independent source once, probe, and append unmatched
+      source rows in source order. All typing, error, and
+      runtime pins match. Pulled: relational +81,
+      type-inference +21, postfix.smli created 37/68.
+      Remaining in this area: tabular blank cells for NONE
+      (scott-queries' last two statements) and ?.'s postfix
+      interactions. Net divergence 4439 -> 4181.
 
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
