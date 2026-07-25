@@ -1550,6 +1550,27 @@ ported directly:
       relational +121, logic +22, blog +11, bag +4, dual +3.
       Net divergence 5628 -> 5450.
 
+- [ ] 123. BUG (correctness, silent wrong answers): grounding
+      drops a conjunct in multi-variable elem queries. Repro:
+      `val ps = [(1,2),(2,1)]; from x, y, z, w where (x, y)
+      elem ps andalso (y, z) elem ps andalso (x, z) elem ps
+      andalso (x, w) elem ps andalso (y, w) elem ps andalso
+      (z, w) elem ps;` — Sys.planEx "-1" shows scans (x, w)
+      and (y, z) plus filters for (x,z), (y,w), (z,w): the
+      (x, y) conjunct is enforced nowhere, so rows with x = y
+      leak (fixed-point.smli's 4-Clique block, ~140 lines,
+      returns wrong rows; 3-variable triangles are fine).
+      Suspected mechanism: an early ground pass consumes the
+      conjunct into a scan of its generator, a later pass
+      re-expands and schedules different scans, but
+      filterStep already deleted the conjunct (subsumption
+      consults every sealed generator in the cache, not the
+      generators actually scanned in the final plan). Fix
+      direction: subsume a conjunct only when its generator's
+      scan is actually emitted (track per-rebuild), or make
+      filter deletion part of the same pass's rebuild state.
+      Add the repro to backswing.smli when fixed.
+
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
       text. Pull forward earlier (task 80's sort-key warning,
