@@ -1739,6 +1739,23 @@ ported directly:
       (scott-queries' last two statements) and ?.'s postfix
       interactions. Net divergence 4439 -> 4181.
 
+- [x] 133. Outer-join Core types and scott-queries
+      completion: typing wrapped the nullable side in option
+      only in the unification environment; the resolver's
+      core patterns kept raw types, so "e?.ename" after a
+      left join failed as non-functor. The resolver now
+      wraps the affected patterns' types after the on
+      condition resolves (java re-wraps in FromBuilder the
+      same way). scott-queries.smli is complete (67/67, the
+      fourth fully-converged file); tabular NONE-as-blank
+      already worked. Deferred: chained postfix calls
+      ("xs.drop(2).drop 1" — the dot after an application
+      binds to the last atom; java re-associates at the
+      application level), which gate the rest of
+      postfix.smli. The overload-system digest (task for
+      over/val inst) is written and saved in the session's
+      task outputs, ready for the next session.
+
 - [ ] 110. Unparser (morel#41, #293): render AST back to
       source with correct precedence, for warnings and plan
       text. Pull forward earlier (task 80's sort-key warning,
