@@ -37,7 +37,7 @@ import (
 // The product name and version.
 const (
 	productName    = "morel-go"
-	productVersion = "0.1.0"
+	productVersion = "0.8.0"
 )
 
 // bannerText is the shell's banner. Go version numbers start with

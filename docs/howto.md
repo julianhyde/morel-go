@@ -36,7 +36,8 @@ and Morel Rust tags `morel-rust-0.2.0`, but Morel Go must tag
 Write release notes, and append them to [CHANGELOG.md](../CHANGELOG.md).
 
 Update the version number in `internal/shell/sys.go` (the
-`productVersion` constant), in [README](../README) and in
+`productVersion` constant, which does not carry the 'v'; the banner
+supplies it), in [README](../README) and in
 [README.md](../README.md), and the copyright date in
 [NOTICE](../NOTICE).
 
@@ -110,7 +111,7 @@ Start the shell, and confirm that it reports the release version:
 
 ```bash
 $ ./morel
-morel-go version 0.8.0 (go version go1.26.5, darwin/arm64)
+morel-go v0.8.0 (go1.26.5, darwin/arm64)
 ```
 
 Execute a command, and confirm that the result is printed:

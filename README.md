@@ -56,7 +56,7 @@ $ go build ./cmd/morel; ./morel
 
 ```bash
 $ ./morel
-morel-go version 0.8.0 (go version go1.26.5, darwin/arm64)
+morel-go v0.8.0 (go1.26.5, darwin/arm64)
 - "Hello, world!";
 val it = "Hello, world!" : string
 ```
@@ -125,7 +125,7 @@ Implemented:
   and `full` outer joins), `where`, `group`, `compute`, `order`,
   `skip`, `take`, `yield`, `yieldAll` and `into`
 * Datalog
-* The standard library: 460 members in 27 structures, based on the
+* The standard library: 460 members in 25 structures, based on the
   [Standard ML Basis Library](https://smlfamily.github.io/Basis/)
   and extended with `Bag`, `Datalog`, `Interact`, `Range`,
   `Relational`, `Sys` and `Variant`
@@ -142,7 +142,6 @@ Not implemented:
 * User-defined operators (`infix`, `infixr`)
 * Overloaded functions (`over`, `val inst`); they parse, but do not
   compile
-* Query plans (`Sys.plan` returns the empty string)
 * External data: reading from the file system, or from a database
   via ODBC or JDBC
 * Attributes (`[@ ... ]`) and quoted identifiers
