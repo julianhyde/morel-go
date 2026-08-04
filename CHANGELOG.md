@@ -24,7 +24,7 @@ For a full list of releases, see
 <a href="https://github.com/hydromatic/morel-go/releases">GitHub</a>.
 
 <!--
-## <a href="https://github.com/hydromatic/morel-go/releases/tag/morel-0.x.0">0.x.0</a> / xxxx-xx-xx
+## <a href="https://github.com/hydromatic/morel-go/releases/tag/v0.x.0">0.x.0</a> / xxxx-xx-xx
 
 Release 0.x.0 ...
 
@@ -40,10 +40,10 @@ Contributors:
 
 ### Site and documentation
 
-* [[MOREL-xxx](https://github.com/hydromatic/morel-go/issues/xxx)]
-  Release 0.x.0
+* Release 0.x.0 (#xxx)
+
 -->
 
-## <a href="https://github.com/hydromatic/morel/releases/tag/morel-go-0.1.0">0.1.0</a> / 2025-xx-xx
+## <a href="https://github.com/hydromatic/morel-go/releases/tag/v0.1.0">0.1.0</a> / 2025-xx-xx
 
 Initial release.

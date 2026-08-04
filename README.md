@@ -40,4 +40,4 @@ $ go build ./cmd/morel; ./morel
 * Blog: http://blog.hydromatic.net
 * Source code: https://github.com/hydromatic/morel-go
 * Issues: https://github.com/hydromatic/morel-go/issues
-* <a href="HISTORY.md">Release notes and history</a>
+* <a href="CHANGELOG.md">Change log and release notes</a>
