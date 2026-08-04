@@ -18,6 +18,7 @@
 package compile
 
 import (
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -149,6 +150,19 @@ func (r *resolver) toDecl(env *coreEnv, decl ast.Decl) (core.Decl,
 	pat, err := r.toPat(bind.Pat)
 	if err != nil {
 		return nil, nil, err
+	}
+	// If the type resolver left overload constraints unresolved (the
+	// bound value is used at an abstract type), attach a qualified
+	// type to the bound name for display, e.g. "val demo = fn :
+	// (second : 'a -> 'b, first : 'a -> 'c) => 'a -> 'b * 'c".
+	if idPat, ok := pat.(*core.IDPat); ok {
+		q, qerr := r.typeMap.Qualify(bind.Pat)
+		if qerr != nil {
+			return nil, nil, qerr
+		}
+		if q != nil {
+			idPat.SurfaceT = q
+		}
 	}
 	exp, err := r.toExp(env, bind.Exp)
 	if err != nil {
@@ -507,6 +521,14 @@ func (r *resolver) toOverloadApply(env *coreEnv, apply *ast.Apply,
 		}
 	}
 	if len(matches) != 1 {
+		// If the argument type is not concrete, no instance can be
+		// selected statically: this is an overloaded use inside a
+		// qualified-typed value. Emit a placeholder that type-checks
+		// and compiles but raises if it is ever applied; a later
+		// milestone will pass the instance as a dictionary.
+		if containsVar(argType) {
+			return r.unresolvedOverload(env, apply, id, t)
+		}
 		return nil, &Error{
 			Span: apply.Span(),
 			Msg: "no unique instance of overloaded '" + id.Name +
@@ -524,6 +546,81 @@ func (r *resolver) toOverloadApply(env *coreEnv, apply *ast.Apply,
 		Arg:  arg,
 		Span: apply.Span(),
 	}, nil
+}
+
+// unresolvedOverload builds a placeholder for an overloaded
+// application whose argument type is not concrete (so no instance
+// can be selected statically). The placeholder has the result type
+// of the application but raises Fail if it is ever evaluated; the
+// enclosing value type-checks (with a qualified type) but cannot yet
+// be applied. A later milestone will replace this with dictionary
+// passing.
+func (r *resolver) unresolvedOverload(env *coreEnv,
+	apply *ast.Apply, id *ast.ID, t types.Type,
+) (core.Exp, error) {
+	// Evaluate the argument for its effects and type, even though the
+	// result is discarded by the raise.
+	_, err := r.toExp(env, apply.Arg)
+	if err != nil {
+		return nil, err
+	}
+	sys := r.typeMap.sys
+	tc, ok := sys.LookupTyCon("Fail")
+	if !ok {
+		return nil, &Error{
+			Span: apply.Span(),
+			Msg: "no unique instance of overloaded '" + id.Name +
+				"' (cannot build placeholder)",
+		}
+	}
+	exnType := tc.Result
+	failCon, _ := r.toCon("Fail", sys.Fn(sys.String, exnType))
+	msg := &core.Literal{
+		T:    sys.String,
+		Kind: ast.StringLiteralOp,
+		Value: "overloaded '" + id.Name +
+			"' cannot yet be applied at an abstract type",
+	}
+	failExn := &core.Apply{
+		T: exnType, Fn: failCon, Arg: msg,
+		Span: apply.Span(),
+	}
+	return &core.Apply{
+		T: t,
+		Fn: &core.ID{Pat: &core.IDPat{
+			T:    sys.Fn(exnType, t),
+			Name: RaiseName,
+		}},
+		Arg:  failExn,
+		Span: apply.Span(),
+	}, nil
+}
+
+// containsVar reports whether a type contains a type variable.
+func containsVar(t types.Type) bool {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch t := t.(type) {
+	case *types.Collection:
+		return containsVar(t.Elem)
+	case *types.Fn:
+		return containsVar(t.Param) || containsVar(t.Result)
+	case *types.List:
+		return containsVar(t.Elem)
+	case *types.Named:
+		return slices.ContainsFunc(t.Args, containsVar)
+	case *types.Record:
+		for _, f := range t.Fields {
+			if containsVar(f.Type) {
+				return true
+			}
+		}
+		return false
+	case *types.Tuple:
+		return slices.ContainsFunc(t.Args, containsVar)
+	case *types.Var:
+		return true
+	}
+	return false
 }
 
 // toFrom converts a query to Core. Only the subset that evaluates

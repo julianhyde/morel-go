@@ -130,9 +130,10 @@ func Deduce(sys *types.System, bindings []Binding,
 			continue
 		}
 		typeMap := &TypeMap{
-			sys:      sys,
-			nodeTerm: r.nodeTerm,
-			subst:    subst,
+			sys:       sys,
+			nodeTerm:  r.nodeTerm,
+			subst:     subst,
+			residuals: subst.Residuals,
 		}
 		err = r.checkFieldRefs(typeMap)
 		if err != nil {
@@ -665,6 +666,40 @@ func (r *typeResolver) typeTerm(t types.Type,
 		return unify.Apply(t.Name, terms...)
 	case *types.Primitive:
 		return r.u.Atom(t.String())
+	case *types.Qualified:
+		// Instantiating a qualified type: re-create each predicate's
+		// overload constraint (with fresh variables for each candidate
+		// instance), so that it is resolved or re-deferred at this use
+		// site. The predicate's own variables are shared with the base
+		// type via subst.
+		for _, p := range t.Predicates {
+			fn, ok := p.Type.(*types.Fn)
+			if !ok {
+				continue
+			}
+			argVar := r.u.Variable()
+			resultVar := r.u.Variable()
+			r.equiv(argVar, r.typeTerm(fn.Param, subst))
+			r.equiv(resultVar, r.typeTerm(fn.Result, subst))
+			argResults := make([]unify.TermPair, len(p.Candidates))
+			for i, cand := range p.Candidates {
+				cfn, ok := cand.(*types.Fn)
+				if !ok {
+					continue
+				}
+				// Fresh variable scope per candidate.
+				cSub := map[int]*unify.Var{}
+				vP := r.u.Variable()
+				vR := r.u.Variable()
+				r.equiv(vP, r.typeTerm(cfn.Param, cSub))
+				r.equiv(vR, r.typeTerm(cfn.Result, cSub))
+				argResults[i] = unify.TermPair{Left: vP, Right: vR}
+			}
+			r.constraints = append(r.constraints,
+				unify.OverloadNamed(p.Name, argVar, resultVar,
+					argResults))
+		}
+		return r.typeTerm(t.Type, subst)
 	case *types.Record:
 		labels := make([]string, len(t.Fields))
 		terms := make([]unify.Term, len(t.Fields))
@@ -2163,6 +2198,10 @@ func (r *typeResolver) deduceOverloadApply(env typeEnv,
 	if err != nil {
 		return err
 	}
+	name := ""
+	if id, ok := apply.Fn.(*ast.ID); ok {
+		name = id.Name
+	}
 	argResults := make([]unify.TermPair, len(insts))
 	for i, iv := range insts {
 		vP := r.u.Variable()
@@ -2170,8 +2209,11 @@ func (r *typeResolver) deduceOverloadApply(env typeEnv,
 		r.equiv(iv, r.fnTerm(vP, vR))
 		argResults[i] = unify.TermPair{Left: vP, Right: vR}
 	}
+	// Name the constraint so that, if the argument type never becomes
+	// concrete, it can be surfaced as a residual and become a
+	// predicate of a qualified type.
 	r.constraints = append(r.constraints,
-		unify.Overload(vArg, v, argResults))
+		unify.OverloadNamed(name, vArg, v, argResults))
 	r.reg(apply, v)
 	return nil
 }
