@@ -104,6 +104,12 @@ func (e *coreEnv) bind(pat *core.IDPat) *coreEnv {
 func (r *resolver) toDecl(env *coreEnv, decl ast.Decl) (core.Decl,
 	*coreEnv, error,
 ) {
+	if od, ok := decl.(*ast.OverDecl); ok {
+		// An "over name" declaration introduces an overloaded name.
+		// In Milestone 1 it lowers to core and echoes but binds
+		// nothing usable yet, so the environment is unchanged.
+		return &core.OverDecl{Name: od.Pat.Name}, env, nil
+	}
 	d, ok := decl.(*ast.ValDecl)
 	if !ok {
 		return nil, nil, &Error{

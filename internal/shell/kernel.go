@@ -616,6 +616,13 @@ func (k *Kernel) runStatement(n ast.Node) string {
 	if err != nil {
 		return k.formatCompileError(err)
 	}
+	if overDecl, isOver := coreDecl.(*core.OverDecl); isOver {
+		// An "over name" declaration introduces an overloaded name.
+		// In Milestone 1 it binds nothing at runtime; it only
+		// echoes "over name". Instances and use-site resolution
+		// follow in later milestones.
+		return "over " + overDecl.Name
+	}
 	warnings, covErr := compile.CheckCoverage(k.sys, coreDecl)
 	if covErr != nil {
 		return k.formatCompileError(covErr)
