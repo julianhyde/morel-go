@@ -134,6 +134,7 @@ func Deduce(sys *types.System, bindings []Binding,
 			nodeTerm:  r.nodeTerm,
 			subst:     subst,
 			residuals: subst.Residuals,
+			bindings:  r.bindings,
 		}
 		err = r.checkFieldRefs(typeMap)
 		if err != nil {

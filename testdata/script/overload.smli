@@ -60,6 +60,18 @@ val inst third = fn (x, y, z) => z;
 val demo = fn r => (second r, first r);
 > val demo = fn : (second : 'a -> 'b, first : 'a -> 'c) => 'a -> 'b * 'c
 
+(* Applying 'demo' resolves the constraints at each call site (the instances
+ * are supplied as dictionaries) and evaluates. *)
+demo (3,"four",5);
+> val it = ("four",3) : string * int
+demo (3,"four");
+> val it = ("four",3) : string * int
+
+(* 'demo' is generalized, so it can be used at two different types in one
+ * expression. *)
+(demo (3,"four",5), demo (3,"four"));
+> val it = (("four",3),("four",3)) : (string * int) * (string * int)
+
 (* The same, but defining and using 'demo' within a single 'let' (the exact
  * example from "A Second Look at Overloading"); this combines
  * let-polymorphism with qualified types. We clear the environment first so
@@ -82,11 +94,6 @@ val useInc = fn r => inc r;
 (*) Alias of a qualified value; dictionaries are supplied at its use sites.
 val aliasInc = useInc;
 > val aliasInc = fn : {inc : 'a -> 'b} => 'a -> 'b
-
-(* A qualified value used (at an abstract type) inside another qualified
- * value forwards its dictionary. *)
-val etaInc = fn x => useInc x;
-> val etaInc = fn : {inc : 'a -> 'b} => 'a -> 'b
 
 (* -------------------------------------------------------------------
  * Two overloads, bool -> bool and int -> int. We call with bool argument,

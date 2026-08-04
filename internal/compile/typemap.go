@@ -35,6 +35,11 @@ type TypeMap struct {
 	// unification (their argument type never became concrete). They
 	// become the predicates of a qualified type on the bound pattern.
 	residuals []unify.Constraint
+	// bindings gives the type of every name in the top-level
+	// environment, by name. The core resolver reads it to recognize a
+	// use of a qualified-typed binding declared in an earlier statement
+	// (dictionary passing, hydromatic/morel#426). It may be nil.
+	bindings map[string]*Binding
 }
 
 // TypeOf returns the type deduced for a node. Unification
