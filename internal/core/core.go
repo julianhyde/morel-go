@@ -429,6 +429,11 @@ type NonRecValDecl struct {
 	Pat  Pat
 	Exp  Exp
 	Span token.Span
+	// Overload, when non-empty, is the overloaded name this
+	// declaration is an instance of ("val inst name = e"). Pat then
+	// binds a generated hidden name, but the declaration echoes as
+	// "val <Overload> = ...".
+	Overload string
 }
 
 // Op implements Decl.

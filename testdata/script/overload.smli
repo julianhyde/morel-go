@@ -40,21 +40,59 @@ over second;
 over third;
 > over third
 
+val inst first = fn (x, y) => x;
+> val first = fn : 'a * 'b -> 'a
+val inst second = fn (x, y) => y;
+> val second = fn : 'a * 'b -> 'b
+
+val inst first = fn (x, y, z) => x;
+> val first = fn : 'a * 'b * 'c -> 'a
+val inst second = fn (x, y, z) => y;
+> val second = fn : 'a * 'b * 'c -> 'b
+val inst third = fn (x, y, z) => z;
+> val third = fn : 'a * 'b * 'c -> 'c
+
 (* -------------------------------------------------------------------
  * A qualified value can be aliased, and can be used inside another
  * qualified value; the dictionaries are forwarded. *)
 over inc;
 > over inc
+val inst inc = fn i: int => i + 1;
+> val inc = fn : int -> int
+val inst inc = fn b: bool => not b;
+> val inc = fn : bool -> bool
 
 (* As previous, but at top level. *)
 over o1a;
 > over o1a
+val inst o1a = fn i: int => i + 17;
+> val o1a = fn : int -> int
+val inst o1a = fn b: bool => not b;
+> val o1a = fn : bool -> bool
+o1a true;
+> val it = false : bool
+o1a 1;
+> val it = 18 : int
 over o0;
 > over o0
+val inst o0 = fn NONE => [] | SOME x => [x];
+> val o0 = fn : 'a option -> 'a list
+val inst o0 = fn list => List.null list;
+> val o0 = fn : 'a list -> bool
 
 (* As previous, but at top level. *)
 over o4a;
 > over o4a
+val inst o4a = fn NONE => [] | SOME x => [x];
+> val o4a = fn : 'a option -> 'a list
+val inst o4a = fn list => List.null list;
+> val o4a = fn : 'a list -> bool
+(* TODO
+o4a;
+> val it = fn : 'a list -> bool
+*)
+o4a (SOME 1);
+> val it = [1] : int list
 
 (* -------------------------------------------------------------------
  * The 'unorder' operator will help us mix lists and bags in queries. *)
@@ -73,16 +111,47 @@ fun listToMultiset [] = MULTI_NIL
 over unsort;
 > over unsort
 
+val inst unsort = fn SOME x => [x] | NONE => [];
+> val unsort = fn : 'a option -> 'a list
+unsort (SOME 1);
+> val it = [1] : int list
+
+(* Declare an instance of 'unsort' that converts a list to a multiset. *)
+val inst unsort = fn aList => listToMultiset aList;
+> val unsort = fn : 'a list -> 'a multiset
+unsort [1, 2];
+> val it = MULTI_CONS (1,MULTI_CONS (2,MULTI_NIL)) : int multiset
+
+(* Declare an instance of 'unsort' that leaves a multiset as a multiset. *)
+val inst unsort = fn aBag: 'a multiset => aBag;
+> val unsort = fn : 'a multiset -> 'a multiset
+unsort (MULTI_CONS (1, MULTI_CONS (2, MULTI_NIL)));
+> val it = MULTI_CONS (1,MULTI_CONS (2,MULTI_NIL)) : int multiset
+
+(*) The list variant still works.
+unsort [4];
+> val it = MULTI_CONS (4,MULTI_NIL) : int multiset
+
 (* -------------------------------------------------------------------
  * The 'scan' operator allows us to read lists and bags. *)
 over scan;
 > over scan
+val inst scan = fn aBag: 'a bag => aBag;
+> val scan = fn : 'a bag -> 'a bag
+val inst scan = fn aList: 'a list => aList;
+> val scan = fn : 'a list -> 'a list
+scan (bag [1]);
+> val it = [1] : int bag
 
 (* -------------------------------------------------------------------
  * An overloaded aggregate function is resolved based on whether the input is
  * ordered. *)
 over overAgg;
 > over overAgg
+val inst overAgg = fn bag => if Bag.length bag < 0 then "" else "bag";
+> val overAgg = fn : 'a bag -> string
+val inst overAgg = fn list => if List.length list < 0 then "" else "list";
+> val overAgg = fn : 'a list -> string
 
 (* A non-overloaded aggregate function can adapt.
  * 1. List agg applied to list *)
