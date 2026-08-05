@@ -148,13 +148,14 @@ func intPropDefault(name string) int {
 // top-level aliases, for NewKernel to inject.
 func (k *Kernel) sysBuiltins() map[string]eval.Val {
 	m := map[string]eval.Val{
-		"Sys.env":     eval.Fn(k.sysEnv),
-		"Sys.plan":    eval.Fn(k.sysPlan),
-		"Sys.planEx":  eval.Fn(k.sysPlanEx),
-		"Sys.set":     eval.Fn(k.sysSet),
-		"Sys.show":    eval.Fn(k.sysShow),
-		"Sys.showAll": eval.Fn(k.sysShowAll),
-		"Sys.unset":   eval.Fn(k.sysUnset),
+		"Sys.clearEnv": eval.Fn(k.sysClearEnv),
+		"Sys.env":      eval.Fn(k.sysEnv),
+		"Sys.plan":     eval.Fn(k.sysPlan),
+		"Sys.planEx":   eval.Fn(k.sysPlanEx),
+		"Sys.set":      eval.Fn(k.sysSet),
+		"Sys.show":     eval.Fn(k.sysShow),
+		"Sys.showAll":  eval.Fn(k.sysShowAll),
+		"Sys.unset":    eval.Fn(k.sysUnset),
 		"Variant.print": eval.Fn(func(arg eval.Val) (eval.Val, error) {
 			return compile.VariantPrint(arg, k.sys), nil
 		}),
@@ -174,6 +175,7 @@ func (k *Kernel) sysBuiltins() map[string]eval.Val {
 			return eval.DateLocalOffset(k.timeZone(), k.nowTime()), nil
 		}),
 	}
+	m["clearEnv"] = m["Sys.clearEnv"]
 	m["env"] = m["Sys.env"]
 	m["plan"] = m["Sys.plan"]
 	m["planEx"] = m["Sys.planEx"]
@@ -198,6 +200,14 @@ func (k *Kernel) sysPlanEx(arg eval.Val) (eval.Val, error) {
 	d := compile.Replan(k.planExDecl, k.inlineEnv(), k.sys,
 		k.recFns, k.inlinePassCount(), phase)
 	return compile.UnparseDecl(k.sys, d), nil
+}
+
+// sysClearEnv is "Sys.clearEnv ()": it resets the session
+// environment to its freshly initialized state — dropping every
+// user binding, value, and overload — and returns unit.
+func (k *Kernel) sysClearEnv(eval.Val) (eval.Val, error) {
+	k.clearEnv()
+	return core.Unit{}, nil
 }
 
 // sysPlan is "Sys.plan ()": the compiled plan of the most
