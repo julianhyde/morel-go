@@ -116,9 +116,16 @@ func (r *resolver) toDecl(env *coreEnv, decl ast.Decl) (core.Decl,
 	*coreEnv, error,
 ) {
 	if od, ok := decl.(*ast.OverDecl); ok {
-		// An "over name" declaration introduces an overloaded name.
-		// In Milestone 1 it lowers to core and echoes but binds
-		// nothing usable yet, so the environment is unchanged.
+		// An "over name" declaration introduces an overloaded name. It
+		// lowers to core and echoes but binds nothing usable yet, so
+		// the environment is unchanged. Register the name in the
+		// overload scope (which, inside a "let", is a local child), so
+		// that a "val inst" that follows and a use in the body resolve
+		// against it. At top level the kernel also declares it, but
+		// Declare is idempotent.
+		if r.overloads != nil {
+			r.overloads.Declare(od.Pat.Name)
+		}
 		return &core.OverDecl{Name: od.Pat.Name}, env, nil
 	}
 	d, ok := decl.(*ast.ValDecl)
@@ -364,7 +371,7 @@ func (r *resolver) toExp(env *coreEnv, exp ast.Expr) (core.Exp,
 		}
 		return r.toInfix(env, e, t)
 	case *ast.Let:
-		return r.flattenLet(env, e.Decls, e.Exp)
+		return r.toLetExp(env, e.Decls, e.Exp)
 	case *ast.ListExp:
 		args := make([]core.Exp, len(e.Args))
 		for i, arg := range e.Args {
@@ -1761,6 +1768,22 @@ func (r *resolver) toListPat(p *ast.ListPat,
 		args[i] = arg
 	}
 	return &core.ListPat{T: t, Args: args}, nil
+}
+
+// toLetExp lowers a "let ... in e end" expression. The let gets its
+// own overload scope, so "over"/"val inst" declared inside it
+// register locally — visible to the body but discarded afterwards —
+// and never leak to the enclosing (session) scope.
+func (r *resolver) toLetExp(env *coreEnv, decls []ast.Decl,
+	exp ast.Expr,
+) (core.Exp, error) {
+	saved := r.overloads
+	if saved != nil {
+		r.overloads = NewChildOverloadEnv(saved)
+	}
+	body, err := r.flattenLet(env, decls, exp)
+	r.overloads = saved
+	return body, err
 }
 
 // flattenLet converts "let d1 d2 ... in e end" to nested Lets,

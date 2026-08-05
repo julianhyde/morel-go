@@ -35,9 +35,16 @@ const cannotConvertValInst = "cannot convert to core: val inst"
 // resolver reads it to select and reference the winning instance's
 // hidden binding.
 type OverloadEnv struct {
+	// parent is the enclosing overload scope, or nil at the session
+	// level. A child (created for a "let" by NewChildOverloadEnv)
+	// sees the parent's overloaded names and instances but records
+	// its own "over"/"val inst" declarations locally, so they do not
+	// leak to the parent when the let is done.
+	parent *OverloadEnv
 	// instances maps an overloaded name to its instances, in
 	// declaration order. A name present with a nil slice is declared
-	// "over" but has no instances yet.
+	// "over" but has no instances yet. A name present in this scope
+	// shadows the same name in the parent.
 	instances map[string][]OverloadInstance
 }
 
@@ -53,13 +60,27 @@ type OverloadInstance struct {
 	Type       types.Type
 }
 
-// NewOverloadEnv returns an empty overload registry.
+// NewOverloadEnv returns an empty session-level overload registry.
 func NewOverloadEnv() *OverloadEnv {
 	return &OverloadEnv{instances: map[string][]OverloadInstance{}}
 }
 
-// Declare records that a name is overloaded ("over name"). It is
-// idempotent and never discards instances a name already has.
+// NewChildOverloadEnv returns a local overload registry nested in
+// parent: it resolves overloaded names against the parent, but
+// "over"/"val inst" declarations recorded in it (inside a "let")
+// stay local and are discarded with it — they never leak to the
+// parent (session) scope.
+func NewChildOverloadEnv(parent *OverloadEnv) *OverloadEnv {
+	return &OverloadEnv{
+		parent:    parent,
+		instances: map[string][]OverloadInstance{},
+	}
+}
+
+// Declare records that a name is overloaded ("over name") in this
+// scope. It is idempotent and never discards instances a name
+// already has; in a child scope it shadows the parent's name with a
+// fresh (instance-less) overload.
 func (o *OverloadEnv) Declare(name string) {
 	if _, ok := o.instances[name]; !ok {
 		o.instances[name] = nil
@@ -67,22 +88,28 @@ func (o *OverloadEnv) Declare(name string) {
 }
 
 // IsOverloaded reports whether a name has been declared overloaded
-// or has at least one instance.
+// or has at least one instance, in this scope or an enclosing one.
 func (o *OverloadEnv) IsOverloaded(name string) bool {
 	if o == nil {
 		return false
 	}
-	_, ok := o.instances[name]
-	return ok
+	if _, ok := o.instances[name]; ok {
+		return true
+	}
+	return o.parent.IsOverloaded(name)
 }
 
 // Instances returns the instances registered for an overloaded
-// name, in declaration order.
+// name, in declaration order. A name declared in this scope shadows
+// the parent's; otherwise the parent's instances are returned.
 func (o *OverloadEnv) Instances(name string) []OverloadInstance {
 	if o == nil {
 		return nil
 	}
-	return o.instances[name]
+	if insts, ok := o.instances[name]; ok {
+		return insts
+	}
+	return o.parent.Instances(name)
 }
 
 // Add registers a new instance of an overloaded name in this scope
