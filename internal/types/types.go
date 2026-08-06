@@ -98,6 +98,14 @@ type Record struct {
 	typeBase
 
 	Fields []Field
+
+	// Progressive says that the field list is partial: more fields
+	// may be discovered later, and the type prints with a trailing
+	// ", ...". It distinguishes the file system's record types,
+	// whose fields appear as directories are browsed, from ordinary
+	// records. Fields are never lost, so a program that has been
+	// typed stays valid.
+	Progressive bool
 }
 
 // Named is an instance of a datatype, e.g. "color" or
@@ -185,7 +193,12 @@ func LabelLess(a, b string) bool {
 	return a < b
 }
 
-func recordDesc(fields []Field) string {
+// recordDesc describes a record type: "{a:int, b:string}", or
+// "{a:int, ...}" if progressive, or "{...}" if progressive with no
+// fields yet. The description is the interning key, so a
+// progressive record is never confused with the plain record that
+// happens to have the same fields.
+func recordDesc(fields []Field, progressive bool) string {
 	var b strings.Builder
 	b.WriteString("{")
 	for i, f := range fields {
@@ -193,6 +206,12 @@ func recordDesc(fields []Field) string {
 			b.WriteString(", ")
 		}
 		b.WriteString(f.Label + ":" + f.Type.String())
+	}
+	if progressive {
+		if len(fields) > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString("...")
 	}
 	b.WriteString("}")
 	return b.String()
