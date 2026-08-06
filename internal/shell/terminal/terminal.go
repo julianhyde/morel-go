@@ -45,6 +45,29 @@ const (
 	continuationPrompt = "= "
 )
 
+// emacsKeymap is the keymap the shell uses.
+const emacsKeymap = "emacs"
+
+// extraBinds are the keys the Emacs keymap leaves unbound. The
+// library binds them in its Vi keymap only, so in the default Emacs
+// keymap they did nothing — and worse, a terminal that sends the
+// "\e[N~" form of a key left the '~' behind in the line, because
+// the prefix was swallowed and the terminator was not.
+//
+// A terminal sends Home and End as "\eOH"/"\eOF" or "\e[H"/"\e[F"
+// (both already bound), as "\e[1~"/"\e[4~" (xterm's other form,
+// and what tmux, screen and the Linux console send), or as
+// "\e[7~"/"\e[8~" (rxvt).
+var extraBinds = []struct{ seq, action string }{
+	{"\x1b[3~", "delete-char"},          // Delete
+	{"\x1b[1~", "beginning-of-line"},    // Home
+	{"\x1b[7~", "beginning-of-line"},    // Home, rxvt
+	{"\x1b[4~", "end-of-line"},          // End
+	{"\x1b[8~", "end-of-line"},          // End, rxvt
+	{"\x1b[5~", "up-line-or-history"},   // Page Up
+	{"\x1b[6~", "down-line-or-history"}, // Page Down
+}
+
 // The history file. morel-java writes ~/.morel/history and
 // morel-rust ~/.morel/history-rust; the three formats are not
 // compatible, so each implementation keeps its own.
@@ -69,6 +92,9 @@ func Repl(a *shell.Args, out io.Writer) error {
 	// is asked for; without this the continuation lines of a
 	// statement have no prompt at all.
 	_ = rl.Config.Set("multiline-column", true)
+	for _, b := range extraBinds {
+		_ = rl.Config.Bind(emacsKeymap, b.seq, b.action, false)
+	}
 
 	// A statement, however many lines it spans, is one unit: the
 	// line reader keeps reading until Split says the text holds
