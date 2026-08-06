@@ -727,6 +727,42 @@ func (r *typeResolver) typeTerm(t types.Type,
 	}
 }
 
+// instantiateSchemePredicate re-creates, at a use of a let-generalized
+// qualified binding, the overload constraint for one of its predicates.
+// It mirrors the *types.Qualified case of typeTerm, but works from the
+// predicate's resolved terms rather than a types.Type: the argument and
+// result share the binding's generalizable variables (via fresh, the
+// per-use renaming built by schemeTypeEnv.get), while each candidate is
+// copied in its own fresh variable scope. The resulting constraint is
+// resolved (or re-deferred) against this use's now-concrete argument,
+// exactly as at top level.
+func (r *typeResolver) instantiateSchemePredicate(p schemePredicate,
+	fresh map[*unify.Var]unify.Term,
+) {
+	argVar := r.u.Variable()
+	resultVar := r.u.Variable()
+	r.equiv(argVar, freshTerm(p.arg, fresh))
+	r.equiv(resultVar, freshTerm(p.result, fresh))
+	argResults := make([]unify.TermPair, len(p.candidates))
+	for i, cand := range p.candidates {
+		// Fresh variable scope per candidate: every variable is renamed.
+		cSet := map[*unify.Var]bool{}
+		collectVars(cand.arg, cSet)
+		collectVars(cand.result, cSet)
+		cSub := make(map[*unify.Var]unify.Term, len(cSet))
+		for v := range cSet {
+			cSub[v] = r.u.Variable()
+		}
+		vP := r.u.Variable()
+		vR := r.u.Variable()
+		r.equiv(vP, freshTerm(cand.arg, cSub))
+		r.equiv(vR, freshTerm(cand.result, cSub))
+		argResults[i] = unify.TermPair{Left: vP, Right: vR}
+	}
+	r.constraints = append(r.constraints,
+		unify.OverloadNamed(p.name, argVar, resultVar, argResults))
+}
+
 // astTypeTerm converts a type annotation to a term. A type
 // variable resolves in the innermost annotation scope, created
 // if absent, so annotations within one declaration share their
@@ -1424,12 +1460,63 @@ func (r *typeResolver) bindDeclGeneralized(env typeEnv,
 			env2 = bind(env2, pt.name, pt.term)
 			continue
 		}
+		// Capture the overload predicates the binding is left with: any
+		// residual named constraint (its argument type never became
+		// concrete) whose variables overlap this binding's generalizable
+		// variables. Storing them on the scheme lets each use
+		// re-instantiate them, so a let-generalized value that uses
+		// overloaded names at an abstract type gets a qualified type and
+		// evaluates by dictionary passing (hydromatic/morel#426).
+		predicates := schemePredicates(subst, genVars)
 		env2 = &schemeTypeEnv{
 			parent: env2, name: pt.name,
 			resolved: resolved, genVars: genVars,
+			predicates: predicates,
 		}
 	}
 	return env2
+}
+
+// schemePredicates returns the overload predicates to store on a
+// generalized binding's scheme: each residual named overload constraint
+// left by the binding's local solve whose (resolved) argument or result
+// variables overlap the binding's generalizable variables. The terms are
+// resolved once here; schemeTypeEnv.get refreshes them per use.
+func schemePredicates(subst *unify.Substitution,
+	genVars []*unify.Var,
+) []schemePredicate {
+	if len(subst.Residuals) == 0 {
+		return nil
+	}
+	genSet := make(map[*unify.Var]bool, len(genVars))
+	for _, g := range genVars {
+		genSet[g] = true
+	}
+	var predicates []schemePredicate
+	for _, con := range subst.Residuals {
+		argTerm := subst.Resolve(con.Arg)
+		resultTerm := subst.Resolve(con.Result)
+		conVars := map[*unify.Var]bool{}
+		collectVars(argTerm, conVars)
+		collectVars(resultTerm, conVars)
+		if disjointVars(conVars, genSet) {
+			continue
+		}
+		candidates := make([]schemeCandidate, len(con.ArgResults))
+		for i, ar := range con.ArgResults {
+			candidates[i] = schemeCandidate{
+				arg:    subst.Resolve(ar.Left),
+				result: subst.Resolve(ar.Right),
+			}
+		}
+		predicates = append(predicates, schemePredicate{
+			name:       con.Name,
+			arg:        argTerm,
+			result:     resultTerm,
+			candidates: candidates,
+		})
+	}
+	return predicates
 }
 
 // overlapsAction reports whether any of bindingVars is the target of

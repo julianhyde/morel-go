@@ -78,6 +78,18 @@ demo (3,"four");
  * that 'first' and 'second' are not also overloaded at top level. *)
 Sys.clearEnv ();
 > val it = () : unit
+let
+  over first
+  over second
+  val inst first = fn (x, y) => x
+  val inst second = fn (x, y) => y
+  val inst first = fn (x, y, z) => x
+  val inst second = fn (x, y, z) => y
+  val demo = fn r => (second r, first r)
+in
+  (demo (3, "four", 5), demo (3, "four"))
+end;
+> val it = (("four",3),("four",3)) : (string * int) * (string * int)
 
 (* -------------------------------------------------------------------
  * A qualified value can be aliased, and can be used inside another
