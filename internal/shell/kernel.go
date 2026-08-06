@@ -142,6 +142,20 @@ type Kernel struct {
 	pendingLines []string
 	// useDepth is the current nesting depth of "use" calls.
 	useDepth int
+	// fileRoot is the file system that "file" browses, and fileDir
+	// the directory it was built for. It is built on first use and
+	// rebuilt if the "directory" property has changed since, so
+	// that a harness that sets the directory after the kernel is
+	// made still gets the directory it asked for. It accumulates
+	// what browsing has discovered, so it must outlive a statement.
+	fileRoot *eval.File
+	fileDir  string
+	// fileValues records, per top-level name, the file it is bound
+	// to — so that "val s = file.scott" lets a later statement
+	// discover fields on "s". A name bound to something that is not
+	// a file maps to nil, marking it as shadowing any file of that
+	// name.
+	fileValues map[string]*eval.File
 }
 
 // NewKernel returns a kernel; name (e.g. "stdIn" or a file name)
@@ -157,6 +171,7 @@ func NewKernel(name string) *Kernel {
 	bindings := compile.TopBindings(sys)
 	for i := range result.Bindings {
 		adaptRelationalAggregates(sys, &result.Bindings[i])
+		adaptSysFile(sys, &result.Bindings[i])
 	}
 	bindings = append(bindings, result.Bindings...)
 	config := DefaultConfig()
@@ -174,6 +189,7 @@ func NewKernel(name string) *Kernel {
 		inlineExps: map[string]core.Exp{},
 		recFns:     map[string]*core.Fn{},
 		gapSample:  map[string]string{},
+		fileValues: map[string]*eval.File{},
 	}
 	// Method overloads that the signature files cannot express (a
 	// record has one field per name): Range.contains dispatched on
@@ -326,6 +342,30 @@ func (k *Kernel) recordGap(msg string) {
 	}
 }
 
+// adaptSysFile rewrites the "Sys" structure's "file" member to the
+// type it really has, "{...}" — a record whose fields are not
+// known until the file system is browsed. The signature file
+// writes it as "{}", the nearest thing Morel's type syntax can
+// say, and "{}" is unit. Other structures and members are left
+// unchanged.
+func adaptSysFile(sys *types.System, b *compile.Binding) {
+	if b.Name != "Sys" {
+		return
+	}
+	record, ok := b.Type.(*types.Record)
+	if !ok {
+		return
+	}
+	fields := make([]types.Field, len(record.Fields))
+	for i, f := range record.Fields {
+		fields[i] = f
+		if f.Label == compile.FileName {
+			fields[i].Type = sys.ProgressiveRecord(nil)
+		}
+	}
+	b.Type = sys.Record(fields)
+}
+
 // adaptRelationalAggregates rewrites the "Relational" structure's
 // aggregate members (count, sum, only, ...) so that each takes a
 // collection of free orderedness — a list or a bag — matching the
@@ -367,6 +407,76 @@ func (k *Kernel) loadScott() {
 		}
 		k.bind(b.name, b.typ)
 		k.values[b.name] = b.val
+	}
+}
+
+// files returns the session's view of the file system, building
+// it on first use and rebuilding it if the "directory" property
+// has changed. It also binds the name "file" to the root, so that
+// a statement that mentions it can be evaluated.
+func (k *Kernel) files() *compile.Files {
+	dir := k.config.Directory
+	if dir == "" {
+		dir = "."
+	}
+	if k.fileRoot == nil || k.fileDir != dir {
+		k.fileRoot = eval.NewFile(dir)
+		k.fileDir = dir
+		// "Sys.file" is the same file system as "file"; its value
+		// is per-session, so it is filled in here rather than at
+		// boot, once the directory is known.
+		k.values["Sys.file"] = k.fileRoot
+		k.setStructureField("Sys", compile.FileName, k.fileRoot)
+		// So that "Sys.file.scott" browses, as "file.scott" does.
+		k.fileValues["Sys."+compile.FileName] = k.fileRoot
+	}
+	if _, shadowed := k.fileValues[compile.FileName]; !shadowed {
+		k.values[compile.FileName] = k.fileRoot
+	}
+	return &compile.Files{Root: k.fileRoot, Bound: k.fileValues}
+}
+
+// setStructureField sets one member of a structure's record value,
+// finding the member's slot from the structure's type. It does
+// nothing if there is no such structure or member.
+func (k *Kernel) setStructureField(structure, member string,
+	v eval.Val,
+) {
+	for _, b := range k.bindings {
+		if b.Name != structure {
+			continue
+		}
+		record, isRecord := b.Type.(*types.Record)
+		if !isRecord {
+			return
+		}
+		fields, isRecordVal := k.values[structure].([]eval.Val)
+		if !isRecordVal {
+			return
+		}
+		for i, f := range record.Fields {
+			if f.Label == member && i < len(fields) {
+				fields[i] = v
+				return
+			}
+		}
+		return
+	}
+}
+
+// recordFileBinding notes whether a top-level name is bound to a
+// file, so that fields can be discovered on it later. A name bound
+// to anything else is remembered as shadowing — but only if it
+// could have denoted a file, so that ordinary bindings do not
+// accumulate.
+func (k *Kernel) recordFileBinding(name string, v eval.Val) {
+	if f, isFile := v.(*eval.File); isFile {
+		k.fileValues[name] = f
+		return
+	}
+	_, tracked := k.fileValues[name]
+	if tracked || name == compile.FileName {
+		k.fileValues[name] = nil
 	}
 }
 
@@ -585,7 +695,8 @@ func (k *Kernel) runStatement(n ast.Node) string {
 		return ast.UnparseSignatureDecl(sigDecl)
 	}
 	k.methods.RewriteDecl(decl)
-	resolved, err := compile.Deduce(k.sys, k.bindings, decl)
+	resolved, err := compile.DeduceFiles(k.sys, k.bindings, decl,
+		k.files())
 	if err != nil {
 		return k.formatCompileError(err)
 	}
@@ -685,6 +796,7 @@ func (k *Kernel) runStatement(n ast.Node) string {
 		v := frame.Slots[b.Slot]
 		k.bind(b.Pat.Name, b.Pat.T)
 		k.values[b.Pat.Name] = v
+		k.recordFileBinding(b.Pat.Name, v)
 		lines = append(lines,
 			k.config.prettyBinding(b.Pat.Name, v, b.Pat.T,
 				b.Pat.SurfaceT))
@@ -888,7 +1000,8 @@ func (k *Kernel) executeTypeOnly(src string) string {
 		return ast.UnparseSignatureDecl(sigDecl)
 	}
 	k.methods.RewriteDecl(decl)
-	resolved, err := compile.Deduce(k.sys, k.bindings, decl)
+	resolved, err := compile.DeduceFiles(k.sys, k.bindings, decl,
+		k.files())
 	if err != nil {
 		return k.formatCompileError(err)
 	}
