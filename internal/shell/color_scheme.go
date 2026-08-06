@@ -17,7 +17,11 @@
 
 package shell
 
-import "strings"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
 
 // The built-in syntax-highlighting color schemes. A style is zero
 // or more attributes (bold, italic, underline, faint) followed by a
@@ -41,6 +45,7 @@ const (
 	styleMagenta = "magenta"
 	styleRed     = "underline red"
 	styleGreen   = "green"
+	styleYellow  = "yellow"
 )
 
 // ColorScheme is a style for each token category, by name.
@@ -62,10 +67,10 @@ var colorSchemes = []ColorScheme{
 		Name: SchemeDark,
 		Styles: map[Category]string{
 			CatComment:  "italic 245",
-			CatConstant: "yellow",
+			CatConstant: styleYellow,
 			CatError:    styleRed,
 			CatKeyword:  "bold cyan",
-			CatNumeric:  "yellow",
+			CatNumeric:  styleYellow,
 			CatString:   styleGreen,
 			CatSymbol:   "cyan",
 			CatTypeVar:  styleMagenta,
@@ -210,4 +215,114 @@ func lowerASCII(b byte) byte {
 		return b - 'A' + 'a'
 	}
 	return b
+}
+
+// ansiAttrs are the style attributes, and their SGR parameters.
+var ansiAttrs = map[string]string{
+	// lint: sort until '^}' where '^\t"'
+	"blink":       "5",
+	"bold":        "1",
+	"conceal":     "8",
+	"crossed-out": "9",
+	"faint":       "2",
+	"inverse":     "7",
+	"italic":      "3",
+	"underline":   "4",
+}
+
+// ansiColors are the named colors, and their SGR foreground
+// parameters.
+var ansiColors = map[string]string{
+	// lint: sort until '^}' where '^\t"'
+	"black":          "30",
+	"blue":           "34",
+	"bright-black":   "90",
+	"bright-blue":    "94",
+	"bright-cyan":    "96",
+	"bright-green":   "92",
+	"bright-magenta": "95",
+	"bright-red":     "91",
+	"bright-white":   "97",
+	"bright-yellow":  "93",
+	"cyan":           "36",
+	"green":          "32",
+	"magenta":        "35",
+	"red":            "31",
+	"white":          "37",
+	"yellow":         "33",
+}
+
+// AnsiReset ends a styled span.
+const AnsiReset = "\x1b[0m"
+
+// AnsiPrefix converts a style such as "bold cyan" or "italic 245"
+// into the SGR sequence that begins it, or "" if the style is empty
+// or unrecognized.
+func AnsiPrefix(style string) string {
+	var params []string
+	for tok := range strings.FieldsSeq(style) {
+		switch {
+		case ansiAttrs[tok] != "":
+			params = append(params, ansiAttrs[tok])
+		case ansiColors[tok] != "":
+			params = append(params, ansiColors[tok])
+		default:
+			if code, ok := ansiColorCode(tok); ok {
+				params = append(params, code)
+			}
+		}
+	}
+	if len(params) == 0 {
+		return ""
+	}
+	return "\x1b[" + strings.Join(params, ";") + "m"
+}
+
+// ansiColorCode is the SGR foreground parameter for a palette index
+// 0-255 ("38;5;N") or an "#rrggbb" color ("38;2;R;G;B").
+func ansiColorCode(tok string) (string, bool) {
+	const (
+		hexBase   = 16
+		hexDigits = 6
+		byteBits  = 8
+		redShift  = 2 * byteBits
+		maxIndex  = 255
+	)
+	if hex, ok := strings.CutPrefix(tok, "#"); ok {
+		if len(hex) != hexDigits {
+			return "", false
+		}
+		n, err := strconv.ParseUint(hex, hexBase, 32)
+		if err != nil {
+			return "", false
+		}
+		r := (n >> redShift) & maxIndex
+		g := (n >> byteBits) & maxIndex
+		b := n & maxIndex
+		return fmt.Sprintf("38;2;%d;%d;%d", r, g, b), true
+	}
+	n, err := strconv.Atoi(tok)
+	if err != nil || n < 0 || n > maxIndex {
+		return "", false
+	}
+	return "38;5;" + strconv.Itoa(n), true
+}
+
+// Highlight returns src with each span wrapped in the ANSI escapes
+// its category calls for. A category with no style, and every
+// category under the "none" scheme, is left unchanged.
+func (s ColorScheme) Highlight(src string) string {
+	var b strings.Builder
+	for _, span := range Scan(src) {
+		text := src[span.Start:span.End]
+		prefix := AnsiPrefix(s.Style(span.Category))
+		if prefix == "" {
+			b.WriteString(text)
+			continue
+		}
+		b.WriteString(prefix)
+		b.WriteString(text)
+		b.WriteString(AnsiReset)
+	}
+	return b.String()
 }

@@ -18,6 +18,7 @@
 package shell_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/hydromatic/morel-go/internal/shell"
@@ -85,5 +86,76 @@ func TestFindColorScheme(t *testing.T) {
 	d, _ := shell.FindColorScheme("dark")
 	if got := d.Style(shell.CatKeyword); got != "bold cyan" {
 		t.Errorf(`"dark" styles keywords as %q`, got)
+	}
+}
+
+// TestAnsiPrefix checks the conversion of a style spec into the
+// SGR sequence that begins it.
+func TestAnsiPrefix(t *testing.T) {
+	const esc = "\x1b["
+	for _, tc := range []struct{ style, want string }{
+		{"", ""},
+		{"bold", esc + "1m"},
+		{"cyan", esc + "36m"},
+		{"bold cyan", esc + "1;36m"},
+		{"underline red", esc + "4;31m"},
+		{"italic bright-black", esc + "3;90m"},
+		// A palette index, and a #rrggbb color.
+		{"245", esc + "38;5;245m"},
+		{"italic 245", esc + "3;38;5;245m"},
+		{"#ff8000", esc + "38;2;255;128;0m"},
+		// Unrecognized words contribute nothing.
+		{"chartreuse", ""},
+		{"256", ""},
+		{"#fff", ""},
+		{"bold chartreuse", esc + "1m"},
+	} {
+		if got := shell.AnsiPrefix(tc.style); got != tc.want {
+			t.Errorf("AnsiPrefix(%q) = %q, want %q", tc.style,
+				got, tc.want)
+		}
+	}
+}
+
+// TestHighlight checks that a scheme wraps each span, and that
+// "none" leaves the source alone.
+func TestHighlight(t *testing.T) {
+	const src = `val x = 1 (* hi *) "s";`
+	none, _ := shell.FindColorScheme("none")
+	if got := none.Highlight(src); got != src {
+		t.Errorf(`"none" changed the source: %q`, got)
+	}
+	dark, _ := shell.FindColorScheme("dark")
+	got := dark.Highlight(src)
+	// Every styled span is closed, and the visible text is
+	// unchanged once the escapes are removed.
+	if plain := stripSGR(got); plain != src {
+		t.Errorf("highlighting changed the text:\n got %q\nwant %q",
+			plain, src)
+	}
+	for _, want := range []string{
+		"\x1b[1;36mval\x1b[0m",            // keyword: bold cyan
+		"\x1b[33m1\x1b[0m",                // numeric: yellow
+		"\x1b[32m\"s\"\x1b[0m",            // string: green
+		"\x1b[3;38;5;245m(* hi *)\x1b[0m", // comment
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("highlighted source lacks %q", want)
+		}
+	}
+}
+
+// stripSGR removes SGR escape sequences.
+func stripSGR(s string) string {
+	for {
+		i := strings.Index(s, "\x1b[")
+		if i < 0 {
+			return s
+		}
+		j := strings.IndexByte(s[i:], 'm')
+		if j < 0 {
+			return s
+		}
+		s = s[:i] + s[i+j+1:]
 	}
 }
