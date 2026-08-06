@@ -147,3 +147,33 @@ func TestScanEveryPrefix(t *testing.T) {
 		scanString(t, src[:i])
 	}
 }
+
+// TestScanQuotedIdent checks that a quoted identifier is one
+// identifier span, whatever it contains: a keyword inside backticks
+// is a name, not a keyword.
+func TestScanQuotedIdent(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		// The user's examples.
+		{"from `from` in [1,2]", "KKKK.iiiiii.KK.ynyny"},
+		{"val `o` = 1", "KKK.iii.y.n"},
+		{"val `let val` = 2;", "KKK.iiiiiiiii.y.ny"},
+		// A plain quoted name.
+		{"`x`", "iii"},
+		// A doubled backtick is a literal one, and does not
+		// close the identifier.
+		{"`a``b`", "iiiiii"},
+		// Backticks are not swallowed by an adjacent symbol
+		// run: "=" then a quoted name, with no space.
+		{"x=`y`", "iyiii"},
+		// Unterminated: runs to the end, as the shell must
+		// color it while it is being typed.
+		{"`", "i"},
+		{"`ab", "iii"},
+		{"`a``", "iiii"},
+	} {
+		if got := scanString(t, tc.src); got != tc.want {
+			t.Errorf("Scan(%q):\n got %s\nwant %s",
+				tc.src, got, tc.want)
+		}
+	}
+}

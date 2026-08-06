@@ -92,6 +92,8 @@ func Scan(src string) []Span {
 			i, cat = scanComment(src, i), CatComment
 		case r == '"':
 			i, cat = scanString(src, i), CatString
+		case r == '`':
+			i, cat = scanQuotedIdent(src, i), CatIdentifier
 		case r == '\'' && startsIdent(src[i+w:]):
 			i, cat = scanIdentRest(src, i+w), CatTypeVar
 		case unicode.IsLetter(r) || r == '_':
@@ -143,7 +145,8 @@ func isIdentRune(r rune) bool {
 // characters: anything that does not start some other token.
 func isSymbolRune(r rune) bool {
 	return !unicode.IsLetter(r) && !unicode.IsDigit(r) &&
-		!unicode.IsSpace(r) && r != '"' && r != '\'' && r != '_'
+		!unicode.IsSpace(r) && r != '"' && r != '\'' &&
+		r != '_' && r != '`'
 }
 
 // scanIdentRest returns the offset just past an identifier whose
@@ -229,6 +232,27 @@ func scanString(src string, start int) int {
 		case '\\':
 			i = min(i+escapeLen, len(src))
 		case '"':
+			return i + 1
+		default:
+			i++
+		}
+	}
+	return len(src)
+}
+
+// scanQuotedIdent returns the offset just past the quoted
+// identifier starting at start, or the end of the input if it is
+// unterminated. A doubled backtick stands for a literal one, as in
+// the parser's lexer, so it does not close the identifier.
+//
+// The whole of `let val` is one identifier, keywords and all, so
+// none of it highlights as a keyword.
+func scanQuotedIdent(src string, start int) int {
+	for i := start + 1; i < len(src); {
+		switch {
+		case strings.HasPrefix(src[i:], "``"):
+			i += len("``")
+		case src[i] == '`':
 			return i + 1
 		default:
 			i++
