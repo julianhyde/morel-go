@@ -28,6 +28,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hydromatic/morel-go/internal/csv"
 	"github.com/hydromatic/morel-go/internal/types"
 )
 
@@ -69,7 +70,7 @@ type File struct {
 	// row describes a data file's columns, in label order. It is
 	// nil for a directory, and for a data file whose header is
 	// empty.
-	row []Column
+	row []column
 }
 
 // FileKind is what kind of file an entry is, deduced from its name.
@@ -112,75 +113,78 @@ func (k FileKind) suffix() string {
 // CSVKind.
 var dataKinds = []FileKind{CSVGzKind, CSVKind}
 
-// Column is one column of a data file: the record label it
+// column is one column of a data file: the record label it
 // supplies, the parser its cells go through, and the position of
 // those cells in the file's lines. Columns are held in label
-// order, so Index is not usually the column's own position in the
+// order, so index is not usually the column's own position in the
 // slice.
-type Column struct {
-	Label string
-	Parse ColumnParser
-	Index int
+type column struct {
+	label string
+	parse columnParser
+	index int
 }
 
-// ColumnParser converts a cell of a data file to a value, as the
+// columnParser converts a cell of a data file to a value, as the
 // column's declared type says.
-type ColumnParser int
+type columnParser int
 
-// The column parsers. StringParser is the default: a column whose
+// The column parsers. stringParser is the default: a column whose
 // header declares no type, or a type we do not recognize (such as
 // "date"), is read as a string.
 const (
-	StringParser ColumnParser = iota
-	IntParser
-	RealParser
-	BoolParser
+	stringParser columnParser = iota
+	intParser
+	realParser
+	boolParser
 )
 
 // parserOf returns the parser for a type named in a header, e.g.
 // the "int" of "deptno:int".
-func parserOf(name string) ColumnParser {
+func parserOf(name string) columnParser {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch name {
 	case "bool":
-		return BoolParser
+		return boolParser
 	case "decimal", "double":
-		return RealParser
+		return realParser
 	case "int":
-		return IntParser
+		return intParser
 	default:
-		return StringParser
+		return stringParser
 	}
 }
 
 // typ is the Morel type of the values this parser produces.
-func (p ColumnParser) typ(sys *types.System) types.Type {
+func (p columnParser) typ(sys *types.System) types.Type {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch p {
-	case BoolParser:
+	case boolParser:
 		return sys.Bool
-	case IntParser:
+	case intParser:
 		return sys.Int
-	case RealParser:
+	case realParser:
 		return sys.Real
-	case StringParser:
+	case stringParser:
 		return sys.String
 	}
 	return sys.String
 }
 
 // parse converts one cell. A cell that does not parse, and the
-// "NULL" that marks a missing value, give the type's zero.
-func (p ColumnParser) parse(s string) Val {
+// "NULL" that marks a missing value, give the type's zero. A data
+// file is browsed, not validated, so a bad cell is not an error;
+// Datalog's ".input", which loads a file the program named, is
+// stricter.
+func (p columnParser) parse(s string) Val {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch p {
-	case BoolParser:
+	case boolParser:
 		switch strings.ToLower(s) {
 		case "true", "t", "1":
 			return true
 		}
 		return false
-	case IntParser:
+	case intParser:
 		if s == "NULL" {
 			return int32(0)
 		}
@@ -189,7 +193,7 @@ func (p ColumnParser) parse(s string) Val {
 			return int32(0)
 		}
 		return int32(n)
-	case RealParser:
+	case realParser:
 		if s == "NULL" {
 			return float32(0)
 		}
@@ -198,19 +202,10 @@ func (p ColumnParser) parse(s string) Val {
 			return float32(0)
 		}
 		return float32(f)
-	case StringParser:
-		return unquote(s)
+	case stringParser:
+		return csv.Unquote(s)
 	}
-	return unquote(s)
-}
-
-// unquote strips the single quotes that a data file may wrap a
-// string in, so that "'SMITH'" reads as "SMITH".
-func unquote(s string) string {
-	if len(s) >= 2 && s[0] == '\'' && s[len(s)-1] == '\'' {
-		return s[1 : len(s)-1]
-	}
-	return s
+	return csv.Unquote(s)
 }
 
 // NewFile returns the File at a path, unexpanded. Its kind comes
@@ -420,7 +415,7 @@ func (f *File) typ(sys *types.System) types.Type {
 		fields := make([]types.Field, len(f.row))
 		for i, c := range f.row {
 			fields[i] = types.Field{
-				Label: c.Label, Type: c.Parse.typ(sys),
+				Label: c.label, Type: c.parse.typ(sys),
 			}
 		}
 		return sys.List(sys.Record(fields))
@@ -467,10 +462,10 @@ func readDir(path string) []*File {
 }
 
 // readHeader reads a data file's first line and converts it to
-// columns in label order. A header field is "name" or "name:type";
-// a name with no type is a string. The flag is false if the file
-// could not be read, true (with no columns) if it is empty.
-func readHeader(path string, kind FileKind) ([]Column, bool) {
+// columns in label order, each with the parser its declared type
+// calls for. The flag is false if the file could not be read, true
+// (with no columns) if it is empty.
+func readHeader(path string, kind FileKind) ([]column, bool) {
 	r, closer := open(path, kind)
 	if r == nil {
 		return nil, false
@@ -480,21 +475,20 @@ func readHeader(path string, kind FileKind) ([]Column, bool) {
 	if err != nil && line == "" {
 		return nil, false
 	}
-	line = strings.TrimRight(line, "\r\n")
-	if line == "" {
+	header := csv.ParseHeader(strings.TrimRight(line, "\r\n"))
+	if len(header) == 0 {
 		return nil, true
 	}
-	var columns []Column
-	for i, field := range strings.Split(line, ",") {
-		name, typeName, _ := strings.Cut(field, ":")
-		columns = append(columns, Column{
-			Label: name,
-			Parse: parserOf(typeName),
-			Index: i,
-		})
+	columns := make([]column, len(header))
+	for i, c := range header {
+		columns[i] = column{
+			label: c.Name,
+			parse: parserOf(c.Type),
+			index: c.Index,
+		}
 	}
 	sort.Slice(columns, func(i, j int) bool {
-		return types.LabelLess(columns[i].Label, columns[j].Label)
+		return types.LabelLess(columns[i].label, columns[j].label)
 	})
 	return columns, true
 }
@@ -537,15 +531,15 @@ func (cs closers) Close() error {
 // column, in label order, each cell taken from the position the
 // column's header had and put through its parser. A line too short
 // to supply a cell gives that field its type's zero.
-func parseRow(line string, row []Column) Val {
-	cells := strings.Split(line, ",")
+func parseRow(line string, row []column) Val {
+	cells := csv.Cells(line)
 	fields := make([]Val, len(row))
 	for i, c := range row {
 		cell := ""
-		if c.Index < len(cells) {
-			cell = cells[c.Index]
+		if c.index < len(cells) {
+			cell = cells[c.index]
 		}
-		fields[i] = c.Parse.parse(cell)
+		fields[i] = c.parse.parse(cell)
 	}
 	return fields
 }
