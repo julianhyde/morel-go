@@ -1353,7 +1353,7 @@ func groupRowIsAtom(group *ast.GroupStep, compute *ast.ComputeStep,
 // literal with exactly one field.
 func isSingletonRecord(exp ast.Expr) bool {
 	rec, ok := exp.(*ast.Record)
-	return ok && rec.With == nil && len(rec.Fields) == 1
+	return ok && rec.Replace == nil && len(rec.Fields) == 1
 }
 
 // recordExp builds a record of the given variables, sorted by name
@@ -1416,7 +1416,7 @@ type stepField struct {
 // labelled fields: a record's fields (by their labels or implicit
 // labels), or a single field labelled by its implicit label.
 func (r *resolver) stepFields(exp ast.Expr) []stepField {
-	if rec, ok := exp.(*ast.Record); ok && rec.With == nil {
+	if rec, ok := exp.(*ast.Record); ok && rec.Replace == nil {
 		fields := make([]stepField, len(rec.Fields))
 		for i, f := range rec.Fields {
 			label := f.Label
@@ -1809,7 +1809,7 @@ const cannotDeriveLabel = "cannot derive label for expression"
 func (r *resolver) toRecord(env *coreEnv, record *ast.Record,
 	t types.Type,
 ) (core.Exp, error) {
-	if record.With != nil {
+	if record.Replace != nil {
 		return r.toRecordUpdate(env, record, t)
 	}
 	// The empty record is unit, the same value as "()".
@@ -1907,7 +1907,7 @@ func (r *resolver) toRecordUpdate(env *coreEnv, record *ast.Record,
 		}
 		updates[label] = f.Exp
 	}
-	baseExp, err := r.toExp(env, record.With)
+	baseExp, err := r.toExp(env, record.Replace)
 	if err != nil {
 		return nil, err
 	}

@@ -292,8 +292,8 @@ func (w *aggWalker) exp(e ast.Expr) {
 			}
 		}
 	case *ast.Record:
-		if e.With != nil {
-			w.exp(e.With)
+		if e.Replace != nil {
+			w.exp(e.Replace)
 		}
 		for _, f := range e.Fields {
 			w.exp(f.Exp)

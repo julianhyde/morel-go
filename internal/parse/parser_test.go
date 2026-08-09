@@ -480,8 +480,8 @@ func TestParseHardening(t *testing.T) {
 	checkExpr(t, "(from)", "(from from)")
 	checkExpr(t, "not exists",
 		"(apply (id not) (exists exists))")
-	// The "with" source of a record update is not dumped.
-	checkExpr(t, "{e with deptno = 10}",
+	// The source of a record update is not dumped.
+	checkExpr(t, "{e replace deptno = 10}",
 		"(record (deptno (int_literal 10)))")
 	checkExpr(t, "x : typeof y",
 		"(annotatedExp (id x) (expression_type typeof y))")

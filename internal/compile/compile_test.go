@@ -137,7 +137,7 @@ func TestDeduce(t *testing.T) {
 		{"fn {f, g} => true", "{f:'a, g:'b} -> bool"},
 		{"fn (x, y) => x", "'a * 'b -> 'a"},
 		{"(fn {f, ...} => f) {f=1, g=true}", "int"},
-		{"{{a=1,b=true} with b=false}", "{a:int, b:bool}"},
+		{"{{a=1,b=true} replace b=false}", "{a:int, b:bool}"},
 		{"let val x = {a=1, b=true} in #b x end", "bool"},
 		{"fun id x = x", "'a -> 'a"},
 		{"fun first x y = x", "'a -> 'b -> 'a"},

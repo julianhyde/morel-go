@@ -101,7 +101,7 @@ const (
 	Union
 	Unorder
 	Where
-	With
+	Replace
 	Yield
 	YieldAll
 
@@ -220,7 +220,7 @@ var kindNames = map[Kind]string{
 	Union:            "union",
 	Unorder:          "unorder",
 	Where:            "where",
-	With:             "with",
+	Replace:          "replace",
 	Yield:            "yield",
 	YieldAll:         "yieldAll",
 	Inst:             "inst",

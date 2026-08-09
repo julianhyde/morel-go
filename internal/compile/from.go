@@ -648,7 +648,7 @@ func (st *fromState) yieldStep(s *ast.YieldStep) error {
 // "current" when it has none.
 func (r *typeResolver) deduceYield(env typeEnv, exp ast.Expr,
 ) ([]labelTerm, unify.Term, error) {
-	if rec, ok := exp.(*ast.Record); ok && rec.With == nil {
+	if rec, ok := exp.(*ast.Record); ok && rec.Replace == nil {
 		fields, err := r.deduceRecordFields(env, rec)
 		if err != nil {
 			return nil, nil, err

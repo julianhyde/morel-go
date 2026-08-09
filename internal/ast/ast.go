@@ -277,8 +277,8 @@ type Field struct {
 type Record struct {
 	exprBase
 
-	With   Expr
-	Fields []Field
+	Replace Expr
+	Fields  []Field
 }
 
 // NewRecord returns a record expression.

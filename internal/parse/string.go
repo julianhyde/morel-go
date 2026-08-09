@@ -143,6 +143,7 @@ var reservedWords = map[string]bool{
 	"over":      true,
 	"raise":     true,
 	"rec":       true,
+	"replace":   true,
 	"require":   true,
 	"right":     true,
 	"sig":       true,
@@ -157,6 +158,5 @@ var reservedWords = map[string]bool{
 	"unorder":   true,
 	"val":       true,
 	"where":     true,
-	"with":      true,
 	"yield":     true,
 }

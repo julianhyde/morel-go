@@ -125,8 +125,8 @@ func (w *independenceWalker) exp(e ast.Expr, depth int) {
 	case *ast.Raise:
 		w.exp(e.E, depth)
 	case *ast.Record:
-		if e.With != nil {
-			w.exp(e.With, depth)
+		if e.Replace != nil {
+			w.exp(e.Replace, depth)
 		}
 		for _, f := range e.Fields {
 			w.exp(f.Exp, depth)

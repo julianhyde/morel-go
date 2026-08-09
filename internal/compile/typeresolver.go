@@ -1726,7 +1726,7 @@ func rangeListContainsQuery(e *ast.RangeList) bool {
 }
 
 func recordContainsQuery(e *ast.Record) bool {
-	if e.With != nil && containsQuery(e.With) {
+	if e.Replace != nil && containsQuery(e.Replace) {
 		return true
 	}
 	return slices.ContainsFunc(e.Fields, func(f ast.Field) bool {
@@ -2203,12 +2203,12 @@ func (r *typeResolver) deduceRecord(env typeEnv,
 	for _, f := range fields {
 		labelTypes[f.label] = f.term
 	}
-	if record.With == nil {
+	if record.Replace == nil {
 		r.regEquiv(record, v, r.recordTerm(fields))
 		return nil
 	}
 	v2 := r.u.Variable()
-	err = r.deduceExp(env, record.With, v2)
+	err = r.deduceExp(env, record.Replace, v2)
 	if err != nil {
 		return err
 	}

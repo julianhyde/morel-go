@@ -945,7 +945,7 @@ func (p *Parser) recordExpr() (ast.Expr, error) {
 			return nil, err
 		}
 		if first && f.Label == "" &&
-			p.tok.Kind == token.With {
+			p.tok.Kind == token.Replace {
 			with = f.Exp
 			err = p.next()
 			if err != nil {
@@ -974,7 +974,7 @@ func (p *Parser) recordExpr() (ast.Expr, error) {
 		return nil, err
 	}
 	r := ast.NewRecord(span, fields)
-	r.With = with
+	r.Replace = with
 	return r, nil
 }
 
