@@ -328,6 +328,33 @@ func TestDeduceError(t *testing.T) {
 			"(true + true) + (false + false)",
 			"operator '+' is not defined for type 'bool'",
 		},
+		// Every record modifier parses, but so far only a lone
+		// "replace" with assignments is compiled; the rest are
+		// reported here.
+		{
+			"{{a=1} extend b=2}",
+			"record modifier 'extend' is not supported",
+		},
+		{
+			"{{a=1} remove or skip a}",
+			"record modifier 'remove or skip' is not supported",
+		},
+		{
+			"{{a=1} rename b = a}",
+			"record modifier 'rename' is not supported",
+		},
+		{
+			"{{a=1} replace all {a=2}}",
+			"record modifier 'replace all' is not supported",
+		},
+		{
+			"{{a=1} replace lenient a=true}",
+			"record modifier 'replace lenient' is not supported",
+		},
+		{
+			"{{a=1,b=2} replace a=3 replace b=4}",
+			"a chain of record modifiers is not supported",
+		},
 	} {
 		t.Run(tc.src, func(t *testing.T) {
 			_, err := deduce(t, tc.src)

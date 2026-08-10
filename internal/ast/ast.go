@@ -271,19 +271,35 @@ type Field struct {
 }
 
 // Record is a record expression, "{a = e1, b = e2, ...}", with
-// fields in source order. With is the source expression of a
-// record update, "{e with a = e1}", or nil; it does not appear
-// in the parse-tree dump.
+// fields in source order, or a base expression and the
+// modifiers applied to it, "{e replace a = e1 remove b}".
+//
+// A record has either fields or a base; the parser settles
+// which, because the modifiers apply to the single unlabeled
+// field, if that is what there is, and are an error otherwise.
+// Base does not appear in the parse-tree dump.
 type Record struct {
 	exprBase
 
-	Replace Expr
-	Fields  []Field
+	Base      Expr
+	Fields    []Field
+	Modifiers []Modifier
 }
 
 // NewRecord returns a record expression.
 func NewRecord(span token.Span, fields []Field) *Record {
 	return &Record{exprBase: exprBase{base{span}}, Fields: fields}
+}
+
+// NewRecordModify returns a record expression that applies
+// modifiers to a base expression.
+func NewRecordModify(span token.Span, baseExp Expr,
+	modifiers []Modifier,
+) *Record {
+	return &Record{
+		exprBase: exprBase{base{span}}, Base: baseExp,
+		Modifiers: modifiers,
+	}
 }
 
 // Op implements Node.

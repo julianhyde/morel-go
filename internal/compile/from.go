@@ -648,8 +648,8 @@ func (st *fromState) yieldStep(s *ast.YieldStep) error {
 // "current" when it has none.
 func (r *typeResolver) deduceYield(env typeEnv, exp ast.Expr,
 ) ([]labelTerm, unify.Term, error) {
-	if rec, ok := exp.(*ast.Record); ok && rec.Replace == nil {
-		fields, err := r.deduceRecordFields(env, rec)
+	if rec, ok := exp.(*ast.Record); ok && rec.Base == nil {
+		fields, err := r.deduceRecordFields(env, rec.Fields)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -688,6 +688,13 @@ func implicitLabel(exp ast.Expr) string {
 		// An aggregate "fn over e" takes its label from the function.
 		if e.Kind == ast.OverOp {
 			return implicitLabel(e.A0)
+		}
+	case *ast.Record:
+		// A record with modifiers takes the label its base implies,
+		// so "{a = 1, {b remove x}}" labels the second field "b". A
+		// record without them has no implicit label.
+		if e.Base != nil {
+			return implicitLabel(e.Base)
 		}
 	}
 	return ""

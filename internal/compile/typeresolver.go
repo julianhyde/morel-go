@@ -1726,12 +1726,21 @@ func rangeListContainsQuery(e *ast.RangeList) bool {
 }
 
 func recordContainsQuery(e *ast.Record) bool {
-	if e.Replace != nil && containsQuery(e.Replace) {
+	if e.Base != nil && containsQuery(e.Base) {
 		return true
 	}
-	return slices.ContainsFunc(e.Fields, func(f ast.Field) bool {
+	if slices.ContainsFunc(e.Fields, func(f ast.Field) bool {
 		return containsQuery(f.Exp)
-	})
+	}) {
+		return true
+	}
+	found := false
+	for _, m := range e.Modifiers {
+		m.ForEachExp(func(x ast.Expr) {
+			found = found || containsQuery(x)
+		})
+	}
+	return found
 }
 
 func anyExpQuery(exps []ast.Expr) bool {
@@ -2124,11 +2133,6 @@ func (r *typeResolver) selectorAction(sel *ast.RecordSelector,
 	})
 }
 
-// deduceRecord handles a record expression, e.g. "{a=1, b=2}" or
-// "{e with a=1}".
-// deduceRecordFields types the fields of a record expression,
-// returning them sorted by label with their deduced terms. It
-// does not handle the "with" clause; the caller does.
 // deduceRangeList types a range list: every bound unifies to one
 // element type, and the result is a list of it.
 func (r *typeResolver) deduceRangeList(env typeEnv,
@@ -2150,12 +2154,15 @@ func (r *typeResolver) deduceRangeList(env typeEnv,
 	return nil
 }
 
+// deduceRecordFields types the fields of a record expression or
+// of an assign modifier, returning them sorted by label with
+// their deduced terms.
 func (r *typeResolver) deduceRecordFields(env typeEnv,
-	record *ast.Record,
+	recordFields []ast.Field,
 ) ([]labelTerm, error) {
-	fields := make([]labelTerm, 0, len(record.Fields))
+	fields := make([]labelTerm, 0, len(recordFields))
 	byLabel := map[string]ast.Expr{}
-	for _, f := range record.Fields {
+	for _, f := range recordFields {
 		label := f.Label
 		if label == "" {
 			label = implicitLabel(f.Exp)
@@ -2192,10 +2199,24 @@ func (r *typeResolver) deduceRecordFields(env typeEnv,
 	return fields, nil
 }
 
+// deduceRecord handles a record expression, e.g. "{a=1, b=2}" or
+// "{e replace a=1}".
 func (r *typeResolver) deduceRecord(env typeEnv,
 	record *ast.Record, v *unify.Var,
 ) error {
-	fields, err := r.deduceRecordFields(env, record)
+	if record.Base == nil {
+		fields, err := r.deduceRecordFields(env, record.Fields)
+		if err != nil {
+			return err
+		}
+		r.regEquiv(record, v, r.recordTerm(fields))
+		return nil
+	}
+	assign, err := soleReplace(record)
+	if err != nil {
+		return err
+	}
+	fields, err := r.deduceRecordFields(env, assign.Fields)
 	if err != nil {
 		return err
 	}
@@ -2203,18 +2224,14 @@ func (r *typeResolver) deduceRecord(env typeEnv,
 	for _, f := range fields {
 		labelTypes[f.label] = f.term
 	}
-	if record.Replace == nil {
-		r.regEquiv(record, v, r.recordTerm(fields))
-		return nil
-	}
 	v2 := r.u.Variable()
-	err = r.deduceExp(env, record.Replace, v2)
+	err = r.deduceExp(env, record.Base, v2)
 	if err != nil {
 		return err
 	}
-	// When we know the type of the expression before 'with', we
-	// can unify the types of the fields it has in common with
-	// the explicit fields.
+	// When we know the type of the base expression, we can unify
+	// the types of the fields it has in common with the fields
+	// the modifier assigns.
 	r.actions = append(r.actions, unify.VarAction{
 		Var: v2,
 		Action: func(_ *unify.Var, t unify.Term,

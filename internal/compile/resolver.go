@@ -1353,7 +1353,7 @@ func groupRowIsAtom(group *ast.GroupStep, compute *ast.ComputeStep,
 // literal with exactly one field.
 func isSingletonRecord(exp ast.Expr) bool {
 	rec, ok := exp.(*ast.Record)
-	return ok && rec.Replace == nil && len(rec.Fields) == 1
+	return ok && rec.Base == nil && len(rec.Fields) == 1
 }
 
 // recordExp builds a record of the given variables, sorted by name
@@ -1416,7 +1416,7 @@ type stepField struct {
 // labelled fields: a record's fields (by their labels or implicit
 // labels), or a single field labelled by its implicit label.
 func (r *resolver) stepFields(exp ast.Expr) []stepField {
-	if rec, ok := exp.(*ast.Record); ok && rec.Replace == nil {
+	if rec, ok := exp.(*ast.Record); ok && rec.Base == nil {
 		fields := make([]stepField, len(rec.Fields))
 		for i, f := range rec.Fields {
 			label := f.Label
@@ -1809,7 +1809,7 @@ const cannotDeriveLabel = "cannot derive label for expression"
 func (r *resolver) toRecord(env *coreEnv, record *ast.Record,
 	t types.Type,
 ) (core.Exp, error) {
-	if record.Replace != nil {
+	if record.Base != nil {
 		return r.toRecordUpdate(env, record, t)
 	}
 	// The empty record is unit, the same value as "()".
@@ -1877,11 +1877,12 @@ func (r *resolver) toRangeList(env *coreEnv, rl *ast.RangeList,
 	return &core.RangeList{T: t, Items: items}, nil
 }
 
-// toRecordUpdate converts "{base with lab = e, ...}" to a let that
-// binds the base record once and builds a new record, taking the
-// named fields from the update expressions and every other field
-// from the base by selection. The result has the base's field set
-// (typing has already unified each update with its base field).
+// toRecordUpdate converts "{base replace lab = e, ...}" to a let
+// that binds the base record once and builds a new record, taking
+// the named fields from the update expressions and every other
+// field from the base by selection. The result has the base's
+// field set (typing has already unified each update with its base
+// field).
 func (r *resolver) toRecordUpdate(env *coreEnv, record *ast.Record,
 	t types.Type,
 ) (core.Exp, error) {
@@ -1892,8 +1893,12 @@ func (r *resolver) toRecordUpdate(env *coreEnv, record *ast.Record,
 			Msg:  "record update requires a record type",
 		}
 	}
+	assign, err := soleReplace(record)
+	if err != nil {
+		return nil, err
+	}
 	updates := map[string]ast.Expr{}
-	for _, f := range record.Fields {
+	for _, f := range assign.Fields {
 		label := f.Label
 		if label == "" {
 			id, isID := f.Exp.(*ast.ID)
@@ -1907,7 +1912,7 @@ func (r *resolver) toRecordUpdate(env *coreEnv, record *ast.Record,
 		}
 		updates[label] = f.Exp
 	}
-	baseExp, err := r.toExp(env, record.Replace)
+	baseExp, err := r.toExp(env, record.Base)
 	if err != nil {
 		return nil, err
 	}

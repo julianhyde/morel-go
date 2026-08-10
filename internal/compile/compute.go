@@ -292,11 +292,14 @@ func (w *aggWalker) exp(e ast.Expr) {
 			}
 		}
 	case *ast.Record:
-		if e.Replace != nil {
-			w.exp(e.Replace)
+		if e.Base != nil {
+			w.exp(e.Base)
 		}
 		for _, f := range e.Fields {
 			w.exp(f.Exp)
+		}
+		for _, m := range e.Modifiers {
+			m.ForEachExp(w.exp)
 		}
 	case *ast.Tuple:
 		w.exps(e.Args)
