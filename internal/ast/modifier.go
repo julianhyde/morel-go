@@ -150,6 +150,10 @@ type Modifier interface {
 	// ForEachExp calls action for each expression this modifier
 	// contains.
 	ForEachExp(action func(Expr))
+	// ForEachLabel calls action for each label this modifier names.
+	// An "all" modifier names none; the labels of its argument are
+	// not known until it has a type.
+	ForEachLabel(action func(string))
 	modifier()
 }
 
@@ -193,6 +197,15 @@ func (m *AssignModifier) ForEachExp(action func(Expr)) {
 	}
 }
 
+// ForEachLabel implements Modifier.
+func (m *AssignModifier) ForEachLabel(action func(string)) {
+	for _, f := range m.Fields {
+		if f.Label != "" {
+			action(f.Label)
+		}
+	}
+}
+
 // AllModifier applies its verb to every field of a
 // record-valued expression: "extend all", "replace all" and
 // their "or" pairs.
@@ -225,6 +238,9 @@ func (m *AllModifier) ForEachExp(action func(Expr)) {
 	action(m.Exp)
 }
 
+// ForEachLabel implements Modifier.
+func (*AllModifier) ForEachLabel(func(string)) {}
+
 // RemoveModifier removes labels: "remove" and "remove or skip".
 type RemoveModifier struct {
 	modifierBase
@@ -251,6 +267,13 @@ func (m *RemoveModifier) Verbs() string {
 // ForEachExp implements Modifier.
 func (*RemoveModifier) ForEachExp(func(Expr)) {}
 
+// ForEachLabel implements Modifier.
+func (m *RemoveModifier) ForEachLabel(action func(string)) {
+	for _, label := range m.Labels {
+		action(label.Name)
+	}
+}
+
 // RenameModifier relabels fields. Each pair gives the value of
 // the label on the right to the label on the left, and all pairs
 // apply simultaneously.
@@ -274,6 +297,13 @@ func (*RenameModifier) Verbs() string { return "rename" }
 
 // ForEachExp implements Modifier.
 func (*RenameModifier) ForEachExp(func(Expr)) {}
+
+// ForEachLabel implements Modifier.
+func (m *RenameModifier) ForEachLabel(action func(string)) {
+	for _, pair := range m.Pairs {
+		action(pair.To.Name)
+	}
+}
 
 // RenamePair is one "to = from" pair of a "rename" modifier.
 type RenamePair struct {

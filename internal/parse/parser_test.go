@@ -141,29 +141,17 @@ func TestParseRecordModifiers(t *testing.T) {
 		"(record (rename (b a) (2 1)))")
 	// A quoted label may be a reserved word.
 	checkExpr(t, "{r remove `val`}", "(record (remove val))")
+	// Whether the modifiers have a base to apply to is not a
+	// question for the grammar; the type resolver reports it.
+	checkExpr(t, "{a = 1 remove b}",
+		"(record (a (int_literal 1)) (remove b))")
+	checkExpr(t, "{a, b remove c}",
+		"(record ( (id a)) ( (id b)) (remove c))")
+	checkExpr(t, "{remove b}", "(record (remove b))")
 }
-
-// needsBase is the error for modifiers that follow anything but
-// a single unlabeled field.
-const needsBase = "a record modifier applies to a base " +
-	"expression; enclose the expression and its modifiers in braces"
 
 func TestParseRecordModifierErrors(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
-		// A modifier applies to one field, and that field must
-		// have no label of its own.
-		{
-			"{a = 1 remove b}",
-			"stdIn:1.1-1.17: " + needsBase,
-		},
-		{
-			"{a, b remove c}",
-			"stdIn:1.1-1.16: " + needsBase,
-		},
-		{
-			"{remove b}",
-			"stdIn:1.1-1.11: " + needsBase,
-		},
 		// Only "skip" and "replace" follow "extend or".
 		{
 			"{r extend or remove a = 1}",

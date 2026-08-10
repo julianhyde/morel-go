@@ -927,11 +927,6 @@ func (p *Parser) exprList(closer token.Kind) ([]ast.Expr,
 	return args, end, nil
 }
 
-// modifierNeedsBase is the error when modifiers follow anything
-// but a single unlabeled field.
-const modifierNeedsBase = "a record modifier applies to a base " +
-	"expression; enclose the expression and its modifiers in braces"
-
 // recordExpr parses "{a = e1, b = e2, ...}", or a base
 // expression followed by the modifiers applied to it,
 // "{e replace a = e1 remove b}". A field without "label =" has
@@ -979,14 +974,7 @@ func (p *Parser) recordExpr() (ast.Expr, error) {
 	if len(modifiers) == 0 {
 		return ast.NewRecord(span, fields), nil
 	}
-	// The modifiers apply to the one field, which must have no
-	// label of its own; that field becomes the base.
-	if len(fields) != 1 || fields[0].Label != "" {
-		return nil, &Error{
-			Name: p.name, Span: span, Msg: modifierNeedsBase,
-		}
-	}
-	return ast.NewRecordModify(span, fields[0].Exp, modifiers), nil
+	return ast.NewRecordModify(span, fields, modifiers), nil
 }
 
 // isModifierStart reports whether kind is the first verb of a
