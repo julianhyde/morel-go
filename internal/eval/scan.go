@@ -441,3 +441,294 @@ func (s *charSource) consumeFold(word string) bool {
 func realFromStringFn(arg Val) (Val, error) {
 	return scanString(realScanFn, asString(arg))
 }
+
+// scanChar reads one character of an SML character or string
+// constant — a printable character, or an escape sequence — and
+// reports whether it read one. quoteOk allows a bare '"', which a
+// string constant's body may hold but a character constant's may
+// not.
+//
+// When it cannot read one, the cursor is left where it started,
+// so the caller can stop without having consumed anything.
+func scanChar(s *charSource, quoteOk bool) (rune, bool) {
+	start := s.mark()
+	c := s.peek()
+	switch {
+	case c == noChar:
+		return 0, false
+	case c != '\\':
+		// A raw character stands for itself, but only if it is
+		// printable: a tab is written "\t", never as itself.
+		if !isPrintChar(c) || (c == '"' && !quoteOk) {
+			return 0, false
+		}
+		s.advance()
+		return c, true
+	}
+	s.advance()
+	if escaped, ok := simpleEscape(s.peek()); ok {
+		s.advance()
+		return escaped, true
+	}
+	switch {
+	case s.peek() == '^':
+		// "\^@" is character 0, "\^A" is 1, ..., "\^_" is 31.
+		s.advance()
+		c3 := s.peek()
+		if c3 < '@' || c3 > '_' {
+			s.reset(start)
+			return 0, false
+		}
+		s.advance()
+		return c3 - ctrlOffset, true
+	case s.peek() == 'u':
+		// A "u" escape is the character whose code is the four
+		// hexadecimal digits that follow.
+		s.advance()
+		return scanCharCode(s, start, hexBase, uEscapeDigits)
+	case digitVal(s.peek(), decRadix) >= 0:
+		// "\ddd" is the character whose code is the three decimal
+		// digits "ddd".
+		return scanCharCode(s, start, decRadix, decEscapeDigits)
+	}
+	s.reset(start)
+	return 0, false
+}
+
+// The lengths of the numeric character escapes.
+const (
+	uEscapeDigits   = 4
+	decEscapeDigits = 3
+)
+
+// simpleEscape is the character a one-letter escape stands for,
+// and whether c introduces one.
+func simpleEscape(c rune) (rune, bool) {
+	// lint: sort until '^	}' where '^	case '
+	switch c {
+	case '"':
+		return '"', true
+	case '\\':
+		return '\\', true
+	case 'a':
+		return '\a', true
+	case 'b':
+		return '\b', true
+	case 'f':
+		return '\f', true
+	case 'n':
+		return '\n', true
+	case 'r':
+		return '\r', true
+	case 't':
+		return '\t', true
+	case 'v':
+		return '\v', true
+	default:
+		return 0, false
+	}
+}
+
+// scanCharCode reads the n digits of a numeric escape in the
+// given base. It rewinds to start and fails if there are not n
+// digits, or if they name no character.
+func scanCharCode(s *charSource, start Val, base, n int) (rune,
+	bool,
+) {
+	code := 0
+	for range n {
+		digit := digitVal(s.peek(), base)
+		if digit < 0 {
+			s.reset(start)
+			return 0, false
+		}
+		code = code*base + digit
+		s.advance()
+	}
+	if code > int(maxCharVal) {
+		s.reset(start)
+		return 0, false
+	}
+	return rune(code), true
+}
+
+// skipGaps moves the cursor past any escaped formatting
+// sequences: a backslash, one or more whitespace characters, and
+// a backslash, which together stand for nothing. A backslash
+// followed by whitespace but no closing backslash consumes
+// nothing, and the caller finds the backslash and rejects it as
+// an ill-formed escape.
+func skipGaps(s *charSource) {
+	for {
+		start := s.mark()
+		if s.peek() != '\\' {
+			return
+		}
+		s.advance()
+		if s.peek() == noChar || !unicode.IsSpace(s.peek()) {
+			s.reset(start)
+			return
+		}
+		s.skipWhitespace()
+		if s.peek() != '\\' {
+			s.reset(start)
+			return
+		}
+		s.advance()
+	}
+}
+
+// charScanFn is "Char.scan rdr src": one character constant, an
+// escape sequence or a printable character. It does not skip
+// leading whitespace — a space is a character like any other —
+// but it does skip escaped formatting sequences.
+func charScanFn(reader, stream Val) (Val, error) {
+	s := newCharSource(reader, stream)
+	skipGaps(s)
+	c, ok := scanChar(s, false)
+	if s.err != nil {
+		return nil, s.err
+	}
+	if !ok {
+		return noneVal, nil
+	}
+	return someVal([]Val{c, s.mark()}), nil
+}
+
+// charFromStringFn is "Char.fromString s", which the Standard
+// Basis defines as "StringCvt.scanString scan".
+func charFromStringFn(arg Val) (Val, error) {
+	return scanString(charScanFn, asString(arg))
+}
+
+// stringScanFn is "String.scan rdr src": as many character
+// constants as it can read. Reading none is NONE, unless the
+// stream had ended, when it is the empty string.
+func stringScanFn(reader, stream Val) (Val, error) {
+	s := newCharSource(reader, stream)
+	var b strings.Builder
+	for {
+		// An escaped formatting sequence stands for nothing, and is
+		// consumed even if what follows it cannot be scanned.
+		skipGaps(s)
+		c, ok := scanChar(s, true)
+		if !ok {
+			break
+		}
+		b.WriteRune(c)
+	}
+	if s.err != nil {
+		return nil, s.err
+	}
+	if b.Len() == 0 && s.peek() != noChar {
+		// Nothing was scanned, and not because the stream ended.
+		return noneVal, nil
+	}
+	return someVal([]Val{b.String(), s.mark()}), nil
+}
+
+// stringFromStringFn is "String.fromString s", which the Standard
+// Basis defines as "StringCvt.scanString scan".
+func stringFromStringFn(arg Val) (Val, error) {
+	return scanString(stringScanFn, asString(arg))
+}
+
+// scanCChar reads one character of a C string constant — a
+// character, or a C escape sequence — and reports whether it read
+// one. As for scanChar, a failed read leaves the cursor where it
+// started.
+//
+// A C constant admits an unescaped single quote but not an
+// unescaped double quote.
+func scanCChar(s *charSource) (rune, bool) {
+	start := s.mark()
+	c := s.peek()
+	switch {
+	case c == noChar:
+		return 0, false
+	case c != '\\':
+		if !isPrintChar(c) || c == '"' {
+			return 0, false
+		}
+		s.advance()
+		return c, true
+	}
+	s.advance()
+	// A C escape letter is ASCII, so a wider character is simply
+	// not one.
+	if c2 := s.peek(); c2 >= 0 && c2 <= maxCharVal {
+		if escaped, ok := cStringEscapes[byte(c2)]; ok {
+			s.advance()
+			return escaped, true
+		}
+	}
+	switch {
+	case s.peek() == 'x':
+		s.advance()
+		return scanCCharCode(s, start, hexBase, hexDigits)
+	case s.peek() >= '0' && s.peek() <= '7':
+		return scanCCharCode(s, start, octalBase, octalDigits)
+	}
+	s.reset(start)
+	return 0, false
+}
+
+// scanCCharCode reads up to maxDigits digits of a numeric C
+// escape in the given base. Unlike an SML escape, whose length is
+// fixed, a C escape takes as many digits as it can.
+func scanCCharCode(s *charSource, start Val, base, maxDigits int,
+) (rune, bool) {
+	code, n := 0, 0
+	for n < maxDigits && digitVal(s.peek(), base) >= 0 {
+		code = code*base + digitVal(s.peek(), base)
+		s.advance()
+		n++
+	}
+	if n == 0 || code > int(maxCharVal) {
+		s.reset(start)
+		return 0, false
+	}
+	return rune(code), true
+}
+
+// stringFromCStringFn is "String.fromCString s": the characters
+// of a C string constant, or NONE unless the whole of s is one.
+//
+// That is where it differs from "fromString", which returns as
+// many characters as it can scan and ignores the rest: so
+// "fromString \"abc\\ndef\"" is SOME "abc", but "fromCString" of
+// the same is NONE.
+func stringFromCStringFn(arg Val) (Val, error) {
+	s := newCharSource(stringReader(asString(arg)), int32(0))
+	var b strings.Builder
+	for s.peek() != noChar {
+		c, ok := scanCChar(s)
+		if !ok {
+			return noneVal, nil
+		}
+		b.WriteRune(c)
+	}
+	return someVal(b.String()), nil
+}
+
+// stringToStringFn is "String.toString s": s with every
+// non-printable character replaced by an SML escape sequence,
+// which is "translate Char.toString s".
+func stringToStringFn(arg Val) (Val, error) {
+	var b strings.Builder
+	for _, c := range asString(arg) {
+		b.WriteString(CharToString(c))
+	}
+	return b.String(), nil
+}
+
+// stringToCStringFn is "String.toCString s": s with every
+// non-printable character replaced by a C escape sequence, which
+// is "translate Char.toCString s".
+func stringToCStringFn(arg Val) (Val, error) {
+	var b strings.Builder
+	for _, c := range asString(arg) {
+		b.WriteString(CharToCString(c))
+	}
+	return b.String(), nil
+}
