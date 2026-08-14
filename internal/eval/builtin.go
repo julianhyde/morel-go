@@ -108,8 +108,9 @@ var Builtins = map[string]Val{
 	"Bool.>": boolOp(func(a, b bool) bool {
 		return a && !b
 	}),
-	"Bool.not": notFn,
-	"Char.<":   charOp(func(a, b rune) bool { return a < b }),
+	"Bool.not":  notFn,
+	"Bool.scan": Curry2(boolScanFn),
+	"Char.<":    charOp(func(a, b rune) bool { return a < b }),
 	"Char.<=": charOp(func(a, b rune) bool {
 		return a <= b
 	}),
@@ -201,6 +202,7 @@ var Builtins = map[string]Val{
 	"Int.quot":              Fn(intQuotFn),
 	"Int.rem":               Fn(intRemFn),
 	"Int.sameSign":          Fn(intSameSignFn),
+	"Int.scan":              Curry3(intScanFn),
 	"Int.sign":              Fn(intSignFn),
 	"Int.toInt":             Fn(identityFn),
 	"Int.toLarge":           Fn(identityFn),
@@ -453,6 +455,7 @@ var Builtins = map[string]Val{
 	"Word.mod":          Fn(wordModFn),
 	"Word.notb":         Fn(wordNotbFn),
 	"Word.orb":          word2(func(a, b uint64) uint64 { return a | b }),
+	"Word.scan":         Curry3(wordScanFn),
 	"Word.toInt":        Fn(wordToIntFn),
 	"Word.toIntX":       Fn(wordToIntXFn),
 	"Word.toLarge":      Fn(identityFn),
