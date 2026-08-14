@@ -331,6 +331,7 @@ var Builtins = map[string]Val{
 	"Real.sameSign": realPairPredicate(func(a, b float64) bool {
 		return realIsNegative(a) == realIsNegative(b)
 	}),
+	"Real.scan":     Curry2(realScanFn),
 	"Real.sign":     Fn(realSignFn),
 	"Real.signBit":  realPredicate(realIsNegative),
 	"Real.split":    Fn(realSplitFn),

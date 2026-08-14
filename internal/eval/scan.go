@@ -18,7 +18,9 @@
 package eval
 
 import (
+	"math"
 	"strconv"
+	"strings"
 	"unicode"
 )
 
@@ -309,4 +311,133 @@ func wordScan(base int, reader, stream Val) (Val, error) {
 		return nil, &MorelError{Exn: ExnOverflow}
 	}
 	return someVal([]Val{u, s.mark()}), nil
+}
+
+// realScanFn is "Real.scan rdr src": a real number, after any
+// leading whitespace. It accepts "inf", "infinity" and "nan" in
+// any case, as well as the usual digits, point and exponent.
+func realScanFn(reader, stream Val) (Val, error) {
+	s := newCharSource(reader, stream)
+	s.skipWhitespace()
+	var b strings.Builder
+	negative := false
+	switch s.peek() {
+	case '~', '-':
+		negative = true
+		b.WriteByte('-')
+		s.advance()
+	case '+':
+		s.advance()
+	}
+	if v, ok := scanInfinityOrNan(s, negative); ok {
+		if s.err != nil {
+			return nil, s.err
+		}
+		return someVal([]Val{v, s.mark()}), nil
+	}
+	digits := scanRealDigits(s, &b)
+	if s.err != nil {
+		return nil, s.err
+	}
+	if digits == 0 {
+		return noneVal, nil
+	}
+	f, err := strconv.ParseFloat(b.String(), 32)
+	if err != nil {
+		return noneVal, nil //nolint:nilerr // NONE, not an error
+	}
+	return someVal([]Val{float32(f), s.mark()}), nil
+}
+
+// scanInfinityOrNan reads "inf", "infinity" or "nan", in any
+// case, and reports whether it did.
+func scanInfinityOrNan(s *charSource, negative bool) (Val, bool) {
+	for _, word := range []string{"infinity", infText, nanText} {
+		if !s.consumeFold(word) {
+			continue
+		}
+		if word == nanText {
+			return float32(math.NaN()), true
+		}
+		sign := 1.0
+		if negative {
+			sign = -1.0
+		}
+		return float32(math.Inf(int(sign))), true
+	}
+	return nil, false
+}
+
+// scanRealDigits reads the digits, fraction and exponent of a
+// real number into b, and returns how many digits it read before
+// the exponent; zero means there was no number.
+func scanRealDigits(s *charSource, b *strings.Builder) int {
+	digits := scanDigitRun(s, b)
+	if s.peek() == '.' {
+		start := s.mark()
+		s.advance()
+		var frac strings.Builder
+		frac.WriteByte('.')
+		if n := scanDigitRun(s, &frac); n == 0 {
+			// A point that no digit follows is not ours.
+			s.reset(start)
+		} else {
+			b.WriteString(frac.String())
+			digits += n
+		}
+	}
+	if digits == 0 {
+		return 0
+	}
+	if s.peek() == 'e' || s.peek() == 'E' {
+		start := s.mark()
+		s.advance()
+		var exp strings.Builder
+		exp.WriteByte('e')
+		switch s.peek() {
+		case '~', '-':
+			exp.WriteByte('-')
+			s.advance()
+		case '+':
+			s.advance()
+		}
+		if scanDigitRun(s, &exp) == 0 {
+			// An "e" that no digit follows is not ours.
+			s.reset(start)
+		} else {
+			b.WriteString(exp.String())
+		}
+	}
+	return digits
+}
+
+// scanDigitRun reads a run of decimal digits into b, and returns
+// how many there were.
+func scanDigitRun(s *charSource, b *strings.Builder) int {
+	n := 0
+	for digitVal(s.peek(), decRadix) >= 0 {
+		b.WriteRune(s.peek())
+		s.advance()
+		n++
+	}
+	return n
+}
+
+// consumeFold is consume, ignoring case.
+func (s *charSource) consumeFold(word string) bool {
+	start := s.mark()
+	for _, want := range word {
+		if s.c == noChar || unicode.ToLower(s.c) != want {
+			s.reset(start)
+			return false
+		}
+		s.advance()
+	}
+	return true
+}
+
+// realFromStringFn is "Real.fromString s", which the Standard
+// Basis defines as "StringCvt.scanString scan".
+func realFromStringFn(arg Val) (Val, error) {
+	return scanString(realScanFn, asString(arg))
 }
