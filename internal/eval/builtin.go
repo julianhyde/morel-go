@@ -162,6 +162,7 @@ var Builtins = map[string]Val{
 	"Date.isDst":         Fn(dateIsDstFn),
 	"Date.minute":        dateField(time.Time.Minute),
 	"Date.month":         Fn(dateMonthFn),
+	"Date.scan":          Curry2(dateScanFn),
 	"Date.second":        dateField(time.Time.Second),
 	"Date.toString":      Fn(dateToStringFn),
 	"Date.toTime":        Fn(dateToTimeFn),

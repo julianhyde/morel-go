@@ -21,6 +21,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -812,4 +813,170 @@ func timeNanos(integer, fraction string) (int64, error) {
 // Basis defines as "StringCvt.scanString scan".
 func timeFromStringFn(arg Val) (Val, error) {
 	return scanString(timeScanFn, asString(arg))
+}
+
+// dateScanFn is "Date.scan rdr src": a date in the format
+// "Thu Jan 01 00:00:00 1970", which is what "Date.toString"
+// writes. It does not skip leading whitespace, and the spacing
+// within the date is exact.
+func dateScanFn(reader, stream Val) (Val, error) {
+	s := newCharSource(reader, stream)
+	d, ok := scanDate(s)
+	if s.err != nil {
+		return nil, s.err
+	}
+	if !ok {
+		return noneVal, nil
+	}
+	if d.err != nil {
+		return nil, d.err
+	}
+	return someVal([]Val{d.value, s.mark()}), nil
+}
+
+// scannedDate is a date the scanner read, or the error that
+// building it raised.
+type scannedDate struct {
+	value Val
+	err   error
+}
+
+// scanDate reads the fields of a date and builds it.
+func scanDate(s *charSource) (scannedDate, bool) {
+	// The weekday must be a name, but says nothing that the rest of
+	// the date does not; the weekday of the result comes from the
+	// date.
+	weekday, ok := scanFixedWidth(s, nameWidth)
+	if !ok || weekdayFromName(weekday) == 0 {
+		return scannedDate{}, false
+	}
+	if !scanLiteral(s, ' ') {
+		return scannedDate{}, false
+	}
+	monthName, ok := scanFixedWidth(s, nameWidth)
+	if !ok {
+		return scannedDate{}, false
+	}
+	month := monthFromName(monthName)
+	if month == 0 {
+		return scannedDate{}, false
+	}
+	if !scanLiteral(s, ' ') {
+		return scannedDate{}, false
+	}
+	day, ok := scanDay(s)
+	if !ok {
+		return scannedDate{}, false
+	}
+	c, ok := scanClock(s)
+	if !ok || !scanLiteral(s, ' ') {
+		return scannedDate{}, false
+	}
+	var yearDigits strings.Builder
+	if scanDigitRun(s, &yearDigits) == 0 {
+		return scannedDate{}, false
+	}
+	year, err := strconv.Atoi(yearDigits.String())
+	if err != nil {
+		return scannedDate{nil, &MorelError{Exn: ExnDate}}, true
+	}
+	d, err := DateConstruct(year, month, day, c.hour, c.minute,
+		c.second, time.UTC)
+	return scannedDate{d, err}, true
+}
+
+// nameWidth is the width of a weekday or month name, "Mon".
+const nameWidth = 3
+
+// scanFixedWidth reads exactly n characters, and reports whether
+// the stream held them.
+func scanFixedWidth(s *charSource, n int) (string, bool) {
+	start := s.mark()
+	var b strings.Builder
+	for range n {
+		if s.peek() == noChar {
+			s.reset(start)
+			return "", false
+		}
+		b.WriteRune(s.peek())
+		s.advance()
+	}
+	return b.String(), true
+}
+
+// scanLiteral reads the character c, and reports whether the
+// stream held it.
+func scanLiteral(s *charSource, c rune) bool {
+	if s.peek() != c {
+		return false
+	}
+	s.advance()
+	return true
+}
+
+// scanDay reads a two-character day, which may be written with a
+// leading zero or a leading space: "Mar 08" and "Mar  8" are both
+// allowed.
+func scanDay(s *charSource) (int, bool) {
+	day := 0
+	if pad := s.peek(); pad != ' ' {
+		if digitVal(pad, decRadix) < 0 {
+			return 0, false
+		}
+		day = digitVal(pad, decRadix)
+	}
+	s.advance()
+	d := digitVal(s.peek(), decRadix)
+	if d < 0 {
+		return 0, false
+	}
+	s.advance()
+	return day*decRadix + d, true
+}
+
+// clock is the time of day a date carries.
+type clock struct {
+	hour   int
+	minute int
+	second int
+}
+
+// scanClock reads " HH:MM:SS", the space that separates it from
+// the day included.
+func scanClock(s *charSource) (clock, bool) {
+	if !scanLiteral(s, ' ') {
+		return clock{}, false
+	}
+	hour, ok := scanTwoDigits(s)
+	if !ok || !scanLiteral(s, ':') {
+		return clock{}, false
+	}
+	minute, ok := scanTwoDigits(s)
+	if !ok || !scanLiteral(s, ':') {
+		return clock{}, false
+	}
+	second, ok := scanTwoDigits(s)
+	return clock{hour, minute, second}, ok
+}
+
+// scanTwoDigits reads exactly two digits, as an hour, minute or
+// second is written.
+func scanTwoDigits(s *charSource) (int, bool) {
+	hi := digitVal(s.peek(), decRadix)
+	if hi < 0 {
+		return 0, false
+	}
+	s.advance()
+	lo := digitVal(s.peek(), decRadix)
+	if lo < 0 {
+		return 0, false
+	}
+	s.advance()
+	return hi*decRadix + lo, true
+}
+
+// dateFromStringFn is "Date.fromString s", which the Standard
+// Basis defines as "StringCvt.scanString scan".
+func dateFromStringFn(arg Val) (Val, error) {
+	return scanString(dateScanFn, asString(arg))
 }
