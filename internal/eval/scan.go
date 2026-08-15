@@ -732,3 +732,84 @@ func stringToCStringFn(arg Val) (Val, error) {
 	}
 	return b.String(), nil
 }
+
+// nanoDigits is the number of fractional digits a time keeps: a
+// nanosecond is the finest morel represents.
+const nanoDigits = 9
+
+// timeScanFn is "Time.scan rdr src": a decimal number of seconds,
+// after any leading whitespace, with an optional sign and an
+// optional fractional part. Digits beyond a nanosecond are
+// discarded. It raises Time if the value is too large.
+func timeScanFn(reader, stream Val) (Val, error) {
+	s := newCharSource(reader, stream)
+	s.skipWhitespace()
+	negative := false
+	switch s.peek() {
+	case '~', '-':
+		negative = true
+		s.advance()
+	case '+':
+		s.advance()
+	}
+	var integer, fraction strings.Builder
+	scanDigitRun(s, &integer)
+	switch {
+	case s.peek() == '.':
+		// A decimal point must be followed by at least one digit; if
+		// it is not, the time is ill-formed, not merely finished.
+		s.advance()
+		if scanDigitRun(s, &fraction) == 0 {
+			return noneVal, nil
+		}
+	case integer.Len() == 0:
+		return noneVal, nil
+	}
+	if s.err != nil {
+		return nil, s.err
+	}
+	nanos, err := timeNanos(integer.String(), fraction.String())
+	if err != nil {
+		return nil, err
+	}
+	if negative {
+		nanos = -nanos
+	}
+	return someVal([]Val{nanos, s.mark()}), nil
+}
+
+// timeNanos converts a number of seconds, given as its integer
+// and fractional digits, to nanoseconds. The fraction is padded
+// or truncated to nanoDigits.
+func timeNanos(integer, fraction string) (int64, error) {
+	if len(fraction) < nanoDigits {
+		fraction += strings.Repeat("0", nanoDigits-len(fraction))
+	}
+	fraction = fraction[:nanoDigits]
+	seconds := int64(0)
+	if integer != "" {
+		var err error
+		seconds, err = strconv.ParseInt(integer, decRadix, 64)
+		if err != nil {
+			return 0, &MorelError{Exn: ExnTime}
+		}
+	}
+	nanos, err := strconv.ParseInt(fraction, decRadix, 64)
+	if err != nil {
+		return 0, &MorelError{Exn: ExnTime}
+	}
+	total := seconds * nsPerSecond
+	if seconds != 0 && total/nsPerSecond != seconds {
+		return 0, &MorelError{Exn: ExnTime}
+	}
+	if total > math.MaxInt64-nanos {
+		return 0, &MorelError{Exn: ExnTime}
+	}
+	return total + nanos, nil
+}
+
+// timeFromStringFn is "Time.fromString s", which the Standard
+// Basis defines as "StringCvt.scanString scan".
+func timeFromStringFn(arg Val) (Val, error) {
+	return scanString(timeScanFn, asString(arg))
+}

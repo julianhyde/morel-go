@@ -408,6 +408,7 @@ var Builtins = map[string]Val{
 	"Time.fromReal":         Fn(timeFromRealFn),
 	"Time.fromSeconds":      timeFromUnit(nsPerSecond),
 	"Time.fromString":       Fn(timeFromStringFn),
+	"Time.scan":             Curry2(timeScanFn),
 	"Time.toMicroseconds":   timeToUnit(nsPerMicro),
 	"Time.toMilliseconds":   timeToUnit(nsPerMilli),
 	"Time.toNanoseconds":    timeToUnit(1),
