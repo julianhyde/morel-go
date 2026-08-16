@@ -276,7 +276,7 @@ func (k *Kernel) sysEnv(eval.Val) (eval.Val, error) {
 	for i, name := range names {
 		out[i] = []eval.Val{
 			name,
-			k.envTypeString(byName[name]),
+			k.envTypeString(name, byName[name]),
 		}
 	}
 	return out, nil
@@ -284,11 +284,17 @@ func (k *Kernel) sysEnv(eval.Val) (eval.Val, error) {
 
 // envTypeString renders a binding's type as Sys.env shows it:
 // "forall 'a 'b. " precedes a polymorphic type.
-func (k *Kernel) envTypeString(t types.Type) string {
+//
+// A nullary datatype constructor is not quantified: NONE is one
+// value of the option datatype, not a family of them, so it shows
+// as "'a option". "nil" is not one of these -- the empty list is a
+// value of the built-in list type, not a constructor of a declared
+// datatype -- so it keeps its "forall".
+func (k *Kernel) envTypeString(name string, t types.Type) string {
 	t = userFacing(k.sys, t)
 	n := 0
 	countTypeVars(t, &n)
-	if n == 0 {
+	if n == 0 || k.isDatatypeCon(name) {
 		return t.String()
 	}
 	var b strings.Builder
@@ -298,6 +304,21 @@ func (k *Kernel) envTypeString(t types.Type) string {
 	}
 	b.WriteString(". " + t.String())
 	return b.String()
+}
+
+// isDatatypeCon reports whether a name is a nullary constructor
+// of a declared datatype, such as NONE or ALL.
+func (k *Kernel) isDatatypeCon(name string) bool {
+	tc, ok := k.sys.LookupTyCon(name)
+	if !ok || tc.Arg != nil {
+		return false
+	}
+	named, ok := tc.Result.(*types.Named)
+	if !ok {
+		return false
+	}
+	_, isDatatype := k.sys.DatatypeArity(named.Name)
+	return isDatatype
 }
 
 // userFacing rewrites a type for display, replacing the internal
