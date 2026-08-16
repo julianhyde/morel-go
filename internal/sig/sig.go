@@ -261,8 +261,16 @@ func (f *file) bindVals(sys *types.System, result *Result) {
 			})
 		}
 		if f.structure == "General" {
+			// The unqualified binding keeps the type-variable names
+			// the signature declared, because that is the type
+			// Sys.env reports; the record member above is renumbered
+			// with its neighbours, so it is parsed separately.
+			declared, err := sys.Parse(v.typ)
+			if err != nil {
+				declared = t
+			}
 			result.Bindings = append(result.Bindings,
-				compile.Binding{Name: v.name, Type: t})
+				compile.Binding{Name: v.name, Type: declared})
 		}
 	}
 	if len(members) == 0 {
