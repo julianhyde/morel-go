@@ -120,6 +120,12 @@ const (
 	LBrace
 	RBrace
 	LBracket
+	// LBracketAt, LBracketAt2 and LBracketAt3 open an attribute,
+	// by "@"-count: an expression attribute, a declaration
+	// attribute, and a floating one.
+	LBracketAt
+	LBracketAt2
+	LBracketAt3
 	RBracket
 	Semi
 	Bar
@@ -236,6 +242,9 @@ var kindNames = map[Kind]string{
 	LBrace:           "{",
 	RBrace:           "}",
 	LBracket:         "[",
+	LBracketAt:       "[@",
+	LBracketAt2:      "[@@",
+	LBracketAt3:      "[@@@",
 	RBracket:         "]",
 	Semi:             ";",
 	Bar:              "|",

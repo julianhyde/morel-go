@@ -1718,6 +1718,8 @@ func containsQuery(exp ast.Expr) bool {
 		return containsQuery(e.Exp)
 	case *ast.Apply:
 		return containsQuery(e.Fn) || containsQuery(e.Arg)
+	case *ast.AttributedExp:
+		return containsQuery(e.Exp)
 	case *ast.Case:
 		return containsQuery(e.Exp) || anyMatchQuery(e.Matches)
 	case *ast.Fn:
@@ -1821,6 +1823,8 @@ func (r *typeResolver) deduceExp(env typeEnv, exp ast.Expr,
 		return nil
 	case *ast.Apply:
 		return r.deduceApply(env, e, v)
+	case *ast.AttributedExp:
+		return r.deduceAttributed(env, e, v)
 	case *ast.Case:
 		return r.deduceCase(env, e, v)
 	case *ast.Elements:
@@ -2180,6 +2184,20 @@ func (r *typeResolver) selectorAction(sel *ast.RecordSelector,
 			}
 		},
 	})
+}
+
+// deduceAttributed types an attributed expression. An attribute
+// is inert, so the expression has the type of the expression it
+// decorates.
+func (r *typeResolver) deduceAttributed(env typeEnv,
+	e *ast.AttributedExp, v *unify.Var,
+) error {
+	err := r.deduceExp(env, e.Exp, v)
+	if err != nil {
+		return err
+	}
+	r.reg(e, v)
+	return nil
 }
 
 // deduceRangeList types a range list: every bound unifies to one

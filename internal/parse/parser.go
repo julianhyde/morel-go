@@ -18,6 +18,8 @@
 package parse
 
 import (
+	"strings"
+
 	"github.com/hydromatic/morel-go/internal/ast"
 	"github.com/hydromatic/morel-go/internal/token"
 )
@@ -416,7 +418,7 @@ func (p *Parser) atomSuffixed() (ast.Expr, error) {
 	}
 	for p.tok.Kind == token.Dot || p.tok.Kind == token.QDot {
 		safe := p.tok.Kind == token.QDot
-		err := p.next()
+		err = p.next()
 		if err != nil {
 			return nil, err
 		}
@@ -443,7 +445,110 @@ func (p *Parser) atomSuffixed() (ast.Expr, error) {
 		}
 		e = ast.NewApply(span, s, e)
 	}
+	// An attribute binds at atom level, after any selection, so
+	// "1 + 2 [@a]" attributes the 2 and "(1 + 2) [@a]" the sum.
+	attrs, err := p.expAttributes()
+	if err != nil {
+		return nil, err
+	}
+	if len(attrs) > 0 {
+		span := token.Span{
+			Start: e.Span().Start,
+			End:   attrs[len(attrs)-1].Span().End,
+		}
+		e = ast.NewAttributedExp(span, e, attrs)
+	}
 	return e, nil
+}
+
+// expAttributes parses the run of "[@a]" attributes that may
+// follow an expression or type atom.
+func (p *Parser) expAttributes() ([]*ast.Attribute, error) {
+	var attrs []*ast.Attribute
+	for p.tok.Kind == token.LBracketAt {
+		a, err := p.attribute(ast.AttrExp)
+		if err != nil {
+			return nil, err
+		}
+		attrs = append(attrs, a)
+	}
+	return attrs, nil
+}
+
+// attribute parses one attribute, from its opening bracket: a
+// dotted name, then an optional payload -- an expression, or a
+// type after ":" -- then "]".
+func (p *Parser) attribute(kind ast.AttributeKind) (
+	*ast.Attribute, error,
+) {
+	start := p.tok.Span.Start
+	err := p.next()
+	if err != nil {
+		return nil, err
+	}
+	name, err := p.attributeName()
+	if err != nil {
+		return nil, err
+	}
+	var payload ast.Expr
+	var typePayload ast.Type
+	switch {
+	case p.tok.Kind == token.Colon:
+		err = p.next()
+		if err != nil {
+			return nil, err
+		}
+		typePayload, err = p.typeExpr()
+	case p.tok.Kind != token.RBracket:
+		payload, err = p.expr()
+	}
+	if err != nil {
+		return nil, err
+	}
+	err = p.expect(token.RBracket)
+	if err != nil {
+		return nil, err
+	}
+	span := token.Span{Start: start, End: p.tok.Span.End}
+	err = p.next()
+	if err != nil {
+		return nil, err
+	}
+	if typePayload != nil {
+		return ast.NewAttributeWithType(span, kind, name,
+			typePayload), nil
+	}
+	return ast.NewAttribute(span, kind, name, payload), nil
+}
+
+// attributeName parses an attribute's name, which may be dotted:
+// "deprecated", "foo.bar".
+func (p *Parser) attributeName() (string, error) {
+	var b strings.Builder
+	for {
+		if p.tok.Kind != token.Ident &&
+			p.tok.Kind != token.QuotedIdent {
+			return "", p.errorf("expected identifier, found " +
+				p.tok.Kind.String())
+		}
+		name := p.tok.Text
+		if p.tok.Kind == token.QuotedIdent {
+			name = unquoteIdent(name)
+		}
+		b.WriteString(name)
+		err := p.next()
+		if err != nil {
+			return "", err
+		}
+		if p.tok.Kind != token.Dot {
+			return b.String(), nil
+		}
+		b.WriteString(".")
+		err = p.next()
+		if err != nil {
+			return "", err
+		}
+	}
 }
 
 var literalOps = map[token.Kind]ast.Op{

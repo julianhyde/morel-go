@@ -48,6 +48,13 @@ func dump(b *strings.Builder, node Node) {
 		b.WriteString(" ")
 		dump(b, n.Arg)
 		b.WriteString(")")
+	case *Attribute:
+		dumpAttribute(b, n)
+	case *AttributedExp:
+		b.WriteString("(attributedExp ")
+		dump(b, n.Exp)
+		dumpAttrs(b, n.Attrs)
+		b.WriteString(")")
 	case *Case:
 		b.WriteString("(case ")
 		dump(b, n.Exp)
@@ -138,6 +145,30 @@ func dump(b *strings.Builder, node Node) {
 		dumpValDecl(b, n)
 	default:
 		panic(fmt.Sprintf("dump: unknown node %T", node))
+	}
+}
+
+// dumpAttribute renders "(attribute @a)", with the payload after
+// the name if there is one: an expression, or ": type".
+func dumpAttribute(b *strings.Builder, n *Attribute) {
+	b.WriteString("(attribute " + n.Kind.Marker() + n.Name)
+	switch {
+	case n.TypePayload != nil:
+		b.WriteString(" : ")
+		dump(b, n.TypePayload)
+	case n.Payload != nil:
+		b.WriteString(" ")
+		dump(b, n.Payload)
+	}
+	b.WriteString(")")
+}
+
+// dumpAttrs renders a node's attributes, each preceded by a
+// space.
+func dumpAttrs(b *strings.Builder, attrs []*Attribute) {
+	for _, a := range attrs {
+		b.WriteString(" ")
+		dumpAttribute(b, a)
 	}
 }
 

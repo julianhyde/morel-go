@@ -390,6 +390,9 @@ var symbols = []struct {
 	text string
 	kind token.Kind
 }{
+	{"[@@@", token.LBracketAt3},
+	{"[@@", token.LBracketAt2},
+	{"[@", token.LBracketAt},
 	{"...", token.Ellipsis},
 	{"..^", token.DotDotCaret},
 	{"?.", token.QDot},

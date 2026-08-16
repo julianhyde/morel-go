@@ -38,6 +38,8 @@ const (
 	ListOp
 	RangeListOp
 	RecordOp
+	AttributeOp
+	AttributedExpOp
 
 	// Infix and prefix operators, in increasing precedence.
 
@@ -159,6 +161,8 @@ var opNames = map[Op]string{
 	ListOp:           "list",
 	RangeListOp:      "range_list",
 	RecordOp:         "record",
+	AttributeOp:      "attribute",
+	AttributedExpOp:  "attributedExp",
 	ImpliesOp:        "implies",
 	OrelseOp:         "orelse",
 	AndalsoOp:        "andalso",

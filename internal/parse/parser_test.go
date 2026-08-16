@@ -187,6 +187,52 @@ func TestParseRecordModifierErrors(t *testing.T) {
 	}
 }
 
+// TestParseAttributes covers the expression attribute "[@a]",
+// which attaches to the atom before it.
+func TestParseAttributes(t *testing.T) {
+	checkExpr(t, "1 [@a]",
+		"(attributedExp (int_literal 1) (attribute @a))")
+	// Attributes stack on the same atom, in source order.
+	checkExpr(t, "1 [@a] [@b]",
+		"(attributedExp (int_literal 1) (attribute @a)"+
+			" (attribute @b))")
+	// The payload is an expression.
+	checkExpr(t, "1 [@since 42]",
+		"(attributedExp (int_literal 1) "+
+			"(attribute @since (int_literal 42)))")
+	// ... or a type, after ":".
+	checkExpr(t, "1 [@a: int]",
+		"(attributedExp (int_literal 1) (attribute @a : (named int)))")
+	// A name may be dotted.
+	checkExpr(t, "1 [@foo.bar]",
+		"(attributedExp (int_literal 1) (attribute @foo.bar))")
+	// It binds at atom level: the 2, not the sum.
+	checkExpr(t, "1 + 2 [@a]",
+		"(plus (int_literal 1) "+
+			"(attributedExp (int_literal 2) (attribute @a)))")
+	// Parentheses widen its scope.
+	checkExpr(t, "(1 + 2) [@a]",
+		"(attributedExp (plus (int_literal 1) (int_literal 2))"+
+			" (attribute @a))")
+	// In an application it takes the argument, not the call.
+	checkExpr(t, "f x [@a]",
+		"(apply (id f) (attributedExp (id x) (attribute @a)))")
+	checkExpr(t, "(f x) [@a]",
+		"(attributedExp (apply (id f) (id x)) (attribute @a))")
+	// It follows a selection, so it takes the whole of "x.a".
+	checkExpr(t, "x.a [@b]",
+		"(attributedExp (apply (record_selector #a) (id x))"+
+			" (attribute @b))")
+	// A list literal is an atom.
+	checkExpr(t, "[1, 2] [@a]",
+		"(attributedExp (list (int_literal 1) (int_literal 2))"+
+			" (attribute @a))")
+	// "[@" only opens an attribute where "[" and "@" abut; "@"
+	// remains the append operator.
+	checkExpr(t, "[1] @ [2]",
+		"(at (list (int_literal 1)) (list (int_literal 2)))")
+}
+
 func TestParseSelectors(t *testing.T) {
 	checkExpr(t, "#a", "(record_selector #a)")
 	checkExpr(t, "x.a", "(apply (record_selector #a) (id x))")

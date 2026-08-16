@@ -391,6 +391,9 @@ func (r *resolver) toExp(env *coreEnv, exp ast.Expr) (core.Exp,
 		return r.toExp(env, e.Exp)
 	case *ast.Apply:
 		return r.toApply(env, e, t)
+	case *ast.AttributedExp:
+		// An attribute is inert; the expression is its operand.
+		return r.toExp(env, e.Exp)
 	case *ast.Case:
 		return r.toCase(env, e, t)
 	case *ast.Elements:
