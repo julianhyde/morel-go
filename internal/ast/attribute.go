@@ -107,3 +107,45 @@ func NewAttributedExp(span token.Span, exp Expr,
 
 // Op implements Node.
 func (*AttributedExp) Op() Op { return AttributedExpOp }
+
+// AttributedDecl is a declaration with attributes, written before
+// it, after it, or both: "[@@a] val x = 1 [@@b]". The attributes
+// are in source order.
+type AttributedDecl struct {
+	declBase
+
+	Decl  Decl
+	Attrs []*Attribute
+}
+
+// NewAttributedDecl returns an attributed declaration.
+func NewAttributedDecl(span token.Span, decl Decl,
+	attrs []*Attribute,
+) *AttributedDecl {
+	return &AttributedDecl{
+		declBase: declBase{base{span}}, Decl: decl, Attrs: attrs,
+	}
+}
+
+// Op implements Node.
+func (*AttributedDecl) Op() Op { return AttributedDeclOp }
+
+// FloatingAttrDecl is a floating attribute, "[@@@a]", which
+// stands alone as an item. It declares nothing.
+type FloatingAttrDecl struct {
+	declBase
+
+	Attr *Attribute
+}
+
+// NewFloatingAttrDecl returns a floating attribute declaration.
+func NewFloatingAttrDecl(span token.Span,
+	attr *Attribute,
+) *FloatingAttrDecl {
+	return &FloatingAttrDecl{
+		declBase: declBase{base{span}}, Attr: attr,
+	}
+}
+
+// Op implements Node.
+func (*FloatingAttrDecl) Op() Op { return FloatingAttrDeclOp }

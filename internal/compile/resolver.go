@@ -142,6 +142,15 @@ func (e *coreEnv) bind(pat *core.IDPat) *coreEnv {
 func (r *resolver) toDecl(env *coreEnv, decl ast.Decl) (core.Decl,
 	*coreEnv, error,
 ) {
+	if ad, ok := decl.(*ast.AttributedDecl); ok {
+		// An attribute is inert; convert what it decorates.
+		return r.toDecl(env, ad.Decl)
+	}
+	if fd, ok := decl.(*ast.FloatingAttrDecl); ok {
+		// A floating attribute declares nothing, and evaluates to
+		// nothing.
+		return &core.FloatingAttrDecl{Name: fd.Attr.Name}, env, nil
+	}
 	if od, ok := decl.(*ast.OverDecl); ok {
 		// An "over name" declaration introduces an overloaded name. It
 		// lowers to core and echoes but binds nothing usable yet, so

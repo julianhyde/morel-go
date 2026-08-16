@@ -233,6 +233,47 @@ func TestParseAttributes(t *testing.T) {
 		"(at (list (int_literal 1)) (list (int_literal 2)))")
 }
 
+// TestParseDeclAttributes covers "[@@a]" on a declaration, which
+// may stand before it, after it, or both, and "[@@@a]", which
+// stands alone.
+func TestParseDeclAttributes(t *testing.T) {
+	checkDecl(t, "val x = 1 [@@a]",
+		"(attributedDecl (val (valBind (idPat x) (int_literal 1)))"+
+			" (attribute @@a))")
+	checkDecl(t, "val x = 1 [@@a] [@@b]",
+		"(attributedDecl (val (valBind (idPat x) (int_literal 1)))"+
+			" (attribute @@a) (attribute @@b))")
+	checkDecl(t, "fun f x = x [@@inline]",
+		"(attributedDecl (fun (funBind (funMatch f (idPat x)"+
+			" (id x)))) (attribute @@inline))")
+	// A leading attribute is accepted, as in OCaml ...
+	checkDecl(t, "[@@a] val x = 1",
+		"(attributedDecl (val (valBind (idPat x) (int_literal 1)))"+
+			" (attribute @@a))")
+	// ... and leading and trailing keep source order.
+	checkDecl(t, "[@@a] val x = 1 [@@b]",
+		"(attributedDecl (val (valBind (idPat x) (int_literal 1)))"+
+			" (attribute @@a) (attribute @@b))")
+	// A payload may be a type.
+	checkDecl(t, "val x = 1 [@@a: int list]",
+		"(attributedDecl (val (valBind (idPat x) (int_literal 1)))"+
+			" (attribute @@a : (named list (named int))))")
+	// "[@@" does not take the expression's "[@": the trailing
+	// attribute here is the declaration's, not the 2's.
+	checkDecl(t, "val x = 1 * 2 [@@a]",
+		"(attributedDecl (val (valBind (idPat x) (times"+
+			" (int_literal 1) (int_literal 2)))) (attribute @@a))")
+	// A floating attribute stands alone.
+	checkDecl(t, "[@@@a]", "(floatingAttrDecl (attribute @@@a))")
+	checkDecl(t, "[@@@warning 32]",
+		"(floatingAttrDecl (attribute @@@warning (int_literal 32)))")
+	checkDecl(t, "[@@@a.b.c]",
+		"(floatingAttrDecl (attribute @@@a.b.c))")
+	checkDecl(t, "[@@@a: int -> string]",
+		"(floatingAttrDecl (attribute @@@a : (fnType (named int)"+
+			" (named string))))")
+}
+
 func TestParseSelectors(t *testing.T) {
 	checkExpr(t, "#a", "(record_selector #a)")
 	checkExpr(t, "x.a", "(apply (record_selector #a) (id x))")

@@ -1051,8 +1051,22 @@ func (r *typeResolver) deduceDecl(env typeEnv, decl ast.Decl,
 ) (ast.Decl, error) {
 	// lint: sort until '^	}' where '^	case '
 	switch d := decl.(type) {
+	case *ast.AttributedDecl:
+		// An attribute is inert; the declaration is its operand.
+		// The result keeps the attributes, so that the parse tree
+		// still shows them.
+		inner, err := r.deduceDecl(env, d.Decl, termMap)
+		if err != nil {
+			return nil, err
+		}
+		r.nodeTerm[decl] = r.primTerm(unitName)
+		return ast.NewAttributedDecl(d.Span(), inner, d.Attrs), nil
 	case *ast.DatatypeDecl:
 		return r.deduceDatatypeDecl(d, termMap)
+	case *ast.FloatingAttrDecl:
+		// A floating attribute declares nothing.
+		r.nodeTerm[decl] = r.primTerm(unitName)
+		return decl, nil
 	case *ast.FunDecl:
 		return r.deduceValDecl(env, funToVal(d), termMap)
 	case *ast.OverDecl:

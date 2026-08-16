@@ -50,6 +50,11 @@ func dump(b *strings.Builder, node Node) {
 		b.WriteString(")")
 	case *Attribute:
 		dumpAttribute(b, n)
+	case *AttributedDecl:
+		b.WriteString("(attributedDecl ")
+		dump(b, n.Decl)
+		dumpAttrs(b, n.Attrs)
+		b.WriteString(")")
 	case *AttributedExp:
 		b.WriteString("(attributedExp ")
 		dump(b, n.Exp)
@@ -65,6 +70,10 @@ func dump(b *strings.Builder, node Node) {
 	case *ExpressionType:
 		b.WriteString("(expression_type typeof ")
 		unparseExpr(b, n.Exp, applyPrec)
+		b.WriteString(")")
+	case *FloatingAttrDecl:
+		b.WriteString("(floatingAttrDecl ")
+		dumpAttribute(b, n.Attr)
 		b.WriteString(")")
 	case *Fn:
 		dumpMatches(b, "(fn", n.Matches)

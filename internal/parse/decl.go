@@ -42,7 +42,51 @@ func isDeclStart(kind token.Kind) bool {
 	}
 }
 
+// decl parses a declaration, with any attributes that precede or
+// follow it. Both positions are accepted, as in OCaml, and the
+// attributes are kept in source order.
 func (p *Parser) decl() (ast.Decl, error) {
+	start := p.tok.Span.Start
+	leading, err := p.declAttributes(nil)
+	if err != nil {
+		return nil, err
+	}
+	d, err := p.bareDecl()
+	if err != nil {
+		return nil, err
+	}
+	trailing, err := p.declAttributes(nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(leading) == 0 && len(trailing) == 0 {
+		return d, nil
+	}
+	end := d.Span().End
+	if n := len(trailing); n > 0 {
+		end = trailing[n-1].Span().End
+	}
+	span := token.Span{Start: start, End: end}
+	return ast.NewAttributedDecl(span, d,
+		append(leading, trailing...)), nil
+}
+
+// declAttributes appends the run of "[@@a]" attributes at the
+// cursor to attrs.
+func (p *Parser) declAttributes(attrs []*ast.Attribute) (
+	[]*ast.Attribute, error,
+) {
+	for p.tok.Kind == token.LBracketAt2 {
+		a, err := p.attribute(ast.AttrDecl)
+		if err != nil {
+			return nil, err
+		}
+		attrs = append(attrs, a)
+	}
+	return attrs, nil
+}
+
+func (p *Parser) bareDecl() (ast.Decl, error) {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch p.tok.Kind {
 	case token.Datatype:

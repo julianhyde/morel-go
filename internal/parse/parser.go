@@ -121,7 +121,17 @@ func DeclOrExpr(name, src string) (ast.Node, error) {
 }
 
 func (p *Parser) declOrExpr() (ast.Node, error) {
-	if isDeclStart(p.tok.Kind) {
+	if p.tok.Kind == token.LBracketAt3 {
+		// A floating attribute stands alone as an item.
+		start := p.tok.Span.Start
+		a, err := p.attribute(ast.AttrFloating)
+		if err != nil {
+			return nil, err
+		}
+		span := token.Span{Start: start, End: a.Span().End}
+		return ast.NewFloatingAttrDecl(span, a), nil
+	}
+	if isDeclStart(p.tok.Kind) || p.tok.Kind == token.LBracketAt2 {
 		return p.decl()
 	}
 	return p.expr()
