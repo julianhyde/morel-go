@@ -1534,6 +1534,11 @@ from {b: nosuchtype};
 > stdIn:1.10-1.20 Error: unbound type constructor: nosuchtype
 >   raised at: stdIn:1.10-1.20
 
+(*) The same, in the argument type of a datatype constructor.
+datatype d = D of nosuch;
+> stdIn:1.19-1.25 Error: unbound type constructor: nosuch
+>   raised at: stdIn:1.19-1.25
+
 (* A datatype may be recursive, and a group joined by "and" mutually so,
  * so the names that the declaration itself introduces are in scope in
  * its constructors' argument types. *)
