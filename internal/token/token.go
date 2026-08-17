@@ -315,6 +315,11 @@ func Lookup(ident string) Kind {
 // position.
 type Token struct {
 	Text string
+	// Docs are the bodies of the documentation comments,
+	// "(** ... *)", that stand immediately before this token, in
+	// source order. A declaration turns them into "[@@doc]"
+	// attributes; anywhere else they are ignored, as a comment is.
+	Docs []string
 	Span Span
 	Kind Kind
 }

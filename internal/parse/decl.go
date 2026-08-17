@@ -47,7 +47,11 @@ func isDeclStart(kind token.Kind) bool {
 // attributes are kept in source order.
 func (p *Parser) decl() (ast.Decl, error) {
 	start := p.tok.Span.Start
-	leading, err := p.declAttributes(nil)
+	// A documentation comment before the declaration is sugar for
+	// "[@@doc \"...\"]", and comes before any attribute written
+	// out; morel-java collects them at the same point.
+	leading := p.docAttributes()
+	leading, err := p.declAttributes(leading)
 	if err != nil {
 		return nil, err
 	}
@@ -69,6 +73,23 @@ func (p *Parser) decl() (ast.Decl, error) {
 	span := token.Span{Start: start, End: end}
 	return ast.NewAttributedDecl(span, d,
 		append(leading, trailing...)), nil
+}
+
+// docAttributes turns the documentation comments standing before
+// the cursor into "[@@doc]" attributes, in source order.
+func (p *Parser) docAttributes() []*ast.Attribute {
+	docs := p.tok.Docs
+	if len(docs) == 0 {
+		return nil
+	}
+	attrs := make([]*ast.Attribute, len(docs))
+	for i, doc := range docs {
+		payload := ast.NewLiteral(p.tok.Span,
+			ast.StringLiteralOp, doc)
+		attrs[i] = ast.NewAttribute(p.tok.Span, ast.AttrDecl,
+			"doc", payload)
+	}
+	return attrs
 }
 
 // declAttributes appends the run of "[@@a]" attributes at the

@@ -274,6 +274,46 @@ func TestParseDeclAttributes(t *testing.T) {
 			" (named string))))")
 }
 
+// TestParseDocComments covers "(** text *)", which is sugar for
+// "[@@doc \"text\"]" on the declaration that follows.
+func TestParseDocComments(t *testing.T) {
+	checkDecl(t, "(** Hello world. *) val x = 1",
+		"(attributedDecl (val (valBind (idPat x) (int_literal 1)))"+
+			` (attribute @@doc (string_literal " Hello world. ")))`)
+	// A doc comment comes before an attribute written out.
+	checkDecl(t, "(** doc *) val x = 1 [@@a]",
+		"(attributedDecl (val (valBind (idPat x) (int_literal 1)))"+
+			` (attribute @@doc (string_literal " doc "))`+
+			" (attribute @@a))")
+	// A comment nested in a doc comment is captured verbatim, to
+	// any depth, and does not end it.
+	checkDecl(t, "(** outer (* one (* two *) *) end *) val x = 1",
+		"(attributedDecl (val (valBind (idPat x) (int_literal 1)))"+
+			" (attribute @@doc (string_literal"+
+			` " outer (* one (* two *) *) end ")))`)
+	// A line comment inside one runs to the end of the line, and
+	// the newline is part of the text.
+	checkDecl(t, "(** outer (*) line\n  rest *) val x = 1",
+		"(attributedDecl (val (valBind (idPat x) (int_literal 1)))"+
+			" (attribute @@doc (string_literal"+
+			` " outer (*) line`+"\n"+`  rest ")))`)
+	// Each line loses its leading whitespace and one asterisk, but
+	// keeps what follows the asterisk.
+	checkDecl(t, "(** First line\n * Second line *) val x = 1",
+		"(attributedDecl (val (valBind (idPat x) (int_literal 1)))"+
+			" (attribute @@doc (string_literal"+
+			` " First line`+"\n"+` Second line ")))`)
+	// "(**)" and "(***)" are ordinary comments, not doc comments.
+	checkDecl(t, "(**) val x = 1",
+		"(val (valBind (idPat x) (int_literal 1)))")
+	checkDecl(t, "(***) val x = 1",
+		"(val (valBind (idPat x) (int_literal 1)))")
+	// A doc comment before anything but a declaration is a
+	// comment like any other.
+	checkExpr(t, "(** doc *) 1 + 2",
+		"(plus (int_literal 1) (int_literal 2))")
+}
+
 func TestParseSelectors(t *testing.T) {
 	checkExpr(t, "#a", "(record_selector #a)")
 	checkExpr(t, "x.a", "(apply (record_selector #a) (id x))")
