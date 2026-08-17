@@ -904,6 +904,9 @@ func (r *typeResolver) astTypeTerm(env typeEnv, t ast.Type) (
 ) {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch t := t.(type) {
+	case *ast.AttributedType:
+		// An attribute is inert; the type is the type it decorates.
+		return r.astTypeTerm(env, t.Type)
 	case *ast.ExpressionType:
 		// "typeof exp": the annotation's type is the deduced type
 		// of exp.

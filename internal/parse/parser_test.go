@@ -314,6 +314,42 @@ func TestParseDocComments(t *testing.T) {
 		"(plus (int_literal 1) (int_literal 2))")
 }
 
+// TestParseTypeAttributes covers "[@a]" on a type, which binds at
+// atom level, and attributes on signature specifications, which
+// show through the unparser because a signature dumps as source.
+func TestParseTypeAttributes(t *testing.T) {
+	checkDecl(t, "type distance = real [@unit]",
+		"(type_decl type distance = real [@unit])")
+	// It binds tighter than "->", so it takes the result type; the
+	// parentheses in the rendering say so.
+	checkDecl(t, "type t = int -> int [@a]",
+		"(type_decl type t = int -> (int [@a]))")
+	checkDecl(t, "val x : int [@a] = 1",
+		"(val (valBind (annotatedPat (idPat x) (attributedType"+
+			" (named int) (attribute @a))) (int_literal 1)))")
+	// Specifications carry attributes, and a doc comment above one
+	// desugars as it does on a declaration.
+	checkDecl(t, "signature S = sig val x : int [@@a] end",
+		"(signature_decl signature S = sig val x : int [@@a] end)")
+	checkDecl(t, "signature S = sig (** doc *) val x : int end",
+		"(signature_decl signature S = sig val x : int"+
+			` [@@doc " doc "] end)`)
+	checkDecl(t,
+		"signature S = sig (** d *) val x : int [@@a] [@@b] end",
+		"(signature_decl signature S = sig val x : int"+
+			` [@@doc " d "] [@@a] [@@b] end)`)
+	checkDecl(t, "signature S = sig type t [@@a] exception E [@@b] end",
+		"(signature_decl signature S = sig type t [@@a]"+
+			" exception E [@@b] end)")
+	// A floating attribute is a specification of its own.
+	checkDecl(t, "signature S = sig [@@@a] val x : int end",
+		"(signature_decl signature S = sig [@@@a] val x : int end)")
+	checkDecl(t,
+		`signature S = sig [@@@description "doc"] val x : int end`,
+		"(signature_decl signature S = sig"+
+			` [@@@description "doc"] val x : int end)`)
+}
+
 func TestParseSelectors(t *testing.T) {
 	checkExpr(t, "#a", "(record_selector #a)")
 	checkExpr(t, "x.a", "(apply (record_selector #a) (id x))")

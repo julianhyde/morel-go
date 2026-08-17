@@ -180,7 +180,7 @@ func (p *Parser) sigBind() (ast.SigBind, error) {
 	}
 	var specs []ast.SigSpec
 	for p.tok.Kind != token.End {
-		spec, specErr := p.sigSpec()
+		spec, specErr := p.attributedSigSpec()
 		if specErr != nil {
 			return ast.SigBind{}, specErr
 		}
@@ -191,6 +191,33 @@ func (p *Parser) sigBind() (ast.SigBind, error) {
 		return ast.SigBind{}, err
 	}
 	return ast.SigBind{Name: name, Specs: specs}, nil
+}
+
+// attributedSigSpec parses one specification with its attributes:
+// a documentation comment before it, then the specification, then
+// any "[@@a]". A floating "[@@@a]" is a specification of its own.
+func (p *Parser) attributedSigSpec() (ast.SigSpec, error) {
+	if p.tok.Kind == token.LBracketAt3 {
+		a, err := p.attribute(ast.AttrFloating)
+		if err != nil {
+			return ast.SigSpec{}, err
+		}
+		return ast.SigSpec{
+			Kind:  ast.FloatingAttrDeclOp,
+			Attrs: []*ast.Attribute{a},
+		}, nil
+	}
+	attrs := p.docAttributes()
+	spec, err := p.sigSpec()
+	if err != nil {
+		return ast.SigSpec{}, err
+	}
+	attrs, err = p.declAttributes(attrs)
+	if err != nil {
+		return ast.SigSpec{}, err
+	}
+	spec.Attrs = attrs
+	return spec, nil
 }
 
 // sigSpec parses one signature specification: "type [tyvars] name

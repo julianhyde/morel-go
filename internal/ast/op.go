@@ -41,6 +41,7 @@ const (
 	AttributeOp
 	AttributedDeclOp
 	AttributedExpOp
+	AttributedTypeOp
 	FloatingAttrDeclOp
 
 	// Infix and prefix operators, in increasing precedence.
@@ -166,6 +167,7 @@ var opNames = map[Op]string{
 	AttributeOp:        "attribute",
 	AttributedDeclOp:   "attributedDecl",
 	AttributedExpOp:    "attributedExp",
+	AttributedTypeOp:   "attributedType",
 	FloatingAttrDeclOp: "floatingAttrDecl",
 	ImpliesOp:          "implies",
 	OrelseOp:           "orelse",

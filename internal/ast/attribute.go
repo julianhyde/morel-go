@@ -149,3 +149,25 @@ func NewFloatingAttrDecl(span token.Span,
 
 // Op implements Node.
 func (*FloatingAttrDecl) Op() Op { return FloatingAttrDeclOp }
+
+// AttributedType is a type with attributes, "int [@a]". It binds
+// at atom level, after any type application, so it is tighter
+// than "*" or "->".
+type AttributedType struct {
+	typeBase
+
+	Type  Type
+	Attrs []*Attribute
+}
+
+// NewAttributedType returns an attributed type.
+func NewAttributedType(span token.Span, t Type,
+	attrs []*Attribute,
+) *AttributedType {
+	return &AttributedType{
+		typeBase: tb(span), Type: t, Attrs: attrs,
+	}
+}
+
+// Op implements Node.
+func (*AttributedType) Op() Op { return AttributedTypeOp }

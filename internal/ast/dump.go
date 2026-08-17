@@ -60,6 +60,11 @@ func dump(b *strings.Builder, node Node) {
 		dump(b, n.Exp)
 		dumpAttrs(b, n.Attrs)
 		b.WriteString(")")
+	case *AttributedType:
+		b.WriteString("(attributedType ")
+		dump(b, n.Type)
+		dumpAttrs(b, n.Attrs)
+		b.WriteString(")")
 	case *Case:
 		b.WriteString("(case ")
 		dump(b, n.Exp)

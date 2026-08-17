@@ -65,6 +65,9 @@ type converter struct {
 func (c *converter) convert(t ast.Type) (Type, error) {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch n := t.(type) {
+	case *ast.AttributedType:
+		// An attribute is inert; the type is the type it decorates.
+		return c.convert(n.Type)
 	case *ast.FnType:
 		return c.convert2(n.Param, n.Result, c.sys.Fn)
 	case *ast.NamedType:
