@@ -130,7 +130,7 @@ func (p *Parser) appPat() (ast.Pat, error) {
 		Start: id.Span().Start,
 		End:   arg.Span().End,
 	}
-	return ast.NewConPat(span, id.Name, arg), nil
+	return ast.NewConPat(span, id.Span(), id.Name, arg), nil
 }
 
 // isPatStart reports whether a token can begin an atomic pattern.

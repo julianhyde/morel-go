@@ -1548,4 +1548,11 @@ datatype a = A of b and b = B of a;
 > datatype a = A of b
 > datatype b = B of a
 
+(* The parser reads "Foo x" in a pattern as a constructor applied to an
+ * argument, whatever "Foo" turns out to be, so an unbound name arrives
+ * at deducePatType rather than being caught as an unbound variable. *)
+fn NOSUCHCON x => x;
+> stdIn:1.4-1.13 Error: unbound constructor: NOSUCHCON
+>   raised at: stdIn:1.4-1.13
+
 (*) End type.smli

@@ -1154,7 +1154,7 @@ func (r *typeResolver) deduceConPat(env typeEnv,
 	tc, ok := r.sys.LookupTyCon(pat.Name)
 	if !ok || tc.Arg == nil {
 		return &Error{
-			Span: pat.Span(),
+			Span: pat.NameSpan,
 			Msg: "unbound constructor: " +
 				pat.Name,
 		}

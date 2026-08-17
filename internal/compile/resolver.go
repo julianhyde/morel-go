@@ -2127,7 +2127,7 @@ func (r *resolver) toPat(pat ast.Pat) (core.Pat, error) {
 		tc, ok := r.typeMap.sys.LookupTyCon(p.Name)
 		if !ok || tc.Arg == nil {
 			return nil, &Error{
-				Span: pat.Span(),
+				Span: p.NameSpan,
 				Msg:  "unbound constructor: " + p.Name,
 			}
 		}
