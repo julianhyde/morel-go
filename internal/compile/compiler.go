@@ -26,6 +26,7 @@ import (
 	"github.com/hydromatic/morel-go/internal/ast"
 	"github.com/hydromatic/morel-go/internal/core"
 	"github.com/hydromatic/morel-go/internal/eval"
+	"github.com/hydromatic/morel-go/internal/token"
 	"github.com/hydromatic/morel-go/internal/types"
 )
 
@@ -653,6 +654,10 @@ func (c *compiler) compileStep(step core.FromStep,
 		}
 		return &eval.DistinctStage{Slots: slots}, nil
 	case *core.Order:
+		err := c.checkComparable(s.Exp.Type(), s.Span)
+		if err != nil {
+			return nil, err
+		}
 		key, err := c.compileExp(s.Exp)
 		if err != nil {
 			return nil, err
@@ -751,6 +756,71 @@ func (c *compiler) compileSetOp(s *core.SetOp, scanPats []core.Pat,
 		Slots:    slots,
 		Atom:     atom,
 	}, nil
+}
+
+// checkComparable rejects a type that has no order. Values are
+// compared part by part, so every part must have one, and a
+// function has none. Span is where the value to be compared was
+// written.
+func (c *compiler) checkComparable(t types.Type,
+	span token.Span,
+) error {
+	return c.checkComparable1(t, span, map[string]bool{})
+}
+
+// checkComparable1 is checkComparable, carrying the datatypes it
+// has already descended into; a datatype may be recursive.
+func (c *compiler) checkComparable1(t types.Type, span token.Span,
+	seen map[string]bool,
+) error {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch t := t.(type) {
+	case *types.Collection:
+		return c.checkComparable1(t.Elem, span, seen)
+	case *types.Fn:
+		return &Error{
+			Span: span,
+			Msg: "comparison not defined for type '" + t.String() +
+				"'",
+		}
+	case *types.List:
+		return c.checkComparable1(t.Elem, span, seen)
+	case *types.Named:
+		for _, arg := range t.Args {
+			err := c.checkComparable1(arg, span, seen)
+			if err != nil {
+				return err
+			}
+		}
+		if seen[t.Name] {
+			return nil
+		}
+		seen[t.Name] = true
+		for _, con := range c.sys.Constructors(t.Name) {
+			if con.Arg == nil {
+				continue
+			}
+			err := c.checkComparable1(con.Arg, span, seen)
+			if err != nil {
+				return err
+			}
+		}
+	case *types.Record:
+		for _, f := range t.Fields {
+			err := c.checkComparable1(f.Type, span, seen)
+			if err != nil {
+				return err
+			}
+		}
+	case *types.Tuple:
+		for _, arg := range t.Args {
+			err := c.checkComparable1(arg, span, seen)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // setOpKinds maps a set-operation Op to its evaluator kind.

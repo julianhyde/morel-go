@@ -1200,7 +1200,9 @@ func (r *resolver) toQueryStep(env, cur *coreEnv,
 		return []core.FromStep{&core.Into{Fn: fn}}, cur, true, err
 	case *ast.OrderStep:
 		exp, err := r.toExp(cur, s.Exp)
-		return []core.FromStep{&core.Order{Exp: exp}}, cur, false, err
+		return []core.FromStep{
+			&core.Order{Exp: exp, Span: s.Exp.Span()},
+		}, cur, false, err
 	case *ast.RequireStep:
 		// "require p" in a "forall" reduces to yielding p, whose
 		// truth for every row the quantifier then checks.
