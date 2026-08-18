@@ -365,12 +365,30 @@ Range.flatten ([] : int range list);
 Range.flatten [CLOSED (#"a", #"d")];
 > val it = [#"a",#"b",#"c",#"d"] : char list
 
+(*) AT_MOST starts at the least value of the domain, #"\^@".
+Range.flatten [AT_MOST #"\002"];
+> val it = [#"\^@",#"\^A",#"\^B"] : char list
+
 (*) bool: false then true.
 Range.flatten [CLOSED (false, true)];
 > val it = [false,true] : bool list
+Range.flatten [AT_MOST false];
+> val it = [false] : bool list
 
 (*) unit has one value.
 Range.flatten [POINT ()];
+> val it = [()] : unit list
+
+(*) A tuple of bounded components enumerates completely.
+Range.flatten [CLOSED ((false, false), (true, true))];
+> val it = [(false,false),(false,true),(true,false),(true,true)]
+>   : (bool * bool) list
+Range.flatten [ALL] : bool list;
+> val it = [false,true] : bool list
+Range.flatten [ALL] : (bool * bool) list;
+> val it = [(false,false),(false,true),(true,false),(true,true)]
+>   : (bool * bool) list
+Range.flatten [ALL] : unit list;
 > val it = [()] : unit list
 
 (* How many values are too many is the "rangeMaxLength" property. Lower

@@ -523,6 +523,9 @@ func (k *Kernel) sysSet(arg eval.Val) (eval.Val, error) {
 			panic("property " + name + " requires an integer")
 		}
 		k.config.props[name] = n.String()
+		if name == rangeMaxLengthProp {
+			eval.SetRangeMaxLength(n)
+		}
 	case boolProp:
 		b, isBool := value.(bool)
 		if !isBool {
@@ -654,6 +657,12 @@ func (k *Kernel) sysUnset(arg eval.Val) (eval.Val, error) {
 		*field = intPropDefault(name)
 	} else {
 		delete(k.config.props, name)
+	}
+	if name == rangeMaxLengthProp {
+		const decimal = 10
+		n, _ := new(big.Int).SetString(rangeMaxLengthDefault,
+			decimal)
+		eval.SetRangeMaxLength(n)
 	}
 	return unitResult()
 }
