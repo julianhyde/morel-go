@@ -135,6 +135,7 @@ func domainSize(sys *types.System, t types.Type) *big.Int {
 // primitiveSize is the number of values of a primitive type, or
 // nil for one whose values have no end.
 func primitiveSize(sys *types.System, t types.Type) *big.Int {
+	// lint: sort until '^\t}' where '^\tcase '
 	switch t {
 	case sys.Bool:
 		const boolCount = 2
