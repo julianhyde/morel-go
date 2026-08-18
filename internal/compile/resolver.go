@@ -413,7 +413,7 @@ func (r *resolver) toExp(env *coreEnv, exp ast.Expr) (core.Exp,
 				nil
 		}
 		if pat := env.get(e.Name); pat != nil {
-			return &core.ID{Pat: pat}, nil
+			return &core.ID{Pat: pat, Span: e.Span()}, nil
 		}
 		if con, ok := r.toCon(e.Name, t); ok {
 			return con, nil
@@ -422,7 +422,8 @@ func (r *resolver) toExp(env *coreEnv, exp ast.Expr) (core.Exp,
 		// (e.g. a built-in value), so make a declaration site
 		// for it.
 		return &core.ID{
-			Pat: &core.IDPat{T: t, Name: e.Name},
+			Pat:  &core.IDPat{T: t, Name: e.Name},
+			Span: e.Span(),
 		}, nil
 	case *ast.If:
 		return r.toIf(env, e, t)
