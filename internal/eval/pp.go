@@ -66,12 +66,6 @@ func PPFunctions() map[string]Val {
 		"align": Fn(func(a Val) (Val, error) {
 			return pp.Align(asDoc(a)), nil
 		}),
-		"fillSep": ppListFn(func(ds []pp.Doc) pp.Doc {
-			return pp.Fill(pp.Line(), ds)
-		}),
-		"fillCat": ppListFn(func(ds []pp.Doc) pp.Doc {
-			return pp.Fill(pp.LineBreak(), ds)
-		}),
 		"pack": Fn(func(a Val) (Val, error) {
 			x, y := asPair(a)
 			return pp.Fill(asDoc(x), docList(y)), nil
@@ -88,12 +82,5 @@ func ppPairFn(f func(a, b pp.Doc) pp.Doc) Fn {
 	return func(a Val) (Val, error) {
 		x, y := asPair(a)
 		return f(asDoc(x), asDoc(y)), nil
-	}
-}
-
-// ppListFn adapts a "doc list -> doc" combinator to a builtin.
-func ppListFn(f func([]pp.Doc) pp.Doc) Fn {
-	return func(a Val) (Val, error) {
-		return f(docList(a)), nil
 	}
 }

@@ -114,6 +114,8 @@ PP.render (80, PP.align (PP.pack (PP.empty, recs)));
 > val it = "[a b],[c d],[e f]" : string
 PP.render (9, PP.align (PP.pack (PP.empty, recs)));
 > val it = "[a b],\n[c d],\n[e f]" : string
+PP.render (9, PP.align (PP.fillCat recs));
+> val it = "[a b],[c\nd],[e f]" : string
 
 (*) `pack` of no documents is empty.
 PP.render (80, PP.pack (PP.empty, []));
@@ -155,5 +157,7 @@ val d1 = PP.`group` (PP.hcat [PP.text "ab", PP.line, PP.text "cdef"]);
 > val d1 = - : doc
 val d2 = PP.`group` (PP.hcat [PP.text "efgh", PP.line, PP.text "X"]);
 > val d2 = - : doc
+PP.render (10, PP.beside (d1, d2));
+> val it = "ab\ncdefefgh X" : string
 
 (*) End pp.smli
