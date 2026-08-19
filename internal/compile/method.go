@@ -68,7 +68,7 @@ type MethodRegistry struct {
 
 // NewMethodRegistry builds the registry from the signature's method
 // list and its structure bindings.
-func NewMethodRegistry(
+func NewMethodRegistry(sys *types.System,
 	methods []MethodInfo, bindings []Binding,
 	globalType func(string) types.Type,
 ) *MethodRegistry {
@@ -88,7 +88,15 @@ func NewMethodRegistry(
 		reg.memberTypes[b.Name] = m
 	}
 	for _, mi := range methods {
-		recv, isTuple := receiverPart(mi.Type)
+		t := mi.Type
+		if ct := CollectionAggType(sys, mi.Name, t); ct != nil &&
+			mi.Structure == relationalStructure {
+			// An aggregate over a collection takes a list receiver
+			// and a bag receiver alike, as its binding does; the
+			// signature can only write "bag".
+			t = ct
+		}
+		recv, isTuple := receiverPart(t)
 		reg.byName[mi.Name] = append(reg.byName[mi.Name], methodCandidate{
 			structure:    mi.Structure,
 			receiverHead: typeHead(recv),
@@ -114,13 +122,24 @@ func receiverPart(t types.Type) (types.Type, bool) {
 	return fn.Param, false
 }
 
+// relationalStructure is the structure whose aggregates work on a
+// list and on a bag alike.
+const relationalStructure = "Relational"
+
+// collectionHead is the head of a collection type, whose
+// orderedness is not settled: a method declared over one takes a
+// list receiver and a bag receiver alike.
+const collectionHead = "$collection"
+
 // typeHead is a type's head constructor: a datatype or primitive
-// name, or "list".
+// name, "list", or a collection.
 func typeHead(t types.Type) string {
 	// lint: sort until '^	}' where '^	case '
 	switch tt := t.(type) {
+	case *types.Collection:
+		return collectionHead
 	case *types.List:
-		return "list"
+		return listTyCon
 	case *types.Named:
 		return tt.Name
 	case *types.Primitive:
@@ -247,7 +266,7 @@ func (reg *MethodRegistry) desugar(apply *ast.Apply) (ast.Expr, bool) {
 	}
 	var cand *methodCandidate
 	for i := range cands {
-		if cands[i].receiverHead == head {
+		if headMatches(cands[i].receiverHead, head) {
 			cand = &cands[i]
 			break
 		}
@@ -282,20 +301,47 @@ func (reg *MethodRegistry) desugar(apply *ast.Apply) (ast.Expr, bool) {
 	return ast.NewApply(span, ast.NewApply(span, member, receiver), arg), true
 }
 
+// headMatches reports whether a method whose receiver is of head
+// "param" takes a receiver of head "recv". A method over a
+// collection, such as "Relational.max", takes a list and a bag
+// alike.
+func headMatches(param, recv string) bool {
+	if param == collectionHead {
+		return recv == listTyCon || recv == bagTyCon
+	}
+	return param == recv
+}
+
 // receiverHead infers the head type constructor of a receiver
 // expression structurally, for a "Structure.member" projection or a
 // "Structure.member arg" call whose member types are known.
 func (reg *MethodRegistry) receiverHead(recv ast.Expr) string {
-	if id, ok := recv.(*ast.ID); ok {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch e := recv.(type) {
+	case *ast.ID:
 		// A bound name's declared type gives the head directly.
-		if t := reg.globalType(id.Name); t != nil {
+		if t := reg.globalType(e.Name); t != nil {
 			return typeHead(t)
 		}
 		return ""
+	case *ast.ListExp:
+		return listTyCon
+	case *ast.Literal:
+		return literalHead(e.Kind)
 	}
 	r, ok := recv.(*ast.Apply)
 	if !ok {
 		return ""
+	}
+	// A named function or constructor applied to an argument has
+	// the head of its result: "(bag [1, 2]).max ()" is a bag, and
+	// "(CLOSED (3, 7)).contains 5" a range.
+	if id, ok := r.Fn.(*ast.ID); ok {
+		if t := reg.globalType(id.Name); t != nil {
+			if fn, isFn := t.(*types.Fn); isFn {
+				return typeHead(fn.Result)
+			}
+		}
 	}
 	if inner, ok := r.Fn.(*ast.Apply); ok {
 		if s, m, ok := structureMember(inner); ok {
@@ -310,6 +356,27 @@ func (reg *MethodRegistry) receiverHead(recv ast.Expr) string {
 		}
 	}
 	return ""
+}
+
+// literalHead is the head constructor of a literal's type.
+func literalHead(kind ast.Op) string {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch kind {
+	case ast.BoolLiteralOp:
+		return "bool"
+	case ast.CharLiteralOp:
+		return "char"
+	case ast.IntLiteralOp:
+		return "int"
+	case ast.RealLiteralOp:
+		return realName
+	case ast.StringLiteralOp:
+		return "string"
+	case ast.WordLiteralOp:
+		return wordName
+	default:
+		return ""
+	}
 }
 
 // structureMember matches "Structure.member" — "Apply(#member,
