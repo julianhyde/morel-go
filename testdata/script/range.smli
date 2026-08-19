@@ -502,6 +502,18 @@ from x in [1, 2, 3] where x < 2;
 [1 < 2, 3 < 4, 5 < 6];
 > val it = [true,true,true] : bool list
 
+(* Infinite forms (runtime error) --------------------------------- *)
+
+(*) AT_LEAST is unbounded above; enumeration raises Size.
+[5 ..] : int list;
+> uncaught exception Size [size]
+>   raised at: 0.0-0.0
+
+(*) Similar for GREATER_THAN.
+[5 ^..] : int list;
+> uncaught exception Size [size]
+>   raised at: 0.0-0.0
+
 (* Membership in infinite range-lists ----------------------------- *)
 
 (*) Unbounded discrete range: AT_LEAST.
@@ -565,8 +577,17 @@ from x in [1, 2, 3] where x < 2;
 Range.flatten [POINT 1.0, POINT 3.0, POINT 1.0];
 > val it = [1,3,1] : real list
 
+(*) Non-POINT ranges over real are infinite.
+[0.0 .. 1.0];
+> uncaught exception Size [size]
+>   raised at: 0.0-0.0
+
 (*) Same for string.
 ["a"];
 > val it = ["a"] : string list
+
+["a" .. "z"];
+> uncaught exception Size [size]
+>   raised at: 0.0-0.0
 
 (*) End range.smli
