@@ -72,6 +72,10 @@ func PPFunctions() map[string]Val {
 		"fillCat": ppListFn(func(ds []pp.Doc) pp.Doc {
 			return pp.Fill(pp.LineBreak(), ds)
 		}),
+		"pack": Fn(func(a Val) (Val, error) {
+			x, y := asPair(a)
+			return pp.Fill(asDoc(x), docList(y)), nil
+		}),
 		"render": Fn(func(a Val) (Val, error) {
 			x, y := asPair(a)
 			return pp.Render(int(asInt(x)), asDoc(y)), nil
