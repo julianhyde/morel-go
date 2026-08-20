@@ -807,7 +807,7 @@ func (k *Kernel) runStatement(n ast.Node) string {
 	}
 	k.methods.RewriteDecl(decl)
 	resolved, err := compile.DeduceFiles(k.sys, k.bindings, k.overloads, decl,
-		k.files())
+		k.files(), k.methods)
 	if err != nil {
 		return k.formatCompileError(err)
 	}
@@ -1135,7 +1135,7 @@ func (k *Kernel) executeTypeOnly(src string) string {
 	}
 	k.methods.RewriteDecl(decl)
 	resolved, err := compile.DeduceFiles(k.sys, k.bindings, k.overloads, decl,
-		k.files())
+		k.files(), k.methods)
 	if err != nil {
 		return k.formatCompileError(err)
 	}

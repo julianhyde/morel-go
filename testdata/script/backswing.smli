@@ -22,7 +22,22 @@
  * hold -- morel-java has no equivalent, or prints it differently.
  * An entry that morel-java could hold belongs upstream instead, so
  * that the pull keeps it: add it there, pull the file, and take the
- * entry out of here. The file is empty because every entry it had
- * has made that move.
+ * entry out of here.
  *)
+
+(* A postfix method call on a query variable dispatches on the type
+ * inference gives the variable. morel-java guesses among the
+ * candidates of "toString" and picks Bool.toString, so it reports
+ * "conflict: int vs bool"; this entry cannot go upstream until it
+ * does not. *)
+from i in [1, 2, 3] yield i.toString ();
+> val it = ["1","2","3"] : string list
+
+from i in bag [1, 2, 3] yield i.toString ();
+> val it = ["1","2","3"] : string bag
+
+(* Dispatch on a query variable tells a list from a bag, so a method
+ * declared over one does not take the other. *)
+from xs in [[1, 2], [3]] yield xs.length ();
+> val it = [2,1] : int list
 

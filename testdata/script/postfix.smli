@@ -75,6 +75,9 @@ val r = {i = 1, n};
 let val n = ~3   in n.abs () end;
 > val it = 3 : int
 
+let val r = ~3.0 in r.abs () end;
+> val it = 3 : real
+
 (* Int.max vs Real.max — tuple-splicing form *)
 (4).max 3;
 > val it = 4 : int
@@ -116,8 +119,18 @@ true.toString ();
 (3.14).toString ();
 > val it = "3.14" : string
 
+(* Bound-variable receivers for toString *)
+let val b = true   in b.toString () end;
+> val it = "true" : string
+
+let val c = #"A"   in c.toString () end;
+> val it = "A" : string
+
 let val n = 42     in n.toString () end;
 > val it = "42" : string
+
+let val r = 3.14   in r.toString () end;
+> val it = "3.14" : string
 
 (* The following would work if the limitation were lifted: a top-level
  * function definition followed by a postfix call in a separate statement. *)

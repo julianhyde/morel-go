@@ -18,8 +18,12 @@
 package compile
 
 import (
+	"slices"
+	"strings"
+
 	"github.com/hydromatic/morel-go/internal/ast"
 	"github.com/hydromatic/morel-go/internal/types"
+	"github.com/hydromatic/morel-go/internal/unify"
 )
 
 // Postfix method calls. A member marked "[@@method]" in a signature
@@ -255,8 +259,7 @@ func (reg *MethodRegistry) desugar(apply *ast.Apply) (ast.Expr, bool) {
 	if !ok {
 		return nil, false
 	}
-	cands, ok := reg.byName[sel.Name]
-	if !ok {
+	if _, ok := reg.byName[sel.Name]; !ok {
 		return nil, false
 	}
 	receiver := inner.Arg
@@ -264,10 +267,21 @@ func (reg *MethodRegistry) desugar(apply *ast.Apply) (ast.Expr, bool) {
 	if head == "" {
 		return nil, false
 	}
+	return reg.desugarHead(apply, sel.Name, receiver, head)
+}
+
+// desugarHead is desugar for a call whose receiver's head type
+// constructor is already known — as it is once type deduction has
+// reached the call, for a receiver whose type only inference gives.
+// It reports false if no method of that name dispatches on that
+// head.
+func (reg *MethodRegistry) desugarHead(apply *ast.Apply, name string,
+	receiver ast.Expr, head string,
+) (ast.Expr, bool) {
 	var cand *methodCandidate
-	for i := range cands {
-		if headMatches(cands[i].receiverHead, head) {
-			cand = &cands[i]
+	for i, c := range reg.byName[name] {
+		if headMatches(c.receiverHead, head) {
+			cand = &reg.byName[name][i]
 			break
 		}
 	}
@@ -276,7 +290,7 @@ func (reg *MethodRegistry) desugar(apply *ast.Apply) (ast.Expr, bool) {
 	}
 	span := apply.Span()
 	var member ast.Expr = ast.NewApply(span,
-		ast.NewRecordSelector(span, sel.Name),
+		ast.NewRecordSelector(span, name),
 		ast.NewID(span, cand.structure))
 	if cand.target != "" {
 		// An overload rewrites to its own hidden binding.
@@ -396,6 +410,207 @@ func structureMember(a *ast.Apply) (string, string, bool) {
 func (reg *MethodRegistry) memberType(structure, member string) types.Type {
 	if m, ok := reg.memberTypes[structure]; ok {
 		return m[member]
+	}
+	return nil
+}
+
+// methodApply reports the structure call that an apply desugars to,
+// if the apply is "receiver.method arg" and the receiver's type
+// picks out a method of that name. It is the resolver's half of the
+// dispatch: MethodRegistry.RewriteDecl has already rewritten every
+// call whose receiver can be typed from the AST alone, so what
+// reaches here is a receiver only inference types — one bound by a
+// "let", a function parameter, or a query variable.
+func (r *typeResolver) methodApply(env typeEnv, apply *ast.Apply,
+) (ast.Expr, bool) {
+	if r.methods == nil {
+		return nil, false
+	}
+	inner, ok := apply.Fn.(*ast.Apply)
+	if !ok {
+		return nil, false
+	}
+	sel, ok := inner.Fn.(*ast.RecordSelector)
+	if !ok || sel.Safe {
+		return nil, false
+	}
+	if _, known := r.methods.byName[sel.Name]; !known {
+		return nil, false
+	}
+	id, ok := inner.Arg.(*ast.ID)
+	if !ok {
+		return nil, false
+	}
+	t, inScope := env.peek(id.Name)
+	if !inScope {
+		return nil, false
+	}
+	head := r.headOfTerm(t)
+	if head == "" {
+		head = r.solvedHead(t)
+	}
+	if head == "" {
+		return nil, false
+	}
+	return r.methods.desugarHead(apply, sel.Name, inner.Arg, head)
+}
+
+// solvedHead is the head type constructor of a term according to a
+// solve of the constraints gathered so far. It answers where
+// headOfTerm cannot: a query variable is tied to its source's
+// element type only by decomposing the source's collection term,
+// which unification does and a scan of the constraints does not. The
+// solve is side-effect free — its actions append to a throwaway work
+// list — and it is made once per state of the constraints, since a
+// receiver is typed the same as long as none have been added.
+func (r *typeResolver) solvedHead(t unify.Term) string {
+	if r.headSubstAt != len(r.pairs) {
+		r.headSubstAt = len(r.pairs)
+		subst, err := r.u.Unify(r.pairs, r.actions, r.constraints)
+		if err != nil {
+			// The program so far does not type. Dispatch nothing;
+			// unification reports the conflict when the pass ends.
+			subst = nil
+		}
+		r.headSubst = subst
+	}
+	if r.headSubst == nil {
+		return ""
+	}
+	return resolvedHead(r.headSubst.Resolve(t))
+}
+
+// resolvedHead is the head type constructor of a term that a
+// substitution has resolved, or "" if it is a variable or a
+// structural term.
+func resolvedHead(t unify.Term) string {
+	s, isSeq := t.(*unify.Sequence)
+	if !isSeq || structuralOp(s.Op) {
+		return ""
+	}
+	if s.Op != collectionTyCon {
+		return s.Op
+	}
+	if len(s.Terms) != collectionArity {
+		return ""
+	}
+	ord, isSeq := s.Terms[1].(*unify.Sequence)
+	if !isSeq {
+		return ""
+	}
+	// lint: sort until '^\t}' where '^\tcase '
+	switch ord.Op {
+	case orderedName:
+		return listTyCon
+	case unorderedName:
+		return bagTyCon
+	default:
+		return ""
+	}
+}
+
+// structuralOp reports whether a term operator builds a type from
+// others — function, tuple, record — rather than being a type
+// constructor a method can dispatch on.
+func structuralOp(op string) bool {
+	return op == fnTyCon || op == tupleTyCon ||
+		strings.HasPrefix(op, recordTyCon)
+}
+
+// headOfTerm is the head type constructor of a term — "int", "list",
+// a datatype name — as far as the constraints gathered so far
+// determine it, or "" if they do not yet. It scans them backwards
+// for the terms bound to a variable, following variable-to-variable
+// links, which is how a name whose type was inferred earlier in the
+// declaration yields its head.
+func (r *typeResolver) headOfTerm(t unify.Term) string {
+	return r.termHead(t, map[*unify.Var]bool{})
+}
+
+func (r *typeResolver) termHead(t unify.Term,
+	seen map[*unify.Var]bool,
+) string {
+	switch t := t.(type) {
+	case *unify.Sequence:
+		return r.seqHead(t, seen)
+	case *unify.Var:
+		if seen[t] {
+			return ""
+		}
+		seen[t] = true
+		for _, pair := range slices.Backward(r.pairs) {
+			if v, isVar := pair.Right.(*unify.Var); !isVar || v != t {
+				continue
+			}
+			if head := r.termHead(pair.Left, seen); head != "" {
+				return head
+			}
+		}
+	}
+	return ""
+}
+
+// seqHead is the head type constructor of a sequence. The structural
+// operators — function, tuple, record — are not type constructors,
+// and a term built from one has no head.
+func (r *typeResolver) seqHead(s *unify.Sequence,
+	seen map[*unify.Var]bool,
+) string {
+	switch {
+	case s.Op == collectionTyCon:
+		return r.collectionHead(s, seen)
+	case structuralOp(s.Op):
+		return ""
+	default:
+		return s.Op
+	}
+}
+
+// collectionArity is the number of arguments of a collection term:
+// its element type and its orderedness.
+const collectionArity = 2
+
+// collectionHead resolves a collection term to "list" or "bag" by
+// its orderedness, so that dispatch tells the two apart. It is ""
+// while the orderedness is undetermined.
+func (r *typeResolver) collectionHead(s *unify.Sequence,
+	seen map[*unify.Var]bool,
+) string {
+	if len(s.Terms) != collectionArity {
+		return ""
+	}
+	ord := s.Terms[1]
+	for {
+		v, isVar := ord.(*unify.Var)
+		if !isVar || seen[v] {
+			break
+		}
+		seen[v] = true
+		next := r.boundTerm(v)
+		if next == nil {
+			break
+		}
+		ord = next
+	}
+	if atom, isSeq := ord.(*unify.Sequence); isSeq &&
+		len(atom.Terms) == 0 {
+		switch atom.Op {
+		case orderedName:
+			return listTyCon
+		case unorderedName:
+			return bagTyCon
+		}
+	}
+	return ""
+}
+
+// boundTerm is the term most recently equated with a variable, or
+// nil if the constraints gathered so far bind it to none.
+func (r *typeResolver) boundTerm(v *unify.Var) unify.Term {
+	for _, pair := range slices.Backward(r.pairs) {
+		if v2, isVar := pair.Right.(*unify.Var); isVar && v2 == v {
+			return pair.Left
+		}
 	}
 	return nil
 }
