@@ -397,10 +397,16 @@ Range.flatten [CLOSED ((false, false), (true, true))];
 > val it = [(false,false),(false,true),(true,false),(true,true)]
 >   : (bool * bool) list
 
+(*) A datatype whose constructors are all nullary is an enum.
+Range.flatten [CLOSED (LESS, GREATER)];
+> val it = [LESS,EQUAL,GREATER] : order list
+
 (* An endpoint left unbounded is the end of the domain, and a bounded
  * domain has one, so these enumerate rather than raising Size. *)
 Range.flatten [AT_LEAST #"\253"];
 > val it = [#"\253",#"\254",#"\255"] : char list
+Range.flatten [AT_LEAST EQUAL];
+> val it = [EQUAL,GREATER] : order list
 Range.flatten [ALL] : bool list;
 > val it = [false,true] : bool list
 Range.flatten [ALL] : (bool * bool) list;
