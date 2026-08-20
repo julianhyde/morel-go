@@ -805,7 +805,6 @@ func (k *Kernel) runStatement(n ast.Node) string {
 		// signatures yet.
 		return ast.UnparseSignatureDecl(sigDecl)
 	}
-	k.methods.RewriteDecl(decl)
 	resolved, err := compile.DeduceFiles(k.sys, k.bindings, k.overloads, decl,
 		k.files(), k.methods)
 	if err != nil {
@@ -1133,7 +1132,6 @@ func (k *Kernel) executeTypeOnly(src string) string {
 		// signatures yet.
 		return ast.UnparseSignatureDecl(sigDecl)
 	}
-	k.methods.RewriteDecl(decl)
 	resolved, err := compile.DeduceFiles(k.sys, k.bindings, k.overloads, decl,
 		k.files(), k.methods)
 	if err != nil {
