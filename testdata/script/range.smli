@@ -123,6 +123,11 @@ Range.contains (LESS_THAN 7) 7;
 (CLOSED (3, 7)).contains 5;
 > val it = true : bool
 
+(* Postfix syntax without outer parens: "CTOR arg.method" parses as
+ * "(CTOR arg).method", not "CTOR (arg.method)". *)
+CLOSED (3, 7).contains 5;
+> val it = true : bool
+
 (*) contains on char ranges.
 Range.contains (CLOSED (#"a", #"z")) #"e";
 > val it = true : bool
@@ -324,6 +329,10 @@ cs.complement ();
 (*) complement of ALL is empty; complement of empty is ALL.
 (Range.continuousSetOf [ALL : real range]).complement ();
 > val it = CONTINUOUS_SET [] : real continuous_set
+
+(*) double complement.
+cs.complement ().complement ();
+> val it = CONTINUOUS_SET [OPEN (1,3),AT_LEAST 7] : real continuous_set
 
 (*) discrete double complement is identity.
 val ds = Range.discreteSetOf [CLOSED (1, 3), CLOSED (7, 9)];
