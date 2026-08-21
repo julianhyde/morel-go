@@ -567,7 +567,9 @@ func rangeRangesFn(arg Val) (Val, error) {
 }
 
 // rangeToListFn is "Range.toList ds": the values of a discrete set,
-// in ascending order.
+// in ascending order. As rangeFlattenFn, it knows nothing of the
+// element type; RangeToList is the form the compiler builds where
+// the type is at hand.
 func rangeToListFn(arg Val) (Val, error) {
 	return enumerateRanges(setRangeList(arg), nil)
 }
@@ -576,6 +578,15 @@ func rangeToListFn(arg Val) (Val, error) {
 // a bag.
 func rangeToBagFn(arg Val) (Val, error) {
 	return enumerateRanges(setRangeList(arg), nil)
+}
+
+// RangeToList is "Range.toList" over a known element type, and
+// serves "Range.toBag" too: the two differ in the type of what
+// they return, not in the values.
+func RangeToList(d *Discrete) Fn {
+	return func(arg Val) (Val, error) {
+		return enumerateRanges(setRangeList(arg), d)
+	}
 }
 
 // rangeComplementFn is "Range.complement cs": the continuous set of
