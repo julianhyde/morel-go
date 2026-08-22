@@ -458,6 +458,27 @@ Range.flatten [ALL] : (bool * bool) list;
 Range.flatten [ALL] : unit list;
 > val it = [()] : unit list
 
+(* A nine-character word has 256^9 = 2^72 values, more than a machine
+ * integer can number. Counting them is exact all the same, so how many a
+ * range holds decides whether it can be made into a list, however large
+ * the domain it is drawn from.
+ *
+ * Each of these counts from the least word, so a range holds as many
+ * words as its upper bound has words below it: a character in position i
+ * (from 0) is worth 256^(8-i) of them. *)
+
+(*) 2^3 words: the last character, worth 1 word each, reaches 8.
+List.length (Range.flatten
+  [LESS_THAN (#"\000", #"\000", #"\000", #"\000", #"\000", #"\000",
+     #"\000", #"\000", #"\008")]);
+> val it = 8 : int
+
+(*) 2^9 words: the eighth character is worth 256 words, and reaches 2.
+List.length (Range.flatten
+  [LESS_THAN (#"\000", #"\000", #"\000", #"\000", #"\000", #"\000",
+     #"\000", #"\002", #"\000")]);
+> val it = 512 : int
+
 (* How many values are too many is the "rangeMaxLength" property. Lower
  * it and a range that was short enough no longer is. *)
 Sys.set ("rangeMaxLength", 4);

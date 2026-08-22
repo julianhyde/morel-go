@@ -283,20 +283,24 @@ func predVal(v Val) (Val, bool) {
 }
 
 // firstVal is the least value included by a finite lower bound.
-func firstVal(lo bound) Val {
+// An open bound excludes its own value, so the least included one
+// is the next in the element type's domain -- which is a step the
+// type must make: a bound open on a tuple has no successor that
+// the value alone can give.
+func firstVal(lo bound, d *Discrete) Val {
 	if lo.closed {
 		return lo.val
 	}
-	v, _ := succVal(lo.val)
+	v, _ := stepUp(lo.val, d)
 	return v
 }
 
 // lastVal is the greatest value included by a finite upper bound.
-func lastVal(hi bound) Val {
+func lastVal(hi bound, d *Discrete) Val {
 	if hi.closed {
 		return hi.val
 	}
-	v, _ := predVal(hi.val)
+	v, _ := stepDown(hi.val, d)
 	return v
 }
 
@@ -333,7 +337,7 @@ func connected(a, b interval, discrete bool) bool {
 	if !discrete {
 		return false
 	}
-	last, first := lastVal(a.hi), firstVal(b.lo)
+	last, first := lastVal(a.hi, nil), firstVal(b.lo, nil)
 	if last == nil || first == nil {
 		return false
 	}
@@ -494,7 +498,7 @@ func intervalEnds(iv interval, d *Discrete) (Val, Val, error) {
 	var first, last Val
 	switch {
 	case !iv.lo.inf:
-		first = firstVal(iv.lo)
+		first = firstVal(iv.lo, d)
 	default:
 		v, ok := domainEnd(d, false)
 		if !ok {
@@ -504,7 +508,7 @@ func intervalEnds(iv interval, d *Discrete) (Val, Val, error) {
 	}
 	switch {
 	case !iv.hi.inf:
-		last = lastVal(iv.hi)
+		last = lastVal(iv.hi, d)
 	default:
 		v, ok := domainEnd(d, true)
 		if !ok {
