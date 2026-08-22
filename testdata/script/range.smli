@@ -349,6 +349,9 @@ cs.complement ();
 (Range.continuousSetOf [ALL : real range]).complement ();
 > val it = CONTINUOUS_SET [] : real continuous_set
 
+(Range.continuousSetOf [] : real continuous_set).complement ();
+> val it = CONTINUOUS_SET [ALL] : real continuous_set
+
 (*) double complement.
 cs.complement ().complement ();
 > val it = CONTINUOUS_SET [OPEN (1,3),AT_LEAST 7] : real continuous_set

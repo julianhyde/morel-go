@@ -387,6 +387,14 @@ func (r *typeResolver) methodApply(env typeEnv, apply *ast.Apply,
 func (r *typeResolver) receiverHead(env typeEnv, recv ast.Expr) string {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch e := recv.(type) {
+	case *ast.AnnotatedExp:
+		// The annotation and the expression agree, so either will
+		// do; the expression is asked first because it is typed the
+		// same way every other receiver is.
+		if head := r.receiverHead(env, e.Exp); head != "" {
+			return head
+		}
+		return annotationHead(e.Type)
 	case *ast.Apply:
 		return r.applyHead(env, e)
 	case *ast.ID:
@@ -395,6 +403,15 @@ func (r *typeResolver) receiverHead(env typeEnv, recv ast.Expr) string {
 		return listTyCon
 	case *ast.Literal:
 		return literalHead(e.Kind)
+	}
+	return ""
+}
+
+// annotationHead is the head type constructor a type annotation
+// names, before the annotation has been resolved to a type.
+func annotationHead(t ast.Type) string {
+	if named, isNamed := t.(*ast.NamedType); isNamed {
+		return named.Name
 	}
 	return ""
 }
