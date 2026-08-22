@@ -111,6 +111,67 @@ func constructors(sys *types.System, t *types.Named,
 	return cons
 }
 
+// DiscreteFault is the type that stops t from being a discrete
+// type — one whose values have a successor, so that a range over
+// it can be enumerated — and nil if t is discrete. int, char, bool
+// and unit are discrete; real, string and word are not.
+//
+// A product is discrete only if every component is, and the fault
+// is the component, which is the one at fault. A datatype is
+// discrete only if every constructor is nullary or wraps a
+// discrete type, and the fault is the datatype, whose constructors
+// are its own affair — unless the fault lies within a product,
+// which names itself either way.
+func DiscreteFault(sys *types.System, t types.Type) types.Type {
+	fault, _ := discreteFault(sys, t)
+	return fault
+}
+
+// discreteFault also reports whether the fault was found inside a
+// product, in which case a datatype that contains it reports the
+// fault rather than itself.
+func discreteFault(sys *types.System, t types.Type) (types.Type, bool) {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch t := t.(type) {
+	case *types.Named:
+		for _, con := range constructors(sys, t) {
+			if con.Arg == nil {
+				continue
+			}
+			fault, inProduct := discreteFault(sys, con.Arg)
+			if fault == nil {
+				continue
+			}
+			if inProduct {
+				return fault, true
+			}
+			return t, false
+		}
+		return nil, false
+	case *types.Primitive:
+		switch t {
+		case sys.Bool, sys.Char, sys.Int, sys.Unit:
+			return nil, false
+		}
+		return t, false
+	case *types.Record:
+		for _, f := range t.Fields {
+			if fault, _ := discreteFault(sys, f.Type); fault != nil {
+				return fault, true
+			}
+		}
+		return nil, false
+	case *types.Tuple:
+		for _, arg := range t.Args {
+			if fault, _ := discreteFault(sys, arg); fault != nil {
+				return fault, true
+			}
+		}
+		return nil, false
+	}
+	return t, false
+}
+
 // domainSize is the number of values of a type, or nil where they
 // have no end. A product is the product of its parts, and a
 // datatype the sum of its constructors; either is unbounded as
