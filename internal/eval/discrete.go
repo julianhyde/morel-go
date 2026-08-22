@@ -64,16 +64,6 @@ func (d *Discrete) Counted() bool {
 // when the domain is bounded.
 func (d *Discrete) Size() *big.Int { return d.size }
 
-// Least is the first value of the domain, and Greatest the last;
-// they are the ends that an unbounded endpoint of a range stands
-// for. Both need the domain to be bounded.
-func (d *Discrete) Least() Val { return d.valueAt(big.NewInt(0)) }
-
-// Greatest is the last value of the domain.
-func (d *Discrete) Greatest() Val {
-	return d.valueAt(new(big.Int).Sub(d.size, big.NewInt(1)))
-}
-
 // Ordinal is the position of a value in the domain, counting from
 // zero.
 func (d *Discrete) Ordinal(v Val) *big.Int {
