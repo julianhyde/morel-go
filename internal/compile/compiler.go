@@ -286,6 +286,36 @@ func (c *compiler) builtinFnInfo(fnExp core.Exp,
 // argument is a list of ranges rather than a discrete set.
 const rangeFlattenName = "Range.flatten"
 
+// checkDiscreteSetOf refuses "Range.discreteSetOf" over an element
+// type that is not discrete. A discrete set is one whose values can
+// be enumerated and whose ranges merge when they are adjacent, and
+// both need a successor function; "CLOSED ("a", "z")" has neither,
+// so it is a continuous set or nothing.
+//
+// It is checked here, where the element type is known, rather than
+// in the evaluator, which has no types.
+func (c *compiler) checkDiscreteSetOf(e *core.Apply) error {
+	if BuiltinName(e.Fn) != "Range.discreteSetOf" {
+		return nil
+	}
+	fn, isFn := e.Fn.Type().(*types.Fn)
+	if !isFn {
+		return nil
+	}
+	named, isNamed := fn.Result.(*types.Named)
+	if !isNamed || len(named.Args) != 1 {
+		return nil
+	}
+	fault := eval.DiscreteFault(c.sys, named.Args[0])
+	if fault == nil {
+		return nil
+	}
+	return &Error{
+		Span: e.Span,
+		Msg:  "not a discrete type: " + fault.String(),
+	}
+}
+
 // enumeratorElem returns the element type of a reference to a
 // "Range" member that enumerates a domain -- "flatten", "toList",
 // "toBag" -- and false for any other expression. The evaluator has
@@ -975,6 +1005,10 @@ func (c *compiler) compileApply(e *core.Apply, tail bool) (eval.Code,
 	code, ok, err := c.compileRangeMember(e)
 	if ok || err != nil {
 		return code, err
+	}
+	err = c.checkDiscreteSetOf(e)
+	if err != nil {
+		return nil, err
 	}
 	fn, err := c.compileExp(e.Fn)
 	if err != nil {
