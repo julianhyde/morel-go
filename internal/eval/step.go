@@ -92,16 +92,14 @@ func step(sys *types.System, t types.Type, v Val, forward bool) (Val,
 func stepPrimitive(sys *types.System, t types.Type, v Val,
 	forward bool,
 ) (Val, bool) {
+	// lint: sort until '^\t}' where '^\tcase '
 	switch t {
-	case sys.Int:
-		n, isInt := v.(int32)
-		if !isInt {
+	case sys.Bool:
+		b, isBool := v.(bool)
+		if !isBool || b == forward {
 			return nil, false
 		}
-		if forward {
-			return n + 1, true
-		}
-		return n - 1, true
+		return forward, true
 	case sys.Char:
 		n, isChar := v.(int32)
 		if !isChar {
@@ -117,12 +115,15 @@ func stepPrimitive(sys *types.System, t types.Type, v Val,
 			return nil, false
 		}
 		return n - 1, true
-	case sys.Bool:
-		b, isBool := v.(bool)
-		if !isBool || b == forward {
+	case sys.Int:
+		n, isInt := v.(int32)
+		if !isInt {
 			return nil, false
 		}
-		return forward, true
+		if forward {
+			return n + 1, true
+		}
+		return n - 1, true
 	}
 	return nil, false
 }
@@ -254,6 +255,7 @@ func end(sys *types.System, t types.Type, top bool) (Val, bool) {
 func primitiveEnd(sys *types.System, t types.Type, top bool) (Val,
 	bool,
 ) {
+	// lint: sort until '^\t}' where '^\tcase '
 	switch t {
 	case sys.Bool:
 		return top, true

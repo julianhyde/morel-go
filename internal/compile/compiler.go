@@ -325,6 +325,18 @@ func (c *compiler) checkDiscreteSetOf(e *core.Apply) error {
 func (c *compiler) enumeratorElem(exp core.Exp) (types.Type, bool) {
 	switch BuiltinName(exp) {
 	case rangeFlattenName, "Range.toList", "Range.toBag":
+	case DsComplementName:
+		// The complement of a discrete set is a discrete set, so its
+		// element is the set's argument rather than a collection's.
+		fn, isFn := exp.Type().(*types.Fn)
+		if !isFn {
+			return nil, false
+		}
+		named, isNamed := fn.Result.(*types.Named)
+		if !isNamed || len(named.Args) != 1 {
+			return nil, false
+		}
+		return named.Args[0], true
 	default:
 		return nil, false
 	}
@@ -1018,9 +1030,12 @@ func (c *compiler) compileApply(e *core.Apply, tail bool) (eval.Code,
 		// Enumeration over a known element type: an endpoint left
 		// unbounded is the end of that type's domain.
 		d := eval.DiscreteFor(c.sys, elem)
-		if BuiltinName(e.Fn) == rangeFlattenName {
+		switch BuiltinName(e.Fn) {
+		case rangeFlattenName:
 			fn = eval.Constant(eval.RangeFlatten(d))
-		} else {
+		case DsComplementName:
+			fn = eval.Constant(eval.RangeDiscreteComplement(d))
+		default:
 			fn = eval.Constant(eval.RangeToList(d))
 		}
 	}

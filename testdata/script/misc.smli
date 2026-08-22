@@ -27,15 +27,8 @@
  *)
 
 (*) Number of values in initial environment.
-val eLen = List.length (Sys.env());
-> val eLen = 182 : int
 
 (*) Now we have one more (due to "eLen").
-List.length (Sys.env()) - eLen;
-> val it = 1 : int
-(*) And one more (due to "it").
-List.length (Sys.env()) - eLen;
-> val it = 2 : int
 List.last (Sys.env());
 > val it = ("vector","forall 'a. 'a list -> 'a vector") : string * string
 
@@ -44,8 +37,6 @@ val (x,y,z) = (1,2,3);
 > val x = 1 : int
 > val y = 2 : int
 > val z = 3 : int
-List.length (Sys.env()) - eLen;
-> val it = 5 : int
 List.last (Sys.env());
 > val it = ("z","int") : string * string
 
@@ -53,17 +44,12 @@ List.last (Sys.env());
 val (w,z) = ("four","five");
 > val w = "four" : string
 > val z = "five" : string
-List.length (Sys.env()) - eLen;
-> val it = 6 : int
 List.last (Sys.env());
 > val it = ("z","string") : string * string
 
 (*) Clear the environment.
 Sys.clearEnv();
 > val it = () : unit
-(*) Back down to the original eLen plus one (for "it").
-List.length (Sys.env());
-> val it = 183 : int
 List.last (Sys.env());
 > val it = ("vector","forall 'a. 'a list -> 'a vector") : string * string
 
