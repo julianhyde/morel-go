@@ -638,6 +638,72 @@ func rangeComplementFn(arg Val) (Val, error) {
 	return continuousSetVal(out), nil
 }
 
+// RangeDiscreteComplement is "Range.complement ds" over a known
+// element type: the discrete set of everything not in ds.
+//
+// It is the continuous complement with each bound closed. The
+// complement of a closed bound is an open one -- everything
+// outside [1, 3] starts above 3 -- and over a discrete domain
+// "above 3" is "4 or more", so complementing {1..3} ∪ {7..9}
+// gives AT_MOST 0, CLOSED (4, 6), AT_LEAST 10 where a continuous
+// set would keep the open forms. Closing the bounds is what makes
+// the result normalized, so that complementing twice returns the
+// set it started from.
+func RangeDiscreteComplement(d *Discrete) Fn {
+	return func(arg Val) (Val, error) {
+		ranges := setRangeList(arg)
+		ivs := make([]interval, len(ranges))
+		for i, r := range ranges {
+			ivs[i] = rangeToInterval(r)
+		}
+		comp := complementIntervals(ivs)
+		out := make([]Val, 0, len(comp))
+		for _, iv := range comp {
+			closed, empty := closeInterval(iv, d)
+			if empty {
+				// Nothing lies between the bounds: the complement of
+				// {3} within a domain that has no value on one side
+				// of it, say.
+				continue
+			}
+			out = append(out, intervalToRange(closed))
+		}
+		return discreteSetVal(out), nil
+	}
+}
+
+// closeInterval moves each open bound of an interval in to the
+// adjacent value, which a discrete domain has and a continuous one
+// does not. It reports true if the interval turns out to hold no
+// values at all: an open bound at the end of the domain has no
+// value beyond it.
+func closeInterval(iv interval, d *Discrete) (interval, bool) {
+	if !iv.lo.inf && !iv.lo.closed {
+		v, ok := stepUp(iv.lo.val, d)
+		if !ok {
+			return iv, true
+		}
+		iv.lo = closedBound(v)
+	}
+	if !iv.hi.inf && !iv.hi.closed {
+		v, ok := stepDown(iv.hi.val, d)
+		if !ok {
+			return iv, true
+		}
+		iv.hi = closedBound(v)
+	}
+	return iv, emptyInterval(iv)
+}
+
+// stepDown is the predecessor of a value, as stepUp is its
+// successor.
+func stepDown(v Val, d *Discrete) (Val, bool) {
+	if d != nil {
+		return d.Pred(v)
+	}
+	return predVal(v)
+}
+
 // RangeSetContainsFn is "contains s x" on a continuous or
 // discrete set: whether x lies in any of the set's ranges.
 var RangeSetContainsFn = Curry2(func(s, x Val) (Val, error) {
