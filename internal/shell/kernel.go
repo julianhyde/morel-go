@@ -213,7 +213,7 @@ func NewKernel(name string) *Kernel {
 	// the set types, targeting hidden bindings.
 	methods, overloadBindings := compile.OverloadMethods(sys)
 	k.bindings = append(k.bindings, overloadBindings...)
-	k.methods = compile.NewMethodRegistry(
+	k.methods = compile.NewMethodRegistry(sys,
 		append(result.Methods, methods...), bindings,
 		k.globalType)
 	values := make(map[string]eval.Val, len(eval.Builtins))
@@ -807,7 +807,7 @@ func (k *Kernel) runStatement(n ast.Node) string {
 	}
 	k.methods.RewriteDecl(decl)
 	resolved, err := compile.DeduceFiles(k.sys, k.bindings, k.overloads, decl,
-		k.files())
+		k.files(), k.methods)
 	if err != nil {
 		return k.formatCompileError(err)
 	}
@@ -1135,7 +1135,7 @@ func (k *Kernel) executeTypeOnly(src string) string {
 	}
 	k.methods.RewriteDecl(decl)
 	resolved, err := compile.DeduceFiles(k.sys, k.bindings, k.overloads, decl,
-		k.files())
+		k.files(), k.methods)
 	if err != nil {
 		return k.formatCompileError(err)
 	}

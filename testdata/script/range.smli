@@ -119,6 +119,10 @@ Range.contains (LESS_THAN 7) 6;
 Range.contains (LESS_THAN 7) 7;
 > val it = false : bool
 
+(*) Postfix (method) syntax, with explicit outer parens.
+(CLOSED (3, 7)).contains 5;
+> val it = true : bool
+
 (*) contains on char ranges.
 Range.contains (CLOSED (#"a", #"z")) #"e";
 > val it = true : bool

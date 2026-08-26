@@ -57,16 +57,80 @@ n.compare 3;
 val r = {i = 1, n};
 > val r = {i=1,n=4} : {i:int, n:int}
 
+(* Disambiguation between functions with the same name in different structures.
+ * Six names are shared between Int and Real: abs, max, min, rem, sign,
+ * toString. Bool and Char also have toString.
+ * Disambiguation uses the receiver's type, resolved via the type constraint
+ * chain (termOperatorOf follows variable-to-variable links so that bound
+ * identifiers like 'r' are correctly resolved to their concrete type). *)
+
+(* Int.abs vs Real.abs — literal receivers *)
+(~3).abs ();
+> val it = 3 : int
+
+(~3.0).abs ();
+> val it = 3 : real
+
 (* Int.abs vs Real.abs — bound-variable receivers *)
 let val n = ~3   in n.abs () end;
 > val it = 3 : int
+
+let val r = ~3.0 in r.abs () end;
+> val it = 3 : real
+
+(* Int.max vs Real.max — tuple-splicing form *)
+(4).max 3;
+> val it = 4 : int
+
+(4.0).max 3.0;
+> val it = 4 : real
+
+(* Int.min vs Real.min *)
+(4).min 3;
+> val it = 3 : int
+
+(4.0).min 3.0;
+> val it = 3 : real
+
+(* Int.rem vs Real.rem *)
+(14).rem 3;
+> val it = 2 : int
+
+(14.0).rem 3.0;
+> val it = 2 : real
+
+(* Int.sign vs Real.sign *)
+(~5).sign ();
+> val it = ~1 : int
+
+(~2.5).sign ();
+> val it = ~1 : int
 
 (* toString — four candidates: Bool, Char, Int, Real *)
 true.toString ();
 > val it = "true" : string
 
+(#"A").toString ();
+> val it = "A" : string
+
+(42).toString ();
+> val it = "42" : string
+
+(3.14).toString ();
+> val it = "3.14" : string
+
+(* Bound-variable receivers for toString *)
+let val b = true   in b.toString () end;
+> val it = "true" : string
+
+let val c = #"A"   in c.toString () end;
+> val it = "A" : string
+
 let val n = 42     in n.toString () end;
 > val it = "42" : string
+
+let val r = 3.14   in r.toString () end;
+> val it = "3.14" : string
 
 (* The following would work if the limitation were lifted: a top-level
  * function definition followed by a postfix call in a separate statement. *)
