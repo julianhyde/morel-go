@@ -85,6 +85,32 @@ func (d *Discrete) valueAt(n *big.Int) Val {
 	return valueAt(d.sys, d.t, n)
 }
 
+// constructors are a datatype's constructors in the order that
+// compareVals puts their values in, which is the order they were
+// declared in. types.System.Constructors sorts by name, and a
+// domain that numbered "order" alphabetically -- EQUAL, GREATER,
+// LESS -- would disagree with every comparison made of it.
+//
+// Each argument type is the instance's, not the datatype's: the
+// constructors of "(order, bool) either" take an "order" and a
+// "bool", where the declaration says "'a" and "'b". A domain
+// cannot count a type variable.
+func constructors(sys *types.System, t *types.Named,
+) []types.Constructor {
+	cons := sys.Constructors(t.Name)
+	slices.SortFunc(cons, func(a, b types.Constructor) int {
+		return a.Ordinal - b.Ordinal
+	})
+	if len(t.Args) > 0 {
+		for i := range cons {
+			if cons[i].Arg != nil {
+				cons[i].Arg = sys.Substitute(cons[i].Arg, t.Args)
+			}
+		}
+	}
+	return cons
+}
+
 // domainSize is the number of values of a type, or nil where they
 // have no end. A product is the product of its parts, and a
 // datatype the sum of its constructors; either is unbounded as
@@ -94,7 +120,7 @@ func domainSize(sys *types.System, t types.Type) *big.Int {
 	switch t := t.(type) {
 	case *types.Named:
 		total := big.NewInt(0)
-		for _, con := range sys.Constructors(t.Name) {
+		for _, con := range constructors(sys, t) {
 			if con.Arg == nil {
 				total.Add(total, big.NewInt(1))
 				continue
@@ -163,7 +189,7 @@ func ordinalOf(sys *types.System, t types.Type, v Val) *big.Int {
 			return big.NewInt(0)
 		}
 		total := big.NewInt(0)
-		for _, c := range sys.Constructors(t.Name) {
+		for _, c := range constructors(sys, t) {
 			if c.Ordinal == con.Ordinal {
 				if c.Arg == nil {
 					return total
@@ -239,7 +265,7 @@ func valueAt(sys *types.System, t types.Type, n *big.Int) Val {
 	switch t := t.(type) {
 	case *types.Named:
 		rest := new(big.Int).Set(n)
-		for _, c := range sys.Constructors(t.Name) {
+		for _, c := range constructors(sys, t) {
 			block := big.NewInt(1)
 			if c.Arg != nil {
 				block = domainSize(sys, c.Arg)

@@ -282,12 +282,20 @@ func (c *compiler) builtinFnInfo(fnExp core.Exp,
 	}
 }
 
-// flattenElem returns the element type of a reference to
-// "Range.flatten", and false for any other expression. The
-// evaluator has no types, so the domain that an unbounded
-// endpoint stands for has to be settled here.
-func (c *compiler) flattenElem(exp core.Exp) (types.Type, bool) {
-	if BuiltinName(exp) != "Range.flatten" {
+// rangeFlattenName is "Range.flatten", the one enumerator whose
+// argument is a list of ranges rather than a discrete set.
+const rangeFlattenName = "Range.flatten"
+
+// enumeratorElem returns the element type of a reference to a
+// "Range" member that enumerates a domain -- "flatten", "toList",
+// "toBag" -- and false for any other expression. The evaluator has
+// no types, so the domain that an unbounded endpoint stands for,
+// and the counting that decides whether a range is too long to
+// expand, have to be settled here.
+func (c *compiler) enumeratorElem(exp core.Exp) (types.Type, bool) {
+	switch BuiltinName(exp) {
+	case rangeFlattenName, "Range.toList", "Range.toBag":
+	default:
 		return nil, false
 	}
 	fn, ok := exp.Type().(*types.Fn)
@@ -972,11 +980,15 @@ func (c *compiler) compileApply(e *core.Apply, tail bool) (eval.Code,
 	if err != nil {
 		return nil, err
 	}
-	if elem, ok := c.flattenElem(e.Fn); ok {
-		// "Range.flatten" over a known element type: an endpoint
-		// left unbounded is the end of that type's domain.
-		fn = eval.Constant(eval.RangeFlatten(
-			eval.DiscreteFor(c.sys, elem)))
+	if elem, ok := c.enumeratorElem(e.Fn); ok {
+		// Enumeration over a known element type: an endpoint left
+		// unbounded is the end of that type's domain.
+		d := eval.DiscreteFor(c.sys, elem)
+		if BuiltinName(e.Fn) == rangeFlattenName {
+			fn = eval.Constant(eval.RangeFlatten(d))
+		} else {
+			fn = eval.Constant(eval.RangeToList(d))
+		}
 	}
 	if sumType, ok := sumRef(e.Fn); ok {
 		var zero eval.Val
