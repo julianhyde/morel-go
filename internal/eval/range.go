@@ -440,20 +440,37 @@ func enumerateInterval(iv interval, d *Discrete) ([]Val, error) {
 	}
 	if d != nil && d.Bounded() {
 		// The domain numbers the values, so the ones between the
-		// endpoints are read off by position; a product has no
-		// successor function of its own.
+		// endpoints are read off by position rather than stepped to.
 		return valuesBetween(first, last, d), nil
 	}
 	out := []Val{first}
 	for cur := first; compareVals(cur, last) != 0; {
-		s, ok := succVal(cur)
+		s, ok := stepUp(cur, d)
 		if !ok {
 			return nil, &MorelError{Exn: ExnDomain}
 		}
 		cur = s
 		out = append(out, cur)
+		if len(out) > 1 && big.NewInt(int64(len(out))).
+			Cmp(RangeMaxLength()) > 0 {
+			// An uncounted domain -- a product with an unbounded
+			// component, say -- cannot say in advance how many values
+			// lie between the endpoints, so the walk is what finds
+			// out that there are too many.
+			return nil, &MorelError{Exn: ExnSize}
+		}
 	}
 	return out, nil
+}
+
+// stepUp is the successor of a value: the element type's, where
+// the type is known, and otherwise the one that a value alone can
+// give, which serves int, char and bool.
+func stepUp(v Val, d *Discrete) (Val, bool) {
+	if d != nil {
+		return d.Succ(v)
+	}
+	return succVal(v)
 }
 
 // valuesBetween lists the values from first to last inclusive, by
@@ -478,20 +495,36 @@ func intervalEnds(iv interval, d *Discrete) (Val, Val, error) {
 	switch {
 	case !iv.lo.inf:
 		first = firstVal(iv.lo)
-	case d != nil && d.Bounded():
-		first = d.Least()
 	default:
-		return nil, nil, &MorelError{Exn: ExnSize}
+		v, ok := domainEnd(d, false)
+		if !ok {
+			return nil, nil, &MorelError{Exn: ExnSize}
+		}
+		first = v
 	}
 	switch {
 	case !iv.hi.inf:
 		last = lastVal(iv.hi)
-	case d != nil && d.Bounded():
-		last = d.Greatest()
 	default:
-		return nil, nil, &MorelError{Exn: ExnSize}
+		v, ok := domainEnd(d, true)
+		if !ok {
+			return nil, nil, &MorelError{Exn: ExnSize}
+		}
+		last = v
 	}
 	return first, last, nil
+}
+
+// domainEnd is the value an unbounded endpoint stands for: the
+// last value of the element type's domain, or its first.
+func domainEnd(d *Discrete, top bool) (Val, bool) {
+	if d == nil {
+		return nil, false
+	}
+	if top {
+		return d.Greatest()
+	}
+	return d.Least()
 }
 
 // checkRangeLength refuses a range with more values than the
