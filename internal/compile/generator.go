@@ -1221,7 +1221,7 @@ func collectionGenerator(sys *types.System,
 		}
 	}
 	return &generator{
-		exp:  coll,
+		exp:  bagToList(sys, coll),
 		pat:  pat,
 		card: finite,
 		// The collection is whatever the predicate names, and may
@@ -1233,6 +1233,28 @@ func collectionGenerator(sys *types.System,
 		provenance: map[core.Exp]bool{conjunct: true},
 		conds:      conds,
 		freshPats:  freshPats,
+	}
+}
+
+// bagToList reads a bag as a list, "Bag.toList coll". An
+// unbounded scan is ordered and distinct, so its source is a
+// list; where the predicate names a bag -- a foreign relation
+// such as "scott.depts" -- the bag is read as one, as
+// morel-java's plan shows. A collection that is already a list
+// is returned unchanged.
+func bagToList(sys *types.System, coll core.Exp) core.Exp {
+	named, ok := coll.Type().(*types.Named)
+	if !ok || named.Name != "bag" || len(named.Args) != 1 {
+		return coll
+	}
+	listT := sys.List(named.Args[0])
+	return &core.Apply{
+		T: listT,
+		Fn: &core.ID{Pat: &core.IDPat{
+			T:    sys.Fn(coll.Type(), listT),
+			Name: "Bag.toList",
+		}},
+		Arg: coll,
 	}
 }
 
