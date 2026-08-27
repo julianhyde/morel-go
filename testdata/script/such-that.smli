@@ -1104,6 +1104,10 @@ end;
  *)
 from p where String.isPrefix p "abcd";
 > val it = ["","a","ab","abc","abcd"] : string list
+Sys.planEx "999";
+> val it =
+>   "val it = from p in #tabulate List (#size String \"abcd\" + 1, fn i => #substring String (\"abcd\", 0, i))"
+>   : string
 
 from s in ["abcd", "ant"], p where String.isPrefix p s;
 > p    s
@@ -1119,6 +1123,10 @@ from s in ["abcd", "ant"], p where String.isPrefix p s;
 > ant  ant
 >
 > val it : {p:string, s:string} list
+Sys.planEx "999";
+> val it =
+>   "val it = from s in [\"abcd\", \"ant\"] join p in #tabulate List (#size String s + 1, fn i => #substring String (s, 0, i))"
+>   : string
 
 from s in ["abcd", "ant"], p where String.isPrefix p s yield p distinct;
 > val it = ["","a","ab","abc","abcd","an","ant"] : string list

@@ -247,8 +247,9 @@ func builtinName(e core.Exp) string {
 }
 
 // prefixGenerator builds the prefixes of a string:
-// Bag.tabulate (String.size s + 1, fn i => String.substring
-// (s, 0, i)).
+// List.tabulate (String.size s + 1, fn i => String.substring
+// (s, 0, i)). The prefixes are distinct and in order, so the
+// generator is a list, as an unbounded scan's source is.
 func prefixGenerator(sys *types.System, pat *core.IDPat,
 	s core.Exp, conjunct core.Exp,
 ) *generator {
@@ -286,14 +287,14 @@ func prefixGenerator(sys *types.System, pat *core.IDPat,
 	if !ok {
 		return nil
 	}
-	bagT := sys.Named("bag", strT)
+	listT := sys.List(strT)
 	pairT := sys.Tuple(intT, fnT)
 	return &generator{
 		exp: &core.Apply{
-			T: bagT,
+			T: listT,
 			Fn: &core.ID{Pat: &core.IDPat{
-				T:    sys.Fn(pairT, bagT),
-				Name: "Bag.tabulate",
+				T:    sys.Fn(pairT, listT),
+				Name: "List.tabulate",
 			}},
 			Arg: &core.Tuple{T: pairT, Args: []core.Exp{
 				count,
