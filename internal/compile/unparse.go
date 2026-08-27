@@ -79,6 +79,10 @@ func UnparseDecl(sys *types.System, decl core.Decl) string {
 // A sub-expression is parenthesized when the context binds
 // tighter than the expression's own operator.
 const (
+	// precQuery is the binding of a query, and of "fn", "let" and
+	// "case": each has an open-ended tail, so each parenthesizes
+	// where a step keyword could otherwise be read as its own.
+	precQuery   = 1
 	precOrelse  = 1 // orelse: left 2, right 3
 	precAndalso = 2
 	precCompare = 4 // = <> < <= > >= elem: non-associative
@@ -554,7 +558,7 @@ func (u *unparser) step(step core.FromStep, scans *int,
 			return
 		}
 		u.put(" in ")
-		u.exp(s.Exp, 0, 0)
+		u.exp(s.Exp, precQuery+1, precQuery+1)
 	case *core.Skip:
 		u.put(" skip ")
 		u.exp(s.Exp, 0, 0)
