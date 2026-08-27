@@ -24,10 +24,14 @@ type myInt = int;
 > type myInt = int
 val x: myInt = 5;
 > val x = 5 : myInt
+val x = 6 : myInt;
+> val x = 6 : myInt
 val x = (6 : myInt) + 1;
 > val x = 7 : int
 val list = [5, 6: myInt];
 > val list = [5,6] : int list
+val list = []: myInt list;
+> val list = [] : myInt list
 val list = []: int list;
 > val list = [] : int list
 
@@ -35,6 +39,8 @@ type intPair = int * int;
 > type intPair = int * int
 val x: intPair = (4, 5);
 > val x = (4,5) : intPair
+val x2 = (4, 5): intPair;
+> val x2 = (4,5) : intPair
 val x3 = (4, 5);
 > val x3 = (4,5) : int * int
 val y: int * int = x;
@@ -46,6 +52,8 @@ val z: intPair = y;
 type myInt = int and myRealList = real list;
 > type myInt = int
 > type myRealList = real list
+val reals = [1.0, 2.0, 3.0]: myRealList;
+> val reals = [1,2,3] : myRealList
 
 (* A "type" declaration is not recursive, and the bindings in a
  * "type ... and ..." group are simultaneous, so a name that the

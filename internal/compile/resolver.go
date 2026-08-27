@@ -70,6 +70,32 @@ func (r *resolver) freePat(name string, t types.Type) *core.IDPat {
 	return pat
 }
 
+// surfaceFromExp gives a binding the surface type of an
+// annotation on the expression it is bound to, so that
+// "val x = 6 : myInt" displays "myInt" as "val x : myInt = 6"
+// already does. morel-java has no need of this: an alias is a
+// type there, so it rides the expression's type to the binding.
+// Here an alias is expanded during inference, and the annotation
+// as written is the only record of it.
+//
+// Only an annotation over the whole expression counts. One
+// inside it -- "[1: myInt]" -- would have to flow out through
+// the type it helped infer, which needs the alias to be a type.
+func (r *resolver) surfaceFromExp(idPat *core.IDPat, e ast.Expr) {
+	annotated, ok := e.(*ast.AnnotatedExp)
+	if !ok {
+		return
+	}
+	surface, e1 := r.typeMap.sys.SurfaceFromAST(annotated.Type,
+		map[string]int{})
+	expanded, e2 := r.typeMap.sys.FromAST(annotated.Type,
+		map[string]int{})
+	if e1 == nil && e2 == nil && surface != expanded &&
+		expanded == idPat.T {
+		idPat.SurfaceT = surface
+	}
+}
+
 // resolver converts AST nodes to Core, attaching the types that
 // the TypeResolver deduced.
 type resolver struct {
@@ -215,14 +241,14 @@ func (r *resolver) toDecl(env *coreEnv, decl ast.Decl) (core.Decl,
 		if qerr != nil {
 			return nil, nil, qerr
 		}
-		if qual, ok := q.(*types.Qualified); ok {
-			// The bound value uses overloaded names at an abstract type,
-			// so it has a qualified type. Compile it with one dictionary
-			// parameter per predicate (Wadler-Blott dictionary passing):
-			// inside the body an overloaded name at an abstract type
-			// refers to its dictionary parameter, and the value becomes a
-			// curried function that each use site supplies the selected
-			// instances to.
+		if qual, isQual := q.(*types.Qualified); isQual {
+			// The bound value uses overloaded names at an abstract
+			// type, so it has a qualified type. Compile it with one
+			// dictionary parameter per predicate (Wadler-Blott
+			// dictionary passing): inside the body an overloaded
+			// name at an abstract type refers to its dictionary
+			// parameter, and the value becomes a curried function
+			// that each use site supplies the selected instances to.
 			idPat.SurfaceT = qual
 			exp, err = r.toCoreWithDictionaries(env, qual.Predicates,
 				bind.Exp)
@@ -230,6 +256,9 @@ func (r *resolver) toDecl(env *coreEnv, decl ast.Decl) (core.Decl,
 				return nil, nil, err
 			}
 		}
+	}
+	if idPat, ok := pat.(*core.IDPat); ok && idPat.SurfaceT == nil {
+		r.surfaceFromExp(idPat, bind.Exp)
 	}
 	if exp == nil {
 		exp, err = r.toExp(env, bind.Exp)
