@@ -497,6 +497,7 @@ func arithStruct(t types.Type) string {
 var planAliases = map[string]string{
 	// lint: sort until '^}' where '^\t"'
 	"app":       "List.app",
+	bagTyCon:    "Bag.fromList",
 	"chr":       "Char.chr",
 	"explode":   "String.explode",
 	"foldl":     "List.foldl",
