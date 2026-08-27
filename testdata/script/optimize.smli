@@ -135,6 +135,8 @@ Sys.planEx "1";
 let val u = () in case u of () => "unit" | _ => "not unit" end;
 > stdIn:1.44-1.59 Error: match redundant
 >   raised at: stdIn:1.44-1.59
+Sys.planEx "1";
+> val it = "val it = \"unit\"" : string
 
 (*) Tuple case.
 let
