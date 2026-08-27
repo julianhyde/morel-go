@@ -229,6 +229,10 @@ in
   case `left` of INL s => "left:" ^ s | INR s => "right:" ^ s
 end;
 > val it = "left:a" : string
+Sys.planEx "~1";
+> val it =
+>   "val it = let val `left` = INL \"a\" in case `left` of INL(s) => \"left:\" ^ s | INR(s_1) => \"right:\" ^ s_1 end"
+>   : string
 Sys.planEx "1";
 > val it = "val it = #^ String (\"left:\", \"a\")" : string
 

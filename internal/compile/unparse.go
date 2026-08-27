@@ -25,6 +25,7 @@ import (
 	"github.com/hydromatic/morel-go/internal/ast"
 	"github.com/hydromatic/morel-go/internal/core"
 	"github.com/hydromatic/morel-go/internal/eval"
+	"github.com/hydromatic/morel-go/internal/parse"
 	"github.com/hydromatic/morel-go/internal/types"
 )
 
@@ -126,12 +127,16 @@ func (u *unparser) name(pat *core.IDPat) {
 	u.put(suffixed(pat.Name, len(list)))
 }
 
-// suffixed appends the renumbering suffix.
+// suffixed quotes a name that has to be quoted to be read back --
+// a reserved word such as "left" -- and appends the renumbering
+// suffix. The suffix goes outside the quotes, so that what is
+// marked as the reserved word is the name the user wrote.
 func suffixed(name string, i int) string {
+	quoted := parse.QuoteIdent(name)
 	if i == 0 {
-		return name
+		return quoted
 	}
-	return name + "_" + strconv.Itoa(i)
+	return quoted + "_" + strconv.Itoa(i)
 }
 
 // decl renders a declaration.
