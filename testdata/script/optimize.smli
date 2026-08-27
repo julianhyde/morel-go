@@ -380,6 +380,10 @@ Sys.planEx "1";
  * cases and emits the equivalent two-sided bounds. *)
 from x where abs x < 5;
 > val it = [~4,~3,~2,~1,0,1,2,3,4] : int list
+Sys.planEx "3";
+> val it =
+>   "val it = from x in #flatten Range ([OPEN (~5, 5)]) where #abs Int x < 5"
+>   : string
 from x where abs x <= 3;
 > val it = [~3,~2,~1,0,1,2,3] : int list
 from x where 5 > abs x;
