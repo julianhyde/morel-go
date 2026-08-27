@@ -747,13 +747,15 @@ func rangeGenerator(sys *types.System, pat *core.IDPat,
 }
 
 // rangeScanExp builds the collection enumerating a list of
-// ranges: Bag.fromList (Range.flatten [ctors]).
+// ranges: Range.flatten [ctors]. The result is a list, not a
+// bag: an unbounded scan is ordered and distinct, so its source
+// needs no bag conversion.
 func rangeScanExp(sys *types.System, t types.Type,
 	ctors []core.Exp,
 ) core.Exp {
 	rangeT := sys.Named("range", t)
 	listT := sys.List(t)
-	flatten := &core.Apply{
+	return &core.Apply{
 		T: listT,
 		Fn: &core.ID{Pat: &core.IDPat{
 			T:    sys.Fn(sys.List(rangeT), listT),
@@ -761,19 +763,10 @@ func rangeScanExp(sys *types.System, t types.Type,
 		}},
 		Arg: &core.List{T: sys.List(rangeT), Args: ctors},
 	}
-	bagT := sys.Named("bag", t)
-	return &core.Apply{
-		T: bagT,
-		Fn: &core.ID{Pat: &core.IDPat{
-			T:    sys.Fn(listT, bagT),
-			Name: "Bag.fromList",
-		}},
-		Arg: flatten,
-	}
 }
 
 // rangeSetScanExp builds the collection enumerating ranges that
-// may overlap: Range.toBag (Range.discreteSetOf [ctors]), whose
+// may overlap: Range.toList (Range.discreteSetOf [ctors]), whose
 // set semantics deduplicate and sort.
 func rangeSetScanExp(sys *types.System, t types.Type,
 	ctors []core.Exp,
@@ -788,12 +781,12 @@ func rangeSetScanExp(sys *types.System, t types.Type,
 		}},
 		Arg: &core.List{T: sys.List(rangeT), Args: ctors},
 	}
-	bagT := sys.Named("bag", t)
+	listT := sys.List(t)
 	return &core.Apply{
-		T: bagT,
+		T: listT,
 		Fn: &core.ID{Pat: &core.IDPat{
-			T:    sys.Fn(setT, bagT),
-			Name: "Range.toBag",
+			T:    sys.Fn(setT, listT),
+			Name: "Range.toList",
 		}},
 		Arg: set,
 	}
