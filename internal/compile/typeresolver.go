@@ -996,6 +996,45 @@ func (r *typeResolver) astTypeTerm(env typeEnv, t ast.Type) (
 	}
 }
 
+// aliasTyCon is the operator prefix of a type-alias term.
+const aliasTyCon = "$alias:"
+
+// aliasTerm builds the term of a type alias. The first argument
+// is the expanded body, so that the unifier can head-reduce by
+// taking it; the rest are the alias's own arguments, which the
+// type map needs to rebuild the type.
+func aliasTerm(name string, body unify.Term,
+	args []unify.Term,
+) unify.Term {
+	terms := make([]unify.Term, 0, len(args)+1)
+	terms = append(terms, body)
+	terms = append(terms, args...)
+	return unify.Apply(aliasTyCon+name, terms...)
+}
+
+// aliasTermName returns the name of an alias term, and whether
+// the term is one.
+func aliasTermName(t unify.Term) (string, bool) {
+	s, ok := t.(*unify.Sequence)
+	if !ok || !strings.HasPrefix(s.Op, aliasTyCon) {
+		return "", false
+	}
+	return strings.TrimPrefix(s.Op, aliasTyCon), true
+}
+
+// unaliasTerm expands a term until it is not an alias term. Every
+// read of a term's structure goes through it, so that an alias
+// wrapping a record or a collection reads as what it abbreviates.
+func unaliasTerm(t unify.Term) unify.Term {
+	for {
+		s, ok := t.(*unify.Sequence)
+		if !ok || !strings.HasPrefix(s.Op, aliasTyCon) {
+			return t
+		}
+		t = s.Terms[0]
+	}
+}
+
 // astNamedTerm converts a named type annotation: a primitive, a
 // list, or an instance of a datatype.
 func (r *typeResolver) astNamedTerm(env typeEnv,
@@ -1007,7 +1046,20 @@ func (r *typeResolver) astNamedTerm(env typeEnv,
 		for i, tv := range alias.TyVars {
 			subst[tv] = t.Args[i]
 		}
-		return r.astTypeTerm(env, ast.SubstituteType(alias.Body, subst))
+		body, err := r.astTypeTerm(env,
+			ast.SubstituteType(alias.Body, subst))
+		if err != nil {
+			return nil, err
+		}
+		args := make([]unify.Term, len(t.Args))
+		for i, arg := range t.Args {
+			term, aerr := r.astTypeTerm(env, arg)
+			if aerr != nil {
+				return nil, aerr
+			}
+			args[i] = term
+		}
+		return aliasTerm(t.Name, body, args), nil
 	}
 	terms := make([]unify.Term, len(t.Args))
 	for i, arg := range t.Args {
