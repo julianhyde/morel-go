@@ -676,6 +676,22 @@ func (r *typeResolver) reg(node ast.Node, v *unify.Var) {
 	r.nodeTerm[node] = v
 }
 
+// regAnnotated registers the type of an annotated node. An
+// annotation that names a type alias registers the alias term
+// itself, not the variable it was equated with: the variable is
+// weakened where the alias meets what it abbreviates --
+// "val x: myInt = 5" unifies it with the literal's "int" -- and
+// the alias the annotation was written as is what is displayed.
+func (r *typeResolver) regAnnotated(node ast.Node, term unify.Term,
+	v *unify.Var,
+) {
+	if _, isAlias := aliasTermName(term); isAlias {
+		r.reg2(node, term)
+		return
+	}
+	r.reg(node, v)
+}
+
 // reg2 registers that a node's type is a term.
 func (r *typeResolver) reg2(node ast.Node, t unify.Term) {
 	r.nodeTerm[node] = t
@@ -1051,15 +1067,12 @@ func (r *typeResolver) astNamedTerm(env typeEnv,
 		if err != nil {
 			return nil, err
 		}
-		args := make([]unify.Term, len(t.Args))
-		for i, arg := range t.Args {
-			term, aerr := r.astTypeTerm(env, arg)
-			if aerr != nil {
-				return nil, aerr
-			}
-			args[i] = term
+		if len(t.Args) > 0 {
+			// A parameterized alias is a type function: applying it
+			// substitutes and expands, and what is left is the body.
+			return body, nil
 		}
-		return aliasTerm(t.Name, body, args), nil
+		return aliasTerm(t.Name, body, nil), nil
 	}
 	terms := make([]unify.Term, len(t.Args))
 	for i, arg := range t.Args {
@@ -1560,7 +1573,7 @@ func (r *typeResolver) deducePat(env typeEnv, pat ast.Pat,
 		if err != nil {
 			return err
 		}
-		r.reg(pat, v)
+		r.regAnnotated(pat, term, v)
 		return nil
 	case *ast.AsPat:
 		// "name as p": the name and the sub-pattern both have the
@@ -1963,7 +1976,7 @@ func (r *typeResolver) deduceExp(env typeEnv, exp ast.Expr,
 		if err != nil {
 			return err
 		}
-		r.reg(exp, v)
+		r.regAnnotated(exp, term, v)
 		return nil
 	case *ast.Apply:
 		return r.deduceApply(env, e, v)

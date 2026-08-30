@@ -70,32 +70,6 @@ func (r *resolver) freePat(name string, t types.Type) *core.IDPat {
 	return pat
 }
 
-// surfaceFromExp gives a binding the surface type of an
-// annotation on the expression it is bound to, so that
-// "val x = 6 : myInt" displays "myInt" as "val x : myInt = 6"
-// already does. morel-java has no need of this: an alias is a
-// type there, so it rides the expression's type to the binding.
-// Here an alias is expanded during inference, and the annotation
-// as written is the only record of it.
-//
-// Only an annotation over the whole expression counts. One
-// inside it -- "[1: myInt]" -- would have to flow out through
-// the type it helped infer, which needs the alias to be a type.
-func (r *resolver) surfaceFromExp(idPat *core.IDPat, e ast.Expr) {
-	annotated, ok := e.(*ast.AnnotatedExp)
-	if !ok {
-		return
-	}
-	surface, e1 := r.typeMap.sys.SurfaceFromAST(annotated.Type,
-		map[string]int{})
-	expanded, e2 := r.typeMap.sys.FromAST(annotated.Type,
-		map[string]int{})
-	if e1 == nil && e2 == nil && surface != expanded &&
-		expanded == idPat.T {
-		idPat.SurfaceT = surface
-	}
-}
-
 // resolver converts AST nodes to Core, attaching the types that
 // the TypeResolver deduced.
 type resolver struct {
@@ -258,7 +232,12 @@ func (r *resolver) toDecl(env *coreEnv, decl ast.Decl) (core.Decl,
 		}
 	}
 	if idPat, ok := pat.(*core.IDPat); ok && idPat.SurfaceT == nil {
-		r.surfaceFromExp(idPat, bind.Exp)
+		// An alias that survived inference of the bound expression
+		// is what the binding displays: "val x = 6 : myInt" is
+		// "myInt", as "val x : myInt = 6" is.
+		if a := r.typeMap.AliasedTypeOf(bind.Exp); a != nil {
+			idPat.SurfaceT = a
+		}
 	}
 	if exp == nil {
 		exp, err = r.toExp(env, bind.Exp)
@@ -2244,12 +2223,8 @@ func (r *resolver) toPat(pat ast.Pat) (core.Pat, error) {
 			return nil, err
 		}
 		if idPat, ok := inner.(*core.IDPat); ok {
-			surface, e1 := r.typeMap.sys.SurfaceFromAST(p.Type,
-				map[string]int{})
-			expanded, e2 := r.typeMap.sys.FromAST(p.Type,
-				map[string]int{})
-			if e1 == nil && e2 == nil && surface != expanded {
-				idPat.SurfaceT = surface
+			if a := r.typeMap.AliasedTypeOf(pat); a != nil {
+				idPat.SurfaceT = a
 			}
 		}
 		return inner, nil
