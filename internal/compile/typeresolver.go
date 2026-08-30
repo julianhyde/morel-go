@@ -676,6 +676,36 @@ func (r *typeResolver) reg(node ast.Node, v *unify.Var) {
 	r.nodeTerm[node] = v
 }
 
+// elemTerm is the element term of a list display: the shared
+// variable the elements were deduced into, or the type the first
+// element was annotated with, where that names a type alias.
+//
+// An annotation on the first element declares what the elements
+// are, as the first element decides the element type itself, so
+// "[2: myInt, 3: myInt, 4]" is a "myInt list" and
+// "[5, 6: myInt]" is an "int list". An element that merely has an
+// alias does not declare one: "[n, j]" is an "int list" where n is
+// a "nat" and j an "int", because there the alias meets a
+// different type and is weakened.
+func (r *typeResolver) elemTerm(args []ast.Expr,
+	vElem *unify.Var,
+) unify.Term {
+	if len(args) == 0 {
+		return vElem
+	}
+	if _, annotated := args[0].(*ast.AnnotatedExp); !annotated {
+		return vElem
+	}
+	first, ok := r.nodeTerm[args[0]]
+	if !ok {
+		return vElem
+	}
+	if _, isAlias := aliasTermName(first); !isAlias {
+		return vElem
+	}
+	return first
+}
+
 // regAnnotated registers the type of an annotated node as the
 // annotation's own term, rather than the variable it was equated
 // with.
@@ -2036,7 +2066,7 @@ func (r *typeResolver) deduceExp(env typeEnv, exp ast.Expr,
 				return err
 			}
 		}
-		r.regEquiv(exp, v, r.listTerm(vElem))
+		r.regEquiv(exp, v, r.listTerm(r.elemTerm(e.Args, vElem)))
 		return nil
 	case *ast.Literal:
 		return r.deduceLiteral(exp, e.Kind, e.Value, v)
@@ -2890,6 +2920,27 @@ func (r *typeResolver) deduceMatch(env typeEnv, match *ast.Match,
 		return err
 	}
 	r.regEquiv(match, argVariable,
-		r.fnTerm(vPat, resultVariable))
+		r.fnTerm(r.patTerm(match.Pat, vPat), resultVariable))
 	return nil
+}
+
+// patTerm is the term of a match's pattern: the variable it was
+// deduced into, or the type it was annotated with, where that
+// names a type alias. An annotation on a parameter declares what
+// the function takes, so "fun f (x: nat) = x" is "nat -> nat"
+// where the variable alone would say "int -> int".
+func (r *typeResolver) patTerm(pat ast.Pat,
+	vPat *unify.Var,
+) unify.Term {
+	if _, annotated := pat.(*ast.AnnotatedPat); !annotated {
+		return vPat
+	}
+	term, ok := r.nodeTerm[pat]
+	if !ok {
+		return vPat
+	}
+	if _, isAlias := aliasTermName(term); !isAlias {
+		return vPat
+	}
+	return term
 }

@@ -28,6 +28,12 @@ val x = 6 : myInt;
 > val x = 6 : myInt
 val x = (6 : myInt) + 1;
 > val x = 7 : int
+
+(*) Deduce list type based on first element
+val list = [1: myInt];
+> val list = [1] : myInt list
+val list = [2: myInt, 3: myInt, 4];
+> val list = [2,3,4] : myInt list
 val list = [5, 6: myInt];
 > val list = [5,6] : int list
 val list = []: myInt list;
