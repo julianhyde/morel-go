@@ -540,15 +540,7 @@ func (r *resolver) toExp(env *coreEnv, exp ast.Expr) (core.Exp,
 		}
 		return &core.Tuple{T: t, Args: args}, nil
 	case *ast.TypeStringExp:
-		// The operand's type is known after inference; render it as
-		// a string literal.
-		operandType, err := r.typeMap.TypeOf(e.Exp)
-		if err != nil {
-			return nil, err
-		}
-		return &core.Literal{
-			T: t, Kind: ast.StringLiteralOp, Value: operandType.String(),
-		}, nil
+		return r.toTypeString(e, t)
 	default:
 		return nil, &Error{
 			Span: exp.Span(),
@@ -556,6 +548,29 @@ func (r *resolver) toExp(env *coreEnv, exp ast.Expr) (core.Exp,
 				exp.Op().String(),
 		}
 	}
+}
+
+// toTypeString renders "type_string e" as a string literal of the
+// operand's type: the type it was shown to have, keeping any type
+// alias, rather than the type inference reduced it to. Otherwise a
+// value the shell prints as "foo" would report "int", and two
+// operators reifying one type would disagree with what is
+// displayed.
+func (r *resolver) toTypeString(e *ast.TypeStringExp,
+	t types.Type,
+) (core.Exp, error) {
+	operandType := r.typeMap.AliasedTypeOf(e.Exp)
+	if operandType == nil {
+		var err error
+		operandType, err = r.typeMap.TypeOf(e.Exp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &core.Literal{
+		T: t, Kind: ast.StringLiteralOp,
+		Value: operandType.String(),
+	}, nil
 }
 
 func (r *resolver) toLiteral(literal *ast.Literal,

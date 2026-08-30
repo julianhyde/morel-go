@@ -309,6 +309,10 @@ type foo = int;
 > type foo = int
 val fv: foo = 1;
 > val fv = 1 : foo
+type_string fv;
+> val it = "foo" : string
+type_string [fv];
+> val it = "foo list" : string
 type_string 1;
 > val it = "int" : string
 
