@@ -357,6 +357,15 @@ func (r *resolver) toRecDecl(env *coreEnv, d *ast.ValDecl) (
 		if err != nil {
 			return nil, nil, err
 		}
+		// An alias that survived inference of the bound expression
+		// is what the binding displays, as it is for a binding
+		// that is not recursive.
+		if _, annotated := bind.Pat.(*ast.AnnotatedPat); !annotated &&
+			idPat.SurfaceT == nil {
+			if a := r.typeMap.AliasedTypeOf(bind.Exp); a != nil {
+				idPat.SurfaceT = a
+			}
+		}
 		idPats[i] = idPat
 		env2 = env2.bind(idPat)
 	}

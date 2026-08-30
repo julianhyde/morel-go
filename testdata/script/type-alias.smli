@@ -183,6 +183,12 @@ val p: nat2 * nat2 = (1, 2);
 List.map (fn i => i - 1) ns;
 > val it = [0,1] : int list
 
+(*) A parameter and a result keep it.
+fun f (x: nat2) = x;
+> val f = fn : nat2 -> nat2
+fun g (x: nat2): nat2 = x;
+> val g = fn : nat2 -> nat2
+
 (* A type the compiler examines structurally has its aliases expanded, so
  * choosing an overload, aggregating and printing all behave as they do for
  * the underlying type. *)
