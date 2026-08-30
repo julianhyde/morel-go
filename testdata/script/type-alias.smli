@@ -240,6 +240,16 @@ val n2: nat2 = 6;
 [n, n2];
 > val it = [5,6] : nat2 list
 
+(* An alias is expanded only as far as unification requires, so an alias nested
+ * inside one that weakens survives. Here 'nats' meets 'nat2 list' and weakens,
+ * but the element type stays 'nat2'. *)
+type nats = nat2 list;
+> type nats = nat2 list
+val nsAlias: nats = [1, 2];
+> val nsAlias = [1,2] : nats
+[nsAlias, [n]];
+> val it = [[1,2],[5]] : nat2 list list
+
 (* Two aliases with identical bodies both lose: there is no principled reason
  * to prefer one name, so the meet is the bare type. *)
 type point2 = {x: int, y: int};

@@ -528,6 +528,10 @@ type typeResolver struct {
 	numericCalls  []numericCall
 	selectorCalls []selectorCall
 	tyVarScopes   []map[string]*unify.Var
+
+	// declaringAliases are the names a type declaration is binding,
+	// while its bodies are resolved; see deduceTypeDecl.
+	declaringAliases map[string]bool
 	// pendingSafe holds safe selectors whose result could not be
 	// deduced when their receiver's variable first resolved (an
 	// inner layer was still open); after unification they are
@@ -1377,6 +1381,17 @@ func (r *typeResolver) deduceDatatypeDecl(decl *ast.DatatypeDecl,
 // shell echoes the expanded form.
 func (r *typeResolver) deduceTypeDecl(decl *ast.TypeDecl,
 ) (ast.Decl, error) {
+	// The names this declaration binds. A body that names one of
+	// them means the alias of that name as it was before -- what
+	// makes "type t = t" the previous t -- so such a name is
+	// expanded here rather than kept, or the alias would refer to
+	// itself.
+	declaring := make(map[string]bool, len(decl.Binds))
+	for _, b := range decl.Binds {
+		declaring[b.Name] = true
+	}
+	r.declaringAliases = declaring
+	defer func() { r.declaringAliases = nil }()
 	resolved := make([]ast.Type, len(decl.Binds))
 	for i, b := range decl.Binds {
 		body, err := r.resolveTypeBody(b.Type)
@@ -1447,6 +1462,14 @@ func (r *typeResolver) resolveNamedType(n *ast.NamedType) (ast.Type,
 	}
 	if alias, ok := r.sys.LookupAlias(n.Name); ok &&
 		len(alias.TyVars) == len(args) {
+		if len(args) == 0 && !r.declaringAliases[n.Name] {
+			// A nullary alias keeps its name in the body of
+			// another, so "type nats = nat2 list" is a list of
+			// "nat2" and not of what nat2 abbreviates. A
+			// parameterized one is a type function, and applying
+			// it substitutes and expands.
+			return n, nil
+		}
 		subst := make(map[string]ast.Type, len(alias.TyVars))
 		for i, tv := range alias.TyVars {
 			subst[tv] = args[i]
