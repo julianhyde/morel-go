@@ -212,6 +212,9 @@ val c: count = n;
 > val c = 5 : count
 type name = string;
 > type name = string
+val bad: name = n;
+> stdIn:1.1-1.18 Error: Cannot deduce type: conflict: name (alias for string) vs nat2 (alias for int)
+>   raised at: stdIn:1.1-1.18
 
 (* Where an alias meets a different type, the result is the weaker of the two,
  * namely the type the alias abbreviates. An alias is only as strong as what
