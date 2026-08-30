@@ -676,20 +676,20 @@ func (r *typeResolver) reg(node ast.Node, v *unify.Var) {
 	r.nodeTerm[node] = v
 }
 
-// regAnnotated registers the type of an annotated node. An
-// annotation that names a type alias registers the alias term
-// itself, not the variable it was equated with: the variable is
-// weakened where the alias meets what it abbreviates --
-// "val x: myInt = 5" unifies it with the literal's "int" -- and
-// the alias the annotation was written as is what is displayed.
-func (r *typeResolver) regAnnotated(node ast.Node, term unify.Term,
-	v *unify.Var,
+// regAnnotated registers the type of an annotated node as the
+// annotation's own term, rather than the variable it was equated
+// with.
+//
+// The variable is weakened wherever a type alias in the
+// annotation meets what it abbreviates -- "val x: myInt = 5"
+// unifies it with the literal's "int" -- and an alias nested in
+// the annotation is weakened the same way, so "val ns: nat list =
+// [1, 2]" would read "int list". The annotation is what the
+// binding was declared to have, and is what it displays.
+func (r *typeResolver) regAnnotated(node ast.Node,
+	term unify.Term,
 ) {
-	if _, isAlias := aliasTermName(term); isAlias {
-		r.reg2(node, term)
-		return
-	}
-	r.reg(node, v)
+	r.reg2(node, term)
 }
 
 // reg2 registers that a node's type is a term.
@@ -1577,7 +1577,7 @@ func (r *typeResolver) deducePat(env typeEnv, pat ast.Pat,
 		if err != nil {
 			return err
 		}
-		r.regAnnotated(pat, term, v)
+		r.regAnnotated(pat, term)
 		return nil
 	case *ast.AsPat:
 		// "name as p": the name and the sub-pattern both have the
@@ -1980,7 +1980,7 @@ func (r *typeResolver) deduceExp(env typeEnv, exp ast.Expr,
 		if err != nil {
 			return err
 		}
-		r.regAnnotated(exp, term, v)
+		r.regAnnotated(exp, term)
 		return nil
 	case *ast.Apply:
 		return r.deduceApply(env, e, v)
