@@ -151,6 +151,14 @@ type nat2 = int;
 > type nat2 = int
 val n: nat2 = 5;
 > val n = 5 : nat2
+n;
+> val it = 5 : nat2
+[n];
+> val it = [5] : nat2 list
+{a = n};
+> val it = {a=5} : {a:nat2}
+(n, n);
+> val it = (5,5) : nat2 * nat2
 
 (* A type the compiler examines structurally has its aliases expanded, so
  * choosing an overload, aggregating and printing all behave as they do for
@@ -187,6 +195,8 @@ val k: age = 9;
  * would give 'int list' here too, and for the wrong reason. *)
 val n2: nat2 = 6;
 > val n2 = 6 : nat2
+[n, n2];
+> val it = [5,6] : nat2 list
 
 (* Two aliases with identical bodies both lose: there is no principled reason
  * to prefer one name, so the meet is the bare type. *)
@@ -200,6 +210,10 @@ val cc: coord = {x = 3, y = 4};
 > val cc = {x=3,y=4} : coord
 [pp, cc];
 > val it = [{x=1,y=2},{x=3,y=4}] : {x:int, y:int} list
+
+(*) Components of a tuple do not meet, so each keeps its own type.
+(n, j);
+> val it = (5,7) : nat2 * int
 
 (* Arithmetic therefore yields the underlying type, as in Standard ML, because
  * the two operand types meet. *)

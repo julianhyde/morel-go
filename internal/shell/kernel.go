@@ -870,13 +870,16 @@ func (k *Kernel) executeStatement(n ast.Node) string {
 }
 
 // qualifiedOrPlain returns surfaceT when it is a qualified type (so
-// a later use of the binding re-emits its overload constraints),
-// otherwise plainT.
+// a later use of the binding re-emits its overload constraints) or
+// carries a type alias (so a later use reads the alias, and
+// "val m = n" is "nat" where n is), otherwise plainT.
 func qualifiedOrPlain(plainT, surfaceT types.Type) types.Type {
-	if _, ok := surfaceT.(*types.Qualified); ok {
+	switch surfaceT.(type) {
+	case *types.Qualified, *types.AliasType:
 		return surfaceT
+	default:
+		return plainT
 	}
-	return plainT
 }
 
 // overDeclEcho handles an "over name" declaration: it introduces an

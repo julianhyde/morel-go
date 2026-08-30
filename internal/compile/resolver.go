@@ -231,12 +231,18 @@ func (r *resolver) toDecl(env *coreEnv, decl ast.Decl) (core.Decl,
 			}
 		}
 	}
-	if idPat, ok := pat.(*core.IDPat); ok && idPat.SurfaceT == nil {
-		// An alias that survived inference of the bound expression
-		// is what the binding displays: "val x = 6 : myInt" is
-		// "myInt", as "val x : myInt = 6" is.
-		if a := r.typeMap.AliasedTypeOf(bind.Exp); a != nil {
-			idPat.SurfaceT = a
+	if _, annotated := bind.Pat.(*ast.AnnotatedPat); !annotated {
+		if idPat, ok := pat.(*core.IDPat); ok &&
+			idPat.SurfaceT == nil {
+			// An alias that survived inference of the bound
+			// expression is what the binding displays:
+			// "val x = 6 : myInt" is "myInt", as
+			// "val x : myInt = 6" is. An annotation on the pattern
+			// has already had its say, and wins: "val j : int = n"
+			// is "int" even where n is "nat".
+			if a := r.typeMap.AliasedTypeOf(bind.Exp); a != nil {
+				idPat.SurfaceT = a
+			}
 		}
 	}
 	if exp == nil {
@@ -2115,7 +2121,7 @@ func datatypeOf(tc types.TyCon) string {
 func (r *resolver) toSelector(sel *ast.RecordSelector,
 	t types.Type,
 ) (core.Exp, error) {
-	fnType, ok := t.(*types.Fn)
+	fnType, ok := types.Unalias(t).(*types.Fn)
 	if !ok {
 		return nil, &Error{
 			Span: sel.Span(),
@@ -2124,7 +2130,8 @@ func (r *resolver) toSelector(sel *ast.RecordSelector,
 		}
 	}
 	index := -1
-	switch param := fnType.Param.(type) {
+	// A record reached through a type alias is still a record.
+	switch param := types.Unalias(fnType.Param).(type) {
 	case *types.Record:
 		for i, f := range param.Fields {
 			if f.Label == sel.Name {
@@ -2264,7 +2271,13 @@ func (r *resolver) toPat(pat ast.Pat) (core.Pat, error) {
 		if tc, isCon := r.typeMap.sys.LookupTyCon(p.Name); isCon {
 			return r.toCon0Pat(p.Name, tc, t), nil
 		}
-		return &core.IDPat{T: t, Name: p.Name}, nil
+		idPat := &core.IDPat{T: t, Name: p.Name}
+		// A type alias that survived inference is what the binding
+		// displays. It stays out of T, which the evaluator reads.
+		if a := r.typeMap.AliasedTypeOf(pat); a != nil {
+			idPat.SurfaceT = a
+		}
+		return idPat, nil
 	case *ast.ListPat:
 		return r.toListPat(p, t)
 	case *ast.LiteralPat:
@@ -2383,7 +2396,8 @@ func (r *resolver) toRecordPat(p *ast.RecordPat,
 // type, in the order of the values of a tuple of that type, or
 // nil if the type is neither.
 func recordLikeFields(t types.Type) []types.Field {
-	switch t := t.(type) {
+	// A record reached through a type alias is still a record.
+	switch t := types.Unalias(t).(type) {
 	case *types.Record:
 		return t.Fields
 	case *types.Tuple:

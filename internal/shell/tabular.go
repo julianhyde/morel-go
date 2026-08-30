@@ -179,7 +179,8 @@ func isRecordLike(t types.Type) bool {
 // recordLikeFields returns the label/type pairs of a record or tuple,
 // tuple fields being named "1", "2", ...; nil for any other type.
 func recordLikeFields(t types.Type) []types.Field {
-	switch t := t.(type) {
+	// A record reached through a type alias is still a record.
+	switch t := types.Unalias(t).(type) {
 	case *types.Record:
 		return t.Fields
 	case *types.Tuple:

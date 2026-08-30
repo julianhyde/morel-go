@@ -807,6 +807,10 @@ func (r *typeResolver) typeTerm(t types.Type,
 ) unify.Term {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch t := t.(type) {
+	case *types.AliasType:
+		// A type alias keeps its name through inference; its first
+		// term is what it expands to.
+		return aliasTerm(t.Name, r.typeTerm(t.Base, subst), nil)
 	case *types.Collection:
 		// A collection has free orderedness, so it unifies with a
 		// list or a bag; fresh per instantiation, but shared by
@@ -2613,7 +2617,8 @@ func (r *typeResolver) rememberFieldsLater(exp ast.Expr,
 // nil, "{{} extend i = 1}" would never be desugared, and would end
 // as an unresolved flex record.
 func termFieldNames(t unify.Term) []string {
-	seq, ok := t.(*unify.Sequence)
+	// A record reached through a type alias is still a record.
+	seq, ok := unaliasTerm(t).(*unify.Sequence)
 	if !ok {
 		return nil
 	}
