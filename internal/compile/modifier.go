@@ -19,116 +19,90 @@ package compile
 
 import (
 	"slices"
-	"sort"
 
 	"github.com/hydromatic/morel-go/internal/ast"
 	"github.com/hydromatic/morel-go/internal/token"
-	"github.com/hydromatic/morel-go/internal/types"
 )
 
-// modArg is one field of the record a modifier produces: its
-// label and the expression that gives its value.
-type modArg struct {
+// fieldSource says where one field of a modified record gets its
+// value.
+type fieldSource interface{ fieldSource() }
+
+// keptField keeps the value of a field of the record the modifier
+// was applied to. The name may differ, if the modifier is a
+// "rename".
+type keptField struct{ field string }
+
+// assignedField is assigned the value of an expression.
+//
+// sameType says whether the field keeps the type it had. It is
+// false if the field is being added, because then there is no type
+// to keep, and if the modifier is "lenient", which is what
+// "lenient" means.
+type assignedField struct {
+	exp      ast.Expr
+	sameType bool
+}
+
+// takenField is assigned a field of the argument of an "all"
+// modifier. sameType means what it does in assignedField.
+type takenField struct {
+	field    string
+	sameType bool
+}
+
+func (keptField) fieldSource()     {}
+func (assignedField) fieldSource() {}
+func (takenField) fieldSource()    {}
+
+// modField is one field of the record a modifier produces: its
+// label, and where its value comes from.
+type modField struct {
 	label string
-	exp   ast.Expr
+	src   fieldSource
 }
 
-// desugarModifiers converts a record with modifiers into an
-// expression: one "let" per modifier, each destructuring the
-// record that the modifier before it produced.
+// applyModifier applies m to a record whose fields are fields,
+// returning where each field of the result gets its value.
 //
-// Destructuring is what makes the fields visible to the
-// assignments, and makes them shadow the enclosing environment;
-// nesting is what makes a modifier see the result of the one
-// before it; and the bindings of one "let" being simultaneous is
-// what makes the assignments of one modifier simultaneous. For
-// example, "{r replace i = j, j = i remove j}" becomes
+// It also checks the labels the modifier mentions against the
+// fields it is applied to, and reports one that the verb says is
+// an error present, or an error absent.
 //
-//	let val {i = i, j = j} = r in
-//	  (let val {i = i, j = j} = {i = j, j = i} in
-//	    {i = i}
-//	  end)
-//	end
+// allFields gives the field names of the modifier's argument, if
+// it is an "all" modifier, and is nil otherwise.
 //
-// fieldNames gives the field names of the base, and of the
-// argument of each "all" modifier. Each modifier also checks the
-// labels it mentions against the fields it is applied to.
-func desugarModifiers(record *ast.Record,
-	fieldNames map[ast.Expr][]string,
-) (ast.Expr, error) {
-	span := record.Span()
-	exp := record.Base
-	fields := fieldNames[record.Base]
-	for _, m := range record.Modifiers {
-		valBinds := []*ast.ValBind{
-			ast.NewValBind(span, fieldsPat(span, fields), exp),
-		}
-		var args []modArg
-		var err error
-		// lint: sort until '^		}' where '^		case '
-		switch m := m.(type) {
-		case *ast.AllModifier:
-			name := freeName(fields)
-			valBinds = append(valBinds,
-				ast.NewValBind(span, ast.NewIDPat(span, name), m.Exp))
-			args, err = assignAllFields(span, m, fields,
-				fieldNames[m.Exp], name)
-		case *ast.AssignModifier:
-			args, err = assignFields(span, m, fields)
-		case *ast.RemoveModifier:
-			args, err = removeFields(span, m, fields)
-		case *ast.RenameModifier:
-			args, err = renameFields(span, m, fields)
-		}
-		if err != nil {
-			return nil, err
-		}
-		recFields := make([]ast.Field, len(args))
-		fields = make([]string, len(args))
-		for i, a := range args {
-			recFields[i] = ast.Field{Label: a.label, Exp: a.exp}
-			fields[i] = a.label
-		}
-		sort.Slice(fields, func(i, j int) bool {
-			return types.LabelLess(fields[i], fields[j])
-		})
-		exp = ast.NewLet(span,
-			[]ast.Decl{
-				ast.NewValDecl(span, false, false, valBinds),
-			},
-			ast.NewRecord(span, recFields))
-	}
-	return exp, nil
-}
-
-// fieldsPat returns a pattern that destructures a record into its
-// fields, "{a = a, b = b}".
-func fieldsPat(span token.Span, fields []string) ast.Pat {
-	patFields := make([]ast.PatField, len(fields))
-	for i, field := range fields {
-		patFields[i] = ast.PatField{
-			Label: field, Pat: ast.NewIDPat(span, field),
+// The type resolver reads the result to deduce the type of the
+// modified record, and the core resolver reads it again to build
+// the record. Deriving it twice from the same rules is what keeps
+// the type and the value in step.
+func applyModifier(m ast.Modifier, fields, allFields []string) (
+	[]modField, error,
+) {
+	// lint: sort until '^	}' where '^	case '
+	switch m := m.(type) {
+	case *ast.AllModifier:
+		return assignAllFields(m, fields, allFields)
+	case *ast.AssignModifier:
+		return assignFields(m, fields)
+	case *ast.RemoveModifier:
+		return removeFields(m, fields)
+	case *ast.RenameModifier:
+		return renameFields(m, fields)
+	default:
+		return nil, &Error{
+			Span: m.Span(), Msg: "unknown record modifier",
 		}
 	}
-	return ast.NewRecordPat(span, patFields, false)
-}
-
-// freeName returns a name that is not one of fields.
-func freeName(fields []string) string {
-	name := "$all"
-	for slices.Contains(fields, name) {
-		name += "_"
-	}
-	return name
 }
 
 // assignFields applies an "extend" or "replace" modifier, in
 // either case taking each label to whichever of the verb's two
 // cases it falls in: the record has the label already, or it does
 // not.
-func assignFields(span token.Span, m *ast.AssignModifier,
-	fields []string,
-) ([]modArg, error) {
+func assignFields(m *ast.AssignModifier, fields []string) (
+	[]modField, error,
+) {
 	labelled, err := labelFields(m.Fields)
 	if err != nil {
 		return nil, err
@@ -144,24 +118,26 @@ func assignFields(span token.Span, m *ast.AssignModifier,
 	}
 
 	// Fields the record has: assigned, or kept as they were.
-	var args []modArg
+	var args []modField
 	for _, field := range fields {
 		exp, isAssigned := assigned[field]
 		if !isAssigned || m.Verb.Exists() == ast.ExistsSkip {
-			args = append(args, modArg{field, ast.NewID(span, field)})
+			args = append(args, modField{field, keptField{field}})
 			continue
 		}
-		if !m.Lenient {
-			exp = sameType(exp, field)
-		}
-		args = append(args, modArg{field, exp})
+		args = append(args, modField{
+			field, assignedField{exp, !m.Lenient},
+		})
 	}
 
-	// Labels the record does not have: added, or ignored.
+	// Labels the record does not have: added, or ignored. An added
+	// field has no type to keep, so "lenient" does not arise.
 	if m.Verb.Absent() == ast.AbsentAdd {
 		for _, f := range labelled {
 			if !slices.Contains(fields, f.Label) {
-				args = append(args, modArg{f.Label, f.Exp})
+				args = append(args, modField{
+					f.Label, assignedField{f.Exp, false},
+				})
 			}
 		}
 	}
@@ -200,10 +176,10 @@ func labelFields(fields []ast.Field) ([]ast.Field, error) {
 
 // assignAllFields applies an "extend all" or "replace all"
 // modifier: the same rules as assignFields, for every field of
-// the modifier's record-valued argument, which name binds.
-func assignAllFields(span token.Span, m *ast.AllModifier,
-	fields, allFields []string, name string,
-) ([]modArg, error) {
+// the modifier's record-valued argument.
+func assignAllFields(m *ast.AllModifier, fields, allFields []string) (
+	[]modField, error,
+) {
 	for _, field := range allFields {
 		err := checkAssign(m.Verb, field,
 			slices.Contains(fields, field), m.Exp.Span())
@@ -212,25 +188,24 @@ func assignAllFields(span token.Span, m *ast.AllModifier,
 		}
 	}
 
-	var args []modArg
+	var args []modField
 	for _, field := range fields {
 		if !slices.Contains(allFields, field) ||
 			m.Verb.Exists() == ast.ExistsSkip {
-			args = append(args, modArg{field, ast.NewID(span, field)})
+			args = append(args, modField{field, keptField{field}})
 			continue
 		}
-		exp := selectField(span, name, field)
-		if !m.Lenient {
-			exp = sameType(exp, field)
-		}
-		args = append(args, modArg{field, exp})
+		args = append(args, modField{
+			field, takenField{field, !m.Lenient},
+		})
 	}
 
 	if m.Verb.Absent() == ast.AbsentAdd {
 		for _, field := range allFields {
 			if !slices.Contains(fields, field) {
-				args = append(args,
-					modArg{field, selectField(span, name, field)})
+				args = append(args, modField{
+					field, takenField{field, false},
+				})
 			}
 		}
 	}
@@ -256,9 +231,9 @@ func checkAssign(verb ast.ModifierVerb, label string, exists bool,
 // renameFields applies a "rename" modifier. It takes the value of
 // each label on the right, which must exist, and gives it to the
 // label on the left, which must not survive the renaming.
-func renameFields(span token.Span, m *ast.RenameModifier,
-	fields []string,
-) ([]modArg, error) {
+func renameFields(m *ast.RenameModifier, fields []string) (
+	[]modField, error,
+) {
 	var sources []string
 	for _, pair := range m.Pairs {
 		if !slices.Contains(fields, pair.From.Name) {
@@ -269,29 +244,29 @@ func renameFields(span token.Span, m *ast.RenameModifier,
 		}
 		sources = append(sources, pair.From.Name)
 	}
-	var args []modArg
+	var args []modField
 	for _, field := range fields {
 		if !slices.Contains(sources, field) {
-			args = append(args, modArg{field, ast.NewID(span, field)})
+			args = append(args, modField{field, keptField{field}})
 		}
 	}
 	for _, pair := range m.Pairs {
-		if slices.ContainsFunc(args, func(a modArg) bool {
+		if slices.ContainsFunc(args, func(a modField) bool {
 			return a.label == pair.To.Name
 		}) {
 			return nil, fieldExists(pair.To.Name, pair.To.Span)
 		}
-		args = append(args, modArg{
-			pair.To.Name, ast.NewID(span, pair.From.Name),
+		args = append(args, modField{
+			pair.To.Name, keptField{pair.From.Name},
 		})
 	}
 	return args, nil
 }
 
 // removeFields applies a "remove" modifier.
-func removeFields(span token.Span, m *ast.RemoveModifier,
-	fields []string,
-) ([]modArg, error) {
+func removeFields(m *ast.RemoveModifier, fields []string) (
+	[]modField, error,
+) {
 	var removed []string
 	for _, label := range m.Labels {
 		if !slices.Contains(fields, label.Name) &&
@@ -303,28 +278,13 @@ func removeFields(span token.Span, m *ast.RemoveModifier,
 		}
 		removed = append(removed, label.Name)
 	}
-	var args []modArg
+	var args []modField
 	for _, field := range fields {
 		if !slices.Contains(removed, field) {
-			args = append(args, modArg{field, ast.NewID(span, field)})
+			args = append(args, modField{field, keptField{field}})
 		}
 	}
 	return args, nil
-}
-
-// sameType returns "exp : typeof field", which gives an assigned
-// value the type of the field it replaces. Assignment does not
-// change a field's type, unless the modifier is "lenient".
-func sameType(exp ast.Expr, field string) ast.Expr {
-	span := exp.Span()
-	return ast.NewAnnotatedExp(span, exp,
-		ast.NewExpressionType(span, ast.NewID(span, field)))
-}
-
-// selectField returns the expression "#field name".
-func selectField(span token.Span, name, field string) ast.Expr {
-	return ast.NewApply(span,
-		ast.NewRecordSelector(span, field), ast.NewID(span, name))
 }
 
 // modifierNeedsBase is the error when modifiers follow anything
@@ -352,29 +312,21 @@ func duplicateField(field string, span token.Span) error {
 }
 
 // yieldRecord returns the record whose fields a "yield" step
-// binds: the expression itself, the body of a chain of "let"s, or
-// the record that a record with modifiers desugars to (also a
-// chain of "let"s); nil if the step yields anything else.
+// binds: the expression itself, or the body of a chain of "let"s
+// the user wrote; nil if the step yields anything else. A record
+// with modifiers is a record, and the fields it binds are the ones
+// the last modifier produced.
 //
 // The type resolver and the core resolver apply the same test to
 // the same tree, so that the bindings the one deduces are the ones
 // the other creates.
-func yieldRecord(exp ast.Expr,
-	desugared map[*ast.Record]ast.Expr,
-) *ast.Record {
+func yieldRecord(exp ast.Expr) *ast.Record {
 	for {
 		switch e := exp.(type) {
 		case *ast.Let:
 			exp = e.Exp
 		case *ast.Record:
-			if e.Base == nil {
-				return e
-			}
-			d, ok := desugared[e]
-			if !ok {
-				return nil
-			}
-			exp = d
+			return e
 		default:
 			return nil
 		}

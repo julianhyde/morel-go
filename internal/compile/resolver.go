@@ -120,6 +120,9 @@ type resolver struct {
 	freePats map[freeKey]*core.IDPat
 	// dictCount names dictionary parameters uniquely ("dict$0", ...).
 	dictCount int
+	// recordCount names the values a record modifier is applied to
+	// uniquely ("v$0", ...).
+	recordCount int
 }
 
 // buildRow is the value of a query row: the sole variable, or a
@@ -1479,10 +1482,11 @@ func (r *resolver) toYieldStep(cur *coreEnv, s *ast.YieldStep) (
 			[]*core.IDPat{pat}, nil
 	}
 	// A record wrapped in "let"s — the record is not the yielded
-	// expression itself — cannot be split into its fields here; it
-	// becomes a step of its own.
-	rec := yieldRecord(s.Exp, r.typeMap.desugared)
-	if rec != nil && ast.Expr(rec) != s.Exp {
+	// expression itself, or it has modifiers, which become "let"s —
+	// cannot be split into its fields here; it becomes a step of its
+	// own.
+	rec := yieldRecord(s.Exp)
+	if rec != nil && (ast.Expr(rec) != s.Exp || rec.Base != nil) {
 		return r.toWrappedYieldStep(cur, s.Exp)
 	}
 	var fields []core.YieldField
@@ -2021,24 +2025,231 @@ func boolCase(sys *types.System, cond, ifTrue,
 // explicit label and its expression is not an identifier.
 const cannotDeriveLabel = "cannot derive label for expression"
 
+// toModifiedRecord converts a record that has modifiers into the
+// "let"s it means: one per modifier, each binding the fields of
+// the record the modifier before it produced, and ending in a
+// record built from those fields.
+//
+// The type resolver types the record as it is written, and leaves
+// it to be built here, where the types are settled. Building it
+// earlier would lose the type of the record being modified.
+func (r *resolver) toModifiedRecord(env *coreEnv,
+	record *ast.Record,
+) (core.Exp, error) {
+	// The base, and the argument of each "all" modifier, are
+	// evaluated outside the modifiers — in this environment, which
+	// does not have their fields — and in the order they are
+	// written.
+	exps := []ast.Expr{record.Base}
+	for _, m := range record.Modifiers {
+		if all, ok := m.(*ast.AllModifier); ok {
+			exps = append(exps, all.Exp)
+		}
+	}
+	operands := map[ast.Expr]*core.ID{}
+	var bindOperands func(i int) (core.Exp, error)
+	bindOperands = func(i int) (core.Exp, error) {
+		if i == len(exps) {
+			return r.modify(env, record.Modifiers, 0,
+				operands[record.Base], operands, record.Span())
+		}
+		exp, err := r.toExp(env, exps[i])
+		if err != nil {
+			return nil, err
+		}
+		return r.letValue(exp, exps[i].Span(),
+			func(id *core.ID) (core.Exp, error) {
+				operands[exps[i]] = id
+				return bindOperands(i + 1)
+			})
+	}
+	return bindOperands(0)
+}
+
+// modify applies the modifiers of a record, from i onwards.
+func (r *resolver) modify(env *coreEnv, modifiers []ast.Modifier,
+	i int, value *core.ID, operands map[ast.Expr]*core.ID,
+	span token.Span,
+) (core.Exp, error) {
+	if i == len(modifiers) {
+		return value, nil
+	}
+	m := modifiers[i]
+	var allID *core.ID
+	if all, ok := m.(*ast.AllModifier); ok {
+		allID = operands[all.Exp]
+	}
+	fields := recordLikeFields(value.Type())
+	var allFields []string
+	if allID != nil {
+		for _, f := range recordLikeFields(allID.Type()) {
+			allFields = append(allFields, f.Label)
+		}
+	}
+	names := make([]string, len(fields))
+	for j, f := range fields {
+		names[j] = f.Label
+	}
+	sources, err := applyModifier(m, names, allFields)
+	if err != nil {
+		return nil, err
+	}
+	// Only an assignment has expressions, and only they can refer to
+	// the fields by name.
+	var bound []string
+	if _, isAssign := m.(*ast.AssignModifier); isAssign {
+		bound = names
+	}
+	return r.bindFields(env, value, bound, 0, span,
+		func(env2 *coreEnv) (core.Exp, error) {
+			built, err := r.buildRecord(env2, sources, value, allID)
+			if err != nil {
+				return nil, err
+			}
+			return r.letValue(built, span,
+				func(id *core.ID) (core.Exp, error) {
+					return r.modify(env, modifiers, i+1, id, operands, span)
+				})
+		})
+}
+
+// letValue binds an expression to a name and applies body to it.
+//
+// The "let" is what stops the expression being evaluated twice,
+// once to read its type and once for the result.
+func (r *resolver) letValue(exp core.Exp, span token.Span,
+	body func(*core.ID) (core.Exp, error),
+) (core.Exp, error) {
+	if id, isID := exp.(*core.ID); isID {
+		// Already a variable, so reading it twice costs nothing.
+		return body(id)
+	}
+	pat := &core.IDPat{T: exp.Type(), Name: r.freshRecordName()}
+	inner, err := body(&core.ID{Pat: pat})
+	if err != nil {
+		return nil, err
+	}
+	return &core.Let{
+		Decl: &core.NonRecValDecl{Pat: pat, Exp: exp, Span: span},
+		Exp:  inner,
+	}, nil
+}
+
+// bindFields binds each field of a record to its own name, so that
+// the expressions a modifier assigns can refer to it, and applies
+// body in the environment that results.
+//
+// The names shadow the enclosing environment, which is what lets
+// "{r replace i = j, j = i}" mean what it looks like.
+func (r *resolver) bindFields(env *coreEnv, record *core.ID,
+	fields []string, i int, span token.Span,
+	body func(*coreEnv) (core.Exp, error),
+) (core.Exp, error) {
+	if i == len(fields) {
+		return body(env)
+	}
+	value := selectField(r.typeMap.sys, record, fields[i])
+	pat := &core.IDPat{T: value.Type(), Name: fields[i]}
+	inner, err := r.bindFields(env.bind(pat), record, fields, i+1,
+		span, body)
+	if err != nil {
+		return nil, err
+	}
+	return &core.Let{
+		Decl: &core.NonRecValDecl{Pat: pat, Exp: value, Span: span},
+		Exp:  inner,
+	}, nil
+}
+
+// buildRecord builds the record that a modifier produces.
+//
+// Its type is derived from the fields, rather than read from the
+// type map, because only the last modifier has an entry there, and
+// because that entry is the type as the user would see it, whereas
+// core needs the type erased.
+func (r *resolver) buildRecord(env *coreEnv, sources []modField,
+	record, allRecord *core.ID,
+) (core.Exp, error) {
+	type labelExp struct {
+		label string
+		exp   core.Exp
+	}
+	args := make([]labelExp, len(sources))
+	for i, src := range sources {
+		var exp core.Exp
+		// lint: sort until '^\t\t}' where '^\t\tcase '
+		switch source := src.src.(type) {
+		case assignedField:
+			var err error
+			exp, err = r.toExp(env, source.exp)
+			if err != nil {
+				return nil, err
+			}
+		case keptField:
+			exp = selectField(r.typeMap.sys, record, source.field)
+		case takenField:
+			exp = selectField(r.typeMap.sys, allRecord, source.field)
+		default:
+			panic("unknown field source")
+		}
+		args[i] = labelExp{src.label, exp}
+	}
+	sort.Slice(args, func(i, j int) bool {
+		return types.LabelLess(args[i].label, args[j].label)
+	})
+	fields := make([]types.Field, len(args))
+	values := make([]core.Exp, len(args))
+	for i, a := range args {
+		fields[i] = types.Field{Label: a.label, Type: a.exp.Type()}
+		values[i] = a.exp
+	}
+	t := r.typeMap.sys.Record(fields)
+	if len(values) == 0 {
+		return &core.Literal{
+			T: t, Kind: ast.UnitLiteralOp, Value: core.Unit{},
+		}, nil
+	}
+	return &core.Tuple{T: t, Args: values}, nil
+}
+
+// selectField returns an expression that selects a field of a
+// record.
+func selectField(sys *types.System, record *core.ID,
+	field string,
+) core.Exp {
+	for i, f := range recordLikeFields(record.Type()) {
+		if f.Label == field {
+			return &core.Apply{
+				T: f.Type,
+				Fn: &core.Selector{
+					T:     sys.Fn(record.Type(), f.Type),
+					Name:  f.Label,
+					Index: i,
+				},
+				Arg: record,
+			}
+		}
+	}
+	panic("no field " + field)
+}
+
+// freshRecordName returns a unique name for the value a record
+// modifier is applied to; the "$" keeps it distinct from any
+// user-written name.
+func (r *resolver) freshRecordName() string {
+	name := "v$" + itoa(r.recordCount)
+	r.recordCount++
+	return name
+}
+
 // toRecord converts a record expression to a tuple whose
 // elements are the fields in canonical order. A record with
-// modifiers converts as the nested "let"s that the type resolver
-// replaced it with.
+// modifiers converts to the "let"s the modifiers mean.
 func (r *resolver) toRecord(env *coreEnv, record *ast.Record,
 	t types.Type,
 ) (core.Exp, error) {
 	if record.Base != nil {
-		exp, ok := r.typeMap.desugared[record]
-		if !ok {
-			// checkRecordModifiers rejects a record the type
-			// resolver could not desugar, so this cannot happen.
-			return nil, &Error{
-				Span: record.Span(),
-				Msg:  "record modifiers were not resolved",
-			}
-		}
-		return r.toExp(env, exp)
+		return r.toModifiedRecord(env, record)
 	}
 	// The empty record is unit, the same value as "()".
 	if len(record.Fields) == 0 {

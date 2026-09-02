@@ -660,7 +660,7 @@ func (r *typeResolver) deduceYield(env typeEnv, exp ast.Expr,
 	}
 	// A record wrapped in "let"s — those the user wrote, and those
 	// a record's modifiers desugar to — still exposes its fields.
-	if rec := yieldRecord(exp, r.desugared); rec != nil {
+	if rec := yieldRecord(exp); rec != nil {
 		if fields, ok := r.recordFields[rec]; ok && len(fields) > 0 {
 			return fields, vYield, nil
 		}

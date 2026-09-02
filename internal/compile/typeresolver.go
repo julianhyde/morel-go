@@ -122,7 +122,6 @@ func deduceOnce(sys *types.System, bindings []Binding,
 		nodeTerm:     map[ast.Node]unify.Term{},
 		files:        files,
 		fieldNames:   fieldNames,
-		desugared:    map[*ast.Record]ast.Expr{},
 		methods:      methods,
 		methodCalls:  map[*ast.Apply]ast.Expr{},
 		userMethods:  map[string]bool{},
@@ -155,15 +154,16 @@ func deduceOnce(sys *types.System, bindings []Binding,
 	// before any type has been reported. The last pass browses too,
 	// because the discovery widens the types it reports against.
 	widened := r.discoverFileFields()
-	if !final && (widened || r.desugarLearned) {
+	if !final && (widened || r.fieldsLearned) {
 		return nil, true, nil
 	}
 	resolved, err := r.unify(sys, decl, decl2)
-	if !final && r.desugarLearned {
+	if !final && r.fieldsLearned {
 		// Unification told a record modifier the fields of its base.
 		// The tree we have just deduced still contains the record,
 		// and the error we may have is a consequence; the caller
-		// deduces the declaration again, and this time it desugars.
+		// deduces the declaration again, and this time the modifier
+		// can be applied.
 		return nil, true, nil
 	}
 	return resolved, false, err
@@ -225,7 +225,6 @@ func (r *typeResolver) unify(sys *types.System, decl ast.Decl,
 			subst:       subst,
 			residuals:   subst.Residuals,
 			bindings:    r.bindings,
-			desugared:   r.desugared,
 			methodCalls: r.methodCalls,
 		}
 		err = r.checkRecordModifiers()
@@ -555,21 +554,16 @@ type typeResolver struct {
 	// fieldNames gives the field names of an expression a record
 	// modifier is applied to, in record-type order. It outlives the
 	// pass, which is how a pass that discovers the fields of a base
-	// hands them to the next one, which can then desugar the record.
+	// hands them to the next one, which can then apply the modifier.
 	fieldNames map[ast.Expr][]string
-	// desugared maps a record with modifiers to the nested "let"s
-	// that replace it; the core resolver follows it. Its records are
-	// the ones that had their field names when this pass reached
-	// them.
-	desugared map[*ast.Record]ast.Expr
 	// methods dispatches a postfix method call; nil in a session
 	// that has no signature. Only calls whose receiver this pass
 	// types reach it — MethodRegistry.RewriteDecl has rewritten the
 	// rest before the pass began.
 	methods *MethodRegistry
 	// methodCalls maps a postfix method call to the structure call
-	// it desugars to; the core resolver follows it, as it does
-	// desugared.
+	// it desugars to; the core resolver converts that, never the
+	// call.
 	methodCalls map[*ast.Apply]ast.Expr
 	// userMethods names the functions this declaration defines whose
 	// first parameter is "self", which may be called as methods. The
@@ -584,20 +578,22 @@ type typeResolver struct {
 	// and a nil headSubst for one that failed.
 	headSubst   *unify.Substitution
 	headSubstAt int
-	// desugarLearned records that a record's fields became known
-	// during this pass. The tree this pass deduced still contains
-	// the record, so the pass is stale and the caller makes another,
-	// in which the record desugars.
-	desugarLearned bool
+	// fieldsLearned records that the fields of a record operand
+	// became known during this pass. The tree this pass deduced
+	// still contains the record, so the pass is stale and the caller
+	// makes another, in which the modifiers that needed those fields
+	// can be applied.
+	fieldsLearned bool
 	// recordFields gives the fields, with their terms, of a record
-	// expression that has no modifiers, so that a "yield" of a
-	// record — directly, or through the "let"s that a record's
-	// modifiers desugar to — can bind them.
+	// expression, so that a "yield" of a record — directly, or
+	// through "let"s the user wrote — can bind them. A record with
+	// modifiers has the fields the last modifier produced.
 	recordFields map[*ast.Record][]labelTerm
-	// undesugared holds the records this pass could not desugar,
-	// checked once unification is done: a record whose base's fields
-	// never became known is an unresolved flex record.
-	undesugared []*ast.Record
+	// unresolvedRecords holds the records whose modifiers this pass
+	// could not apply, checked once unification is done: a record
+	// whose base's fields never became known is an unresolved flex
+	// record.
+	unresolvedRecords []*ast.Record
 }
 
 // ordinalUse is one reference to "ordinal": the orderedness of the
@@ -2556,102 +2552,316 @@ func (r *typeResolver) deduceRecord(env typeEnv,
 		r.regEquiv(record, v, r.recordTerm(fields))
 		return nil
 	}
-	// A record with modifiers becomes nested "let"s, but only once
-	// we know which fields there are to destructure.
-	names, known, err := r.modifierFieldNames(env, record)
+	// A record with modifiers is typed as it is written, but only
+	// once we know which fields its base has. The core resolver
+	// turns it into the "let"s it means.
+	ops, err := r.deduceOperands(env, record)
 	if err != nil {
 		return err
 	}
-	if !known {
+	if !ops.complete {
 		return r.deduceUnresolvedRecord(env, record, v)
 	}
-	exp, err := desugarModifiers(record, names)
-	if err != nil {
-		return err
+	return r.deduceModifiedRecord(env, record, ops, v)
+}
+
+// deduceModifiedRecord types a record with modifiers, applying
+// each modifier to the record the one before it produced.
+//
+// The record is typed as it is written. Nothing is desugared here:
+// the core resolver builds the "let"s the modifiers mean, once the
+// types are settled. Desugaring first would lose the type of the
+// record being modified, because a destructuring pattern meets its
+// alias with a record term, which head-reduces.
+//
+// Each modifier sees the fields of the record it is applied to,
+// which shadow the enclosing environment, so that
+// "{r replace i = j, j = i}" means what it looks like; and the
+// assignments of one modifier are simultaneous, because each reads
+// the fields as they were before that modifier. An operand — the
+// base, or the argument of an "all" modifier — is outside every
+// modifier, and sees no fields at all.
+func (r *typeResolver) deduceModifiedRecord(env typeEnv,
+	record *ast.Record, ops *operands, v *unify.Var,
+) error {
+	fields := r.fieldVariables(ops, record.Base)
+	for _, m := range record.Modifiers {
+		var allFields []labelVar
+		if all, ok := m.(*ast.AllModifier); ok {
+			allFields = r.fieldVariables(ops, all.Exp)
+		}
+		sources, err := applyModifier(m, labelsOf(fields),
+			labelsOf(allFields))
+		if err != nil {
+			return err
+		}
+		// The fields of the record this modifier is applied to shadow
+		// the enclosing environment; only an assignment has
+		// expressions, and only they can refer to them.
+		env2 := env
+		for _, f := range fields {
+			env2 = bind(env2, f.label, f.v)
+		}
+		next := make([]labelVar, len(sources))
+		for i, src := range sources {
+			var fieldV *unify.Var
+			fieldV, err = r.sourceVar(env2, src, fields, allFields)
+			if err != nil {
+				return err
+			}
+			next[i] = labelVar{label: src.label, v: fieldV}
+		}
+		sortLabelVars(next)
+		err = r.deduceSkippedExps(env2, m, sources)
+		if err != nil {
+			return err
+		}
+		fields = next
 	}
-	r.desugared[record] = exp
-	err = r.deduceExp(env, exp, v)
-	if err != nil {
-		return err
+	terms := make([]labelTerm, len(fields))
+	for i, f := range fields {
+		terms[i] = labelTerm{label: f.label, term: f.v}
 	}
-	r.reg(record, v)
+	r.recordFields[record] = terms
+	r.regEquiv(record, v, r.recordTerm(terms))
 	return nil
 }
 
+// labelVar is one field of a record a modifier is applied to or
+// produces: its label, and the variable that stands for its type.
+type labelVar struct {
+	label string
+	v     *unify.Var
+}
+
+// labelsOf returns the labels of fields, in order.
+func labelsOf(fields []labelVar) []string {
+	if fields == nil {
+		return nil
+	}
+	names := make([]string, len(fields))
+	for i, f := range fields {
+		names[i] = f.label
+	}
+	return names
+}
+
+// sortLabelVars sorts fields by label, as a record type is sorted.
+func sortLabelVars(fields []labelVar) {
+	slices.SortFunc(fields, func(a, b labelVar) int {
+		switch {
+		case a.label == b.label:
+			return 0
+		case types.LabelLess(a.label, b.label):
+			return -1
+		default:
+			return 1
+		}
+	})
+}
+
+// fieldVar returns the variable of the field with the given label.
+// applyModifier names only fields it was given, so there is always
+// one.
+func fieldVar(fields []labelVar, label string) *unify.Var {
+	for _, f := range fields {
+		if f.label == label {
+			return f.v
+		}
+	}
+	panic("no field " + label)
+}
+
+// sourceVar returns the variable for the type of one field of a
+// modified record, and types the expression that gives its value,
+// if it has one.
+//
+// An assigned value is typed against the variable of the field it
+// assigns to, rather than against one of its own, which is what
+// makes an assignment preserve the field's type. "lenient" says
+// not to, and then the field takes the value's type instead.
+func (r *typeResolver) sourceVar(env typeEnv, src modField,
+	fields, allFields []labelVar,
+) (*unify.Var, error) {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch source := src.src.(type) {
+	case assignedField:
+		fieldV := r.u.Variable()
+		if source.sameType {
+			fieldV = fieldVar(fields, src.label)
+		}
+		return fieldV, r.deduceExp(env, source.exp, fieldV)
+	case keptField:
+		return fieldVar(fields, source.field), nil
+	case takenField:
+		taken := fieldVar(allFields, source.field)
+		if !source.sameType {
+			return taken, nil
+		}
+		// The field keeps its type, and the value taken from the
+		// "all" argument must have it.
+		kept := fieldVar(fields, src.label)
+		r.pairs = append(r.pairs,
+			unify.TermPair{Left: kept, Right: taken})
+		return kept, nil
+	default:
+		panic("unknown field source")
+	}
+}
+
+// deduceSkippedExps types the expressions of a modifier that no
+// field took. A verb that skips a label leaves the expression it
+// was given with nothing to assign it to; it is typed all the
+// same, because the user wrote it, and so that every expression in
+// the tree has a type when the checks that follow unification walk
+// it.
+func (r *typeResolver) deduceSkippedExps(env typeEnv, m ast.Modifier,
+	sources []modField,
+) error {
+	assign, ok := m.(*ast.AssignModifier)
+	if !ok {
+		return nil
+	}
+	used := map[ast.Expr]bool{}
+	for _, src := range sources {
+		if a, isAssign := src.src.(assignedField); isAssign {
+			used[a.exp] = true
+		}
+	}
+	for _, f := range assign.Fields {
+		if !used[f.Exp] {
+			err := r.deduceExp(env, f.Exp, r.u.Variable())
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// fieldVariables returns a variable for the type of each field of
+// a record operand.
+//
+// The fields are read out of the operand's term by an action,
+// rather than by unifying that term with a record of variables.
+// Unifying would meet an alias with a plain record, and erase it,
+// which is how the type of a record being modified used to be
+// lost.
+func (r *typeResolver) fieldVariables(ops *operands,
+	exp ast.Expr,
+) []labelVar {
+	names := ops.names[exp]
+	fields := make([]labelVar, len(names))
+	for i, name := range names {
+		fields[i] = labelVar{label: name, v: r.u.Variable()}
+	}
+	sortLabelVars(fields)
+	r.actions = append(r.actions, unify.VarAction{
+		Var: ops.vars[exp],
+		Action: func(_ *unify.Var, t unify.Term,
+			s *unify.Substitution, add func(l, r unify.Term),
+		) {
+			for _, f := range fields {
+				if fieldType := lookupField(t, f.label, s); fieldType != nil {
+					add(s.Resolve(f.v), fieldType)
+				}
+			}
+		},
+	})
+	return fields
+}
+
 // deduceUnresolvedRecord types a record whose modifiers cannot be
-// desugared yet, because the fields of the base (or of the
-// argument of an "all" modifier) are not known.
+// applied yet, because the fields of the base (or of the argument
+// of an "all" modifier) are not known.
 //
 // It types the modifiers' expressions — in the enclosing
 // environment, because without the field names there is nothing to
 // shadow them — so that the checks that run after unification see
-// a tree in which every expression has a type. The record's own
-// type is left unconstrained: if a later pass does not desugar it,
+// a tree in which every expression has a type. An "all" modifier's
+// argument has been typed already, as an operand. The record's own
+// type is left unconstrained: if a later pass does not resolve it,
 // checkRecordModifiers reports an unresolved flex record.
 func (r *typeResolver) deduceUnresolvedRecord(env typeEnv,
 	record *ast.Record, v *unify.Var,
 ) error {
 	for _, m := range record.Modifiers {
-		var err error
-		m.ForEachExp(func(exp ast.Expr) {
-			if err == nil {
-				err = r.deduceExp(env, exp, r.u.Variable())
+		assign, ok := m.(*ast.AssignModifier)
+		if !ok {
+			continue
+		}
+		for _, f := range assign.Fields {
+			err := r.deduceExp(env, f.Exp, r.u.Variable())
+			if err != nil {
+				return err
 			}
-		})
-		if err != nil {
-			return err
 		}
 	}
-	r.undesugared = append(r.undesugared, record)
+	r.unresolvedRecords = append(r.unresolvedRecords, record)
 	r.reg(record, v)
 	return nil
 }
 
-// checkRecordModifiers checks that every record with modifiers has
-// been desugared. One that has not is a record whose base's fields
+// checkRecordModifiers checks that every record with modifiers had
+// them applied. One that did not is a record whose base's fields
 // never became known, for the same reason that the argument of
 // "#f" must be known.
 func (r *typeResolver) checkRecordModifiers() error {
-	for _, record := range r.undesugared {
-		if _, done := r.desugared[record]; done {
-			continue
-		}
-		var labels []string
-		for _, m := range record.Modifiers {
-			m.ForEachLabel(func(label string) {
-				labels = append(labels, label)
-			})
-		}
-		slices.Sort(labels)
-		labels = slices.Compact(labels)
-		besides := ""
-		if len(labels) > 0 {
-			for i, label := range labels {
-				labels[i] = "#" + label
-			}
-			besides = " besides " + strings.Join(labels, ", ")
-		}
-		return &Error{
-			Span: record.Base.Span(),
-			Msg: "unresolved flex record (can't tell what fields" +
-				" there are" + besides + ")",
-		}
+	if len(r.unresolvedRecords) == 0 {
+		return nil
 	}
-	return nil
+	record := r.unresolvedRecords[0]
+	var labels []string
+	for _, m := range record.Modifiers {
+		m.ForEachLabel(func(label string) {
+			labels = append(labels, label)
+		})
+	}
+	slices.Sort(labels)
+	labels = slices.Compact(labels)
+	besides := ""
+	if len(labels) > 0 {
+		for i, label := range labels {
+			labels[i] = "#" + label
+		}
+		besides = " besides " + strings.Join(labels, ", ")
+	}
+	return &Error{
+		Span: record.Base.Span(),
+		Msg: "unresolved flex record (can't tell what fields" +
+			" there are" + besides + ")",
+	}
 }
 
-// modifierFieldNames returns the field names of the base of a
-// record, and of the argument of each of its "all" modifiers; or
-// nil if any of them is unknown.
+// operands holds the base of a record with modifiers, and the
+// argument of each of its "all" modifiers, as deduced by
+// deduceOperands.
+type operands struct {
+	// vars gives the variable each operand's type was deduced into.
+	vars map[ast.Expr]*unify.Var
+	// names gives the field names of each operand whose type is a
+	// known record.
+	names map[ast.Expr][]string
+	// complete is whether every operand's field names are known.
+	complete bool
+}
+
+// deduceOperands types the operands of a record with modifiers:
+// its base, and the argument of each of its "all" modifiers.
+//
+// Each is typed in the enclosing environment — an operand is
+// outside every modifier, and so sees none of their fields — and
+// its field names are looked up, because a modifier cannot be
+// applied until they are known.
 //
 // A name that is unknown now may become known when the type of the
 // expression is unified with something concrete — as when a
 // lambda's parameter type is settled by a call further down the
 // declaration. An action then records the names, and the
 // declaration is deduced again.
-func (r *typeResolver) modifierFieldNames(env typeEnv,
+func (r *typeResolver) deduceOperands(env typeEnv,
 	record *ast.Record,
-) (map[ast.Expr][]string, bool, error) {
+) (*operands, error) {
 	exps := []ast.Expr{record.Base}
 	for _, m := range record.Modifiers {
 		if all, ok := m.(*ast.AllModifier); ok {
@@ -2662,19 +2872,23 @@ func (r *typeResolver) modifierFieldNames(env typeEnv,
 		exp ast.Expr
 		v   *unify.Var
 	}
-	names := map[ast.Expr][]string{}
+	ops := &operands{
+		vars:  map[ast.Expr]*unify.Var{},
+		names: map[ast.Expr][]string{},
+	}
 	var unknown []pending
 	for _, exp := range exps {
+		v := r.u.Variable()
+		err := r.deduceExp(env, exp, v)
+		if err != nil {
+			return nil, err
+		}
+		ops.vars[exp] = v
 		if known, ok := r.fieldNames[exp]; ok {
-			names[exp] = known
+			ops.names[exp] = known
 			continue
 		}
-		vExp := r.u.Variable()
-		err := r.deduceExp(env, exp, vExp)
-		if err != nil {
-			return nil, false, err
-		}
-		unknown = append(unknown, pending{exp, vExp})
+		unknown = append(unknown, pending{exp, v})
 	}
 	if len(unknown) > 0 {
 		// Solve the constraints accumulated so far. As in
@@ -2688,13 +2902,14 @@ func (r *typeResolver) modifierFieldNames(env typeEnv,
 			}
 			if known != nil {
 				r.fieldNames[p.exp] = known
-				names[p.exp] = known
+				ops.names[p.exp] = known
 				continue
 			}
 			r.rememberFieldsLater(p.exp, p.v)
 		}
 	}
-	return names, len(names) == len(exps), nil
+	ops.complete = len(ops.names) == len(exps)
+	return ops, nil
 }
 
 // rememberFieldsLater asks for the field names of an expression to
@@ -2715,7 +2930,7 @@ func (r *typeResolver) rememberFieldsLater(exp ast.Expr,
 			}
 			if _, known := r.fieldNames[exp]; !known {
 				r.fieldNames[exp] = names
-				r.desugarLearned = true
+				r.fieldsLearned = true
 			}
 		},
 	})
