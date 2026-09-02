@@ -270,17 +270,25 @@ def build_morel():
 
 
 def make_runner(binary):
-    """Returns run(text) -> replayed text: feed script text to the
-    morel-go binary and return its idempotent replay. go names the
-    session 'stdIn' regardless of path, matching java's files."""
+    """Returns run(text, rel) -> replayed text: feed script text to
+    the morel-go binary and return its idempotent replay. go names
+    the session 'stdIn' regardless of path, matching java's files.
+
+    `rel` names the file the text came from, because one file is
+    replayed from a different directory: `file.smli` browses the
+    file system, so it starts in the data directory, where what it
+    finds is predictable. `scripts_test.go` does the same, and a
+    replay that does not agree with it prunes statements that in
+    fact pass."""
     scratch = tempfile.mkdtemp(prefix="pull-passing-run-")
     path = os.path.join(scratch, "x.smli")
 
-    def run(text):
+    def run(text, rel=""):
         with open(path, "w") as f:
             f.write(text)
+        directory = "testdata/data" if rel == "file.smli" else "testdata"
         r = subprocess.run(
-            [binary, "--directory=testdata",
+            [binary, "--directory=" + directory,
              "--scriptDirectory=testdata/script", path],
             capture_output=True, text=True,
             env=dict(os.environ, MOREL_GAPS="1"))
@@ -366,8 +374,13 @@ def main():
             java_text = f.read()
         with open(os.path.join(go_root, rel)) as f:
             go_text = f.read()
+        # The runner needs to know which file this is; see
+        # make_runner.
+        def frun(text, rel=rel):
+            return run(text, rel)
+
         try:
-            new_text = prune(java_text, run)
+            new_text = prune(java_text, frun)
         except RuntimeError:
             # morel-go crashes partway through java's copy (a
             # feature it does not have yet), so the replay does not
@@ -377,7 +390,7 @@ def main():
             continue
         # Invariants: the result round-trips, and is a subsequence
         # of java. Never write a file that violates either.
-        if run(new_text) != new_text:
+        if frun(new_text) != new_text:
             sys.exit(f"error: {rel}: regenerated file does not "
                      f"round-trip")
         if not is_subsequence(new_text, java_text):
@@ -407,9 +420,12 @@ def main():
         for rel in missing:
             with open(os.path.join(java_root, rel)) as f:
                 java_text = f.read()
+            def frun(text, rel=rel):
+                return run(text, rel)
+
             try:
-                new_text = prune(java_text, run)
-                ok = (run(new_text) == new_text
+                new_text = prune(java_text, frun)
+                ok = (frun(new_text) == new_text
                       and is_subsequence(new_text, java_text))
             except RuntimeError:
                 # morel-go crashes partway (e.g. a stack overflow on
