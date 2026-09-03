@@ -226,7 +226,13 @@ func namedDesc(name string, args []Type) string {
 func varOrdinal(name string) int {
 	const letters = 26
 	bare := strings.TrimPrefix(name, "'")
-	if bare == "" {
+	if len(bare) != 1 {
+		// Only a single letter names an ordinal: 'a is 0 and 'z is
+		// 25. A longer name is the writer's own -- "'left", say, in
+		// a signature -- and is numbered as it is met. Decoding it
+		// as base 26 would make "'right" ordinal 7,913,457, and
+		// anything that sizes an array by an ordinal would then
+		// allocate eight million types to renumber one member.
 		return -1
 	}
 	ordinal := 0

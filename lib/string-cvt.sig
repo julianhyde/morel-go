@@ -90,7 +90,7 @@ sig
    * `f` is given a reader over the characters of `s`; the type of the stream
    * that it reads from is not specified.
    *)
-  val scanString : ((char, 'b) reader -> ('a, 'b) reader) -> string -> 'a option
+  val scanString : ((char, 'a) reader -> ('b, 'a) reader) -> string -> 'b option
       [@@prototype "scanString f s"]
 end
 [@@description "String conversion utilities and types."]

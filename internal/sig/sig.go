@@ -247,8 +247,8 @@ func conResultType(sys *types.System, t typeSpec) (types.Type,
 // member is a structure value with its type and the number of
 // distinct type variables that type mentions.
 type member struct {
-	field types.Field
-	nvars int
+	field    types.Field
+	ordinals []int
 }
 
 // bindVals binds the file's structure as a record whose fields
@@ -260,15 +260,15 @@ func (f *file) bindVals(sys *types.System, result *Result) {
 	var members []member
 	for _, v := range f.vals {
 		tyVars := map[string]int{}
-		t, err := parseType(sys, v.typ, tyVars)
+		t, err := parseMemberType(sys, v.typ, tyVars)
 		if err != nil {
 			result.Skipped = append(result.Skipped,
 				f.structure+"."+v.name)
 			continue
 		}
 		members = append(members, member{
-			field: types.Field{Label: v.name, Type: t},
-			nvars: len(tyVars),
+			field:    types.Field{Label: v.name, Type: t},
+			ordinals: ordinalsOf(t),
 		})
 		if v.method {
 			result.Methods = append(result.Methods, compile.MethodInfo{
@@ -316,14 +316,20 @@ func renumber(sys *types.System, members []member) []types.Field {
 	base := 0
 	for i, m := range members {
 		fields[i] = m.field
-		if base > 0 && m.nvars > 0 {
-			args := make([]types.Type, m.nvars)
+		if base > 0 && len(m.ordinals) > 0 {
+			// Move the member's variables into a range of its own,
+			// keeping their order, so that displaying the member
+			// recovers the names it was declared with.
+			args := make([]types.Type, m.ordinals[len(m.ordinals)-1]+1)
 			for j := range args {
-				args[j] = sys.Var(base + j)
+				args[j] = sys.Var(j)
+			}
+			for j, o := range m.ordinals {
+				args[o] = sys.Var(base + j)
 			}
 			fields[i].Type = sys.Substitute(m.field.Type, args)
 		}
-		base += m.nvars
+		base += len(m.ordinals)
 	}
 	return fields
 }
@@ -336,4 +342,59 @@ func parseType(sys *types.System, src string,
 		return nil, err
 	}
 	return sys.FromAST(t, tyVars)
+}
+
+// parseMemberType is parseType for a structure's member, which
+// keeps the type-variable names the signature declared; see
+// System.FromASTNamed.
+func parseMemberType(sys *types.System, src string,
+	tyVars map[string]int,
+) (types.Type, error) {
+	t, err := parse.TypeString("sig", src)
+	if err != nil {
+		return nil, err
+	}
+	return sys.FromASTNamed(t, tyVars)
+}
+
+// ordinalsOf is the distinct type-variable ordinals of a type, in
+// order. A member's are no longer 0, 1, ... n-1 -- a member
+// declared with 'b and 'c alone has 1 and 2 -- so renumber reads
+// them rather than assuming.
+func ordinalsOf(t types.Type) []int {
+	seen := map[int]bool{}
+	var walk func(types.Type)
+	walk = func(t types.Type) {
+		// lint: sort until '^		}' where '^		case '
+		switch t := t.(type) {
+		case *types.Collection:
+			walk(t.Elem)
+		case *types.Fn:
+			walk(t.Param)
+			walk(t.Result)
+		case *types.List:
+			walk(t.Elem)
+		case *types.Named:
+			for _, a := range t.Args {
+				walk(a)
+			}
+		case *types.Record:
+			for _, f := range t.Fields {
+				walk(f.Type)
+			}
+		case *types.Tuple:
+			for _, a := range t.Args {
+				walk(a)
+			}
+		case *types.Var:
+			seen[t.Ordinal] = true
+		}
+	}
+	walk(t)
+	out := make([]int, 0, len(seen))
+	for o := range seen {
+		out = append(out, o)
+	}
+	sort.Ints(out)
+	return out
 }

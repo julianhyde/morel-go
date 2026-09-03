@@ -53,6 +53,22 @@ func (s *System) FromAST(t ast.Type, tyVars map[string]int) (
 	return c.convert(t)
 }
 
+// FromASTNamed converts a type like FromAST, but gives a type
+// variable the ordinal its name denotes -- 'a is 0, 'b is 1 --
+// rather than one counted off as variables are met. A signature's
+// declared type is converted this way, because that declaration is
+// what "Sys.env" reports: "Fn.o", declared
+// "('b -> 'c) * ('a -> 'b) -> 'a -> 'c", keeps the shape it was
+// written with rather than being renamed to the order its
+// variables happen to appear in. morel-java reports the
+// declaration too.
+func (s *System) FromASTNamed(t ast.Type, tyVars map[string]int) (
+	Type, error,
+) {
+	c := &converter{sys: s, vars: tyVars, byName: true}
+	return c.convert(t)
+}
+
 // SurfaceFromAST converts a type annotation like FromAST, but keeps
 // a nullary type alias unexpanded (as a named type carrying the
 // alias name), so the result renders the annotation as it was
