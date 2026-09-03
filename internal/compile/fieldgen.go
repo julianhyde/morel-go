@@ -79,7 +79,8 @@ func maybeFields(ctx *genContext, pat *core.IDPat,
 	constraints []core.Exp,
 ) *generator {
 	n, fieldTs := rowArity(pat.T)
-	if n <= 1 {
+	if n == 0 {
+		// Unit has no fields, so there is nothing to constrain.
 		return nil
 	}
 	fields := make([]*core.IDPat, n)
