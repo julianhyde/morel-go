@@ -526,7 +526,7 @@ var planAliases = map[string]string{
 	"ignore":    "General.ignore",
 	"implode":   "String.implode",
 	"isSome":    "Option.isSome",
-	"length":    "List.length",
+	lengthName:  "List.length",
 	"map":       "List.map",
 	"null":      "List.null",
 	"ord":       "Char.ord",
