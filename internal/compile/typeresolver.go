@@ -2340,7 +2340,11 @@ func checkIntRange(node ast.Node, value string) error {
 func (r *typeResolver) deduceApply(env typeEnv, apply *ast.Apply,
 	v *unify.Var,
 ) error {
-	if exp, isMethod := r.methodApply(env, apply); isMethod {
+	exp, isMethod, err := r.methodApply(env, apply)
+	if err != nil {
+		return err
+	}
+	if isMethod {
 		// "receiver.method arg", where only inference knows the
 		// receiver's type. This pass does not rewrite the tree, so
 		// record the structure call and let the core resolver follow

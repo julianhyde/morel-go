@@ -350,13 +350,31 @@ func (r *typeResolver) methodCall(apply *ast.Apply) (string, ast.Expr,
 }
 
 // methodApply reports the structure call that an apply desugars to,
-// if the apply is "receiver.method arg" and the receiver's type
-// picks out a method of that name.
+// if the apply is "receiver.method arg" and a method of that name
+// takes the receiver.
+//
+// The receiver is elaborated first, and the method is picked from
+// the type elaboration gave it. That is morel-java's order, in
+// TypeResolver.deducePostfixApp: it elaborates the receiver into a
+// variable of its own and only then calls pickBuiltInCandidate.
+// Picking first can read only the receiver's syntax, which says
+// nothing for a query -- whether it yields a list or a bag is what
+// typing the query decides -- nor for a "case", a "let", or an
+// operator application.
 func (r *typeResolver) methodApply(env typeEnv, apply *ast.Apply,
-) (ast.Expr, bool) {
+) (ast.Expr, bool, error) {
 	name, receiver, isCall := r.methodCall(apply)
 	if !isCall {
-		return nil, false
+		return nil, false, nil
+	}
+	// A receiver that names a record having a field of this name is
+	// a field projection, not a postfix call. morel-java tests this
+	// first of all, before it elaborates anything, and it matters
+	// because a method is now dispatched even where nothing picks
+	// one out: without it, "{length = fn () => 5, x = 1}.length ()"
+	// would reach Bag.length rather than the field.
+	if r.receiverHasField(env, receiver, name) {
+		return nil, false, nil
 	}
 	// A user-defined method -- a function of this declaration whose
 	// first parameter is "self" -- dispatches on the name alone;
@@ -365,19 +383,37 @@ func (r *typeResolver) methodApply(env typeEnv, apply *ast.Apply,
 	if paramIsTuple, isUser := r.userMethods[name]; isUser {
 		span := apply.Span()
 		return postfixCall(span, ast.NewID(span, name), receiver,
-			apply.Arg, paramIsTuple), true
+			apply.Arg, paramIsTuple), true, nil
 	}
-	head := r.receiverHead(env, receiver)
-	if head == "" {
-		// Nothing says what the receiver is. The argument may: a
-		// method whose receiver and argument are of one type, such
-		// as "compare", is pinned by either.
-		head = r.argHead(env, name, apply.Arg)
+	vReceiver := r.u.Variable()
+	err := r.deduceExp(env, receiver, vReceiver)
+	if err != nil {
+		return nil, false, err
 	}
-	if head == "" {
-		return nil, false
+	head := r.pickHead(env, name, receiver, vReceiver, apply.Arg)
+	exp, ok := r.methods.desugarHead(apply, name, receiver, head)
+	return exp, ok, nil
+}
+
+// pickHead is the head type constructor to dispatch on, asked for
+// in morel-java's order (pickBuiltInCandidate): the receiver's term,
+// then a solve of the constraints gathered so far, then what its
+// syntax says, then what the argument says -- a method whose
+// receiver and argument are of one type, such as "compare", is
+// pinned by either.
+func (r *typeResolver) pickHead(env typeEnv, name string,
+	recv ast.Expr, v *unify.Var, arg ast.Expr,
+) string {
+	if head := r.headOfTerm(v); head != "" {
+		return head
 	}
-	return r.methods.desugarHead(apply, name, receiver, head)
+	if head := r.solvedHead(v); head != "" {
+		return head
+	}
+	if head := r.receiverHead(env, recv); head != "" {
+		return head
+	}
+	return r.argHead(env, name, arg)
 }
 
 // receiverHead is the head type constructor of a postfix method
@@ -478,6 +514,37 @@ func (r *typeResolver) applyHead(env typeEnv, e *ast.Apply) string {
 	return ""
 }
 
+// receiverHasField reports whether a receiver names a record that
+// has a field of the given name -- morel-java's guard at the top of
+// deducePostfixApp, which keeps "String.size" and "Sys.set (...)"
+// projections and leaves a user's record field to the user.
+func (r *typeResolver) receiverHasField(env typeEnv, recv ast.Expr,
+	field string,
+) bool {
+	id, isID := recv.(*ast.ID)
+	if !isID {
+		return false
+	}
+	if t, inScope := env.peek(id.Name); inScope {
+		subst := r.headSubstitution()
+		if subst == nil {
+			return false
+		}
+		s, isSeq := subst.Resolve(t).(*unify.Sequence)
+		if !isSeq {
+			return false
+		}
+		return slices.Contains(fieldList(s), field)
+	}
+	rec, isRec := r.methods.globalType(id.Name).(*types.Record)
+	if !isRec {
+		return false
+	}
+	return slices.ContainsFunc(rec.Fields, func(f types.Field) bool {
+		return f.Label == field
+	})
+}
+
 // fieldHead is the head type constructor of a field of a record
 // expression, or "" if the expression is not known to be a record
 // with that field.
@@ -550,15 +617,25 @@ func (r *typeResolver) argHead(env typeEnv, name string,
 // this head, or nil if there is none.
 func (reg *MethodRegistry) candidate(name, head string,
 ) *methodCandidate {
-	if head == "" {
+	cands := reg.byName[name]
+	if len(cands) == 0 {
 		return nil
 	}
-	for i, cand := range reg.byName[name] {
+	if len(cands) == 1 {
+		// One candidate needs no head: there is nothing to choose
+		// between, and its own parameter type says what the receiver
+		// must be. morel-java takes this shortcut first of all.
+		return &cands[0]
+	}
+	for i, cand := range cands {
 		if headMatches(cand.receiverHead, head) {
-			return &reg.byName[name][i]
+			return &cands[i]
 		}
 	}
-	return nil
+	// Nothing says which one. morel-java takes the first and lets
+	// unification judge the receiver against it, rather than
+	// declining to dispatch.
+	return &cands[0]
 }
 
 // solvedHead is the head type constructor of a term according to a

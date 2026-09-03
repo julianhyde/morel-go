@@ -42,6 +42,7 @@ const (
 	opMod      = "op mod"
 	opNegate   = "op ~"
 	absName    = "abs"
+	lengthName = "length"
 	opAt       = "op @"
 	opCaret    = "op ^"
 	opCons     = "op ::"
@@ -90,7 +91,7 @@ var topBuiltins = map[string]topBuiltin{
 	"implode":    {"char list -> string", ""},
 	"isSome":     {"'a option -> bool", ""},
 	"iterate":    {"'a list -> ('a list * 'a list -> 'a list) -> 'a list", ""},
-	"length":     {"'a list -> int", ""},
+	lengthName:   {"'a list -> int", ""},
 	"map":        {"('a -> 'b) -> 'a list -> 'b list", ""},
 	notName:      {"bool -> bool", ""},
 	"null":       {"'a list -> bool", ""},
