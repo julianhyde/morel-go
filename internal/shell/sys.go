@@ -326,11 +326,17 @@ func (k *Kernel) timeZone() *time.Location {
 // type) pairs, sorted by name, with polymorphic types
 // forall-quantified.
 func (k *Kernel) sysEnv(eval.Val) (eval.Val, error) {
-	names := make([]string, len(k.bindings))
+	// A name may be bound more than once -- the basis binds
+	// "exnMessage", and so does the General signature -- and the
+	// environment says what a name means now, so each is listed
+	// once, with the type of the binding in force.
 	byName := make(map[string]types.Type, len(k.bindings))
-	for i, b := range k.bindings {
-		names[i] = b.Name
+	for _, b := range k.bindings {
 		byName[b.Name] = b.Type
+	}
+	names := make([]string, 0, len(byName))
+	for name := range byName {
+		names = append(names, name)
 	}
 	slices.Sort(names)
 	out := make([]eval.Val, len(names))

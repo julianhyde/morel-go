@@ -90,7 +90,6 @@ var topBuiltins = map[string]topBuiltin{
 	"hd":         {"'a list -> 'a", ""},
 	"implode":    {"char list -> string", ""},
 	"isSome":     {"'a option -> bool", ""},
-	"iterate":    {"'a list -> ('a list * 'a list -> 'a list) -> 'a list", ""},
 	lengthName:   {"'a list -> int", ""},
 	"map":        {"('a -> 'b) -> 'a list -> 'b list", ""},
 	notName:      {"bool -> bool", ""},
@@ -207,7 +206,14 @@ func collectionBindings(sys *types.System) []Binding {
 	collToElem := sys.Fn(coll, a)        // max, min, sum, only
 	collToInt := sys.Fn(coll, sys.Int)   // count
 	collToBool := sys.Fn(coll, sys.Bool) // empty, nonEmpty
+	// "iterate c f" computes a fixed point, and adapts the same way:
+	// a list function on lists and a bag function on bags. Declared
+	// here rather than as a plain string, which could say only one
+	// of the two.
+	iterateType := sys.Fn(coll,
+		sys.Fn(sys.Fn(sys.Tuple(coll, coll), coll), coll))
 	return []Binding{
+		{Name: "iterate", Type: iterateType},
 		{Name: opElem, Type: elemType},
 		{Name: opNotElem, Type: elemType},
 		{Name: "count", Type: collToInt},
@@ -297,12 +303,15 @@ const rangeStructure = "Range"
 // The hidden bindings behind the Range members that a signature
 // can only declare once -- "contains" over a continuous and a
 // discrete set, and "complement", whose declared form is the
-// continuous one. morel-java hides the same members the same way.
-// The kernel registers their implementations.
+// continuous one. morel-java hides the same members the same way,
+// and by these names, which is why they are not qualified by the
+// structure they belong to: they are what "Sys.env ()" shows, and
+// the two implementations should show the same. The kernel
+// registers their implementations.
 const (
-	CsContainsName   = "Range.$csContains"
-	DsContainsName   = "Range.$dsContains"
-	DsComplementName = "Range.$dsComplement"
+	CsContainsName   = "$csContains"
+	DsContainsName   = "$dsContains"
+	DsComplementName = "$dsComplement"
 )
 
 // bagsToCollections replaces each bag in a type with a collection

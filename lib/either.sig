@@ -60,9 +60,9 @@ sig
    * maps `fl` over the contents of left values and `fr` over the contents
    * of right values.
    *)
-  val map : ('ldom -> 'lrng) * ('rdom -> 'rrng)
-          -> ('ldom, 'rdom) either
-            -> ('lrng, 'rrng) either [@@prototype "map (fl, fr) sm"]
+  val map : ('a -> 'c) * ('b -> 'd)
+          -> ('a, 'b) either
+            -> ('c, 'd) either [@@prototype "map (fl, fr) sm"]
 
   (**
    * maps the function `f` over the contents of left values and acts as the
@@ -75,8 +75,8 @@ sig
    * maps the function `f` over the contents of right values and acts as the
    * identity on left values.
    *)
-  val mapRight : ('rdom -> 'rrng)
-               -> ('ldom, 'rdom) either -> ('ldom, 'rrng) either [@@prototype "mapRight f sm"]
+  val mapRight : ('b -> 'c)
+               -> ('a, 'b) either -> ('a, 'c) either [@@prototype "mapRight f sm"]
 
   (**
    * applies `fl` to the contents of left values and `fr` to the contents
@@ -95,7 +95,7 @@ sig
   (**
    * applies `f` to the contents of right values and ignores left values.
    *)
-  val appRight : ('right -> unit) -> ('left, 'right) either -> unit
+  val appRight : ('b -> unit) -> ('a, 'b) either -> unit
       [@@prototype "appRight f sm"]
 
   (**
@@ -103,8 +103,8 @@ sig
    * is either `fl` (if `sm` is a left value) or `fr` (if `sm` is a right
    * value).
    *)
-  val fold : ('left * 'b -> 'b) * ('right * 'b -> 'b)
-           -> 'b -> ('left, 'right) either -> 'b [@@prototype "fold (fl, fr) init sm"]
+  val fold : ('a * 'b -> 'b) * ('c * 'b -> 'b)
+           -> 'b -> ('a, 'c) either -> 'b [@@prototype "fold (fl, fr) init sm"]
 
   (** projects out the contents of `sm`. *)
   val proj : ('a, 'a) either -> 'a [@@method] [@@prototype "proj sm"]
