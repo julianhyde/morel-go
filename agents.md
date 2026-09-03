@@ -115,6 +115,23 @@ that have a morel-java counterpart:
   which a pull returns them and they are deleted from here (see
   `plan.md` task R45).
 
+A *shared* file may also carry a go-local block, for what no
+propagation can reach -- morel-go's own `Sys.env`, say, whose
+internal names morel-java spells differently. Fence it, and keep it
+at the end of the file:
+
+```
+(*) go-local: <why morel-java cannot hold this>
+...statements...
+(*) end go-local
+```
+
+`pull-passing.py` sets the block aside before regenerating the body
+from morel-java's copy and puts it back after; `check-convergence.py`
+strips it before counting. Use it rarely: it is corpus morel-java
+will never review, and anything morel-java could hold belongs there
+instead.
+
 ### Commit message
 
 Use the original morel-java commit summary as the first line of the
