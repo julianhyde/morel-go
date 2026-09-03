@@ -3211,14 +3211,16 @@ func (r *typeResolver) deduceMatch(env typeEnv, match *ast.Match,
 	if err != nil {
 		return err
 	}
-	env2 := bindAll(env, termMap)
-	err = r.deduceExp(env2, match.Exp, resultVariable)
-	if err != nil {
-		return err
-	}
+	// The rule's type is settled before its body is deduced, so
+	// that what the function's own type says about the parameter
+	// reaches the body. A postfix method call dispatches on the
+	// head of its receiver's type, and a parameter whose type comes
+	// only from the function's -- "(fn ds => ds.length ()) :
+	// {d:int} bag -> int" -- has no other way to learn it.
 	r.regEquiv(match, argVariable,
 		r.fnTerm(r.patTerm(match.Pat, vPat), resultVariable))
-	return nil
+	env2 := bindAll(env, termMap)
+	return r.deduceExp(env2, match.Exp, resultVariable)
 }
 
 // patTerm is the term of a match's pattern: the variable it was
