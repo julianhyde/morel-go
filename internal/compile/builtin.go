@@ -90,7 +90,6 @@ var topBuiltins = map[string]topBuiltin{
 	"hd":         {"'a list -> 'a", ""},
 	"implode":    {"char list -> string", ""},
 	"isSome":     {"'a option -> bool", ""},
-	"iterate":    {"'a list -> ('a list * 'a list -> 'a list) -> 'a list", ""},
 	lengthName:   {"'a list -> int", ""},
 	"map":        {"('a -> 'b) -> 'a list -> 'b list", ""},
 	notName:      {"bool -> bool", ""},
@@ -207,7 +206,14 @@ func collectionBindings(sys *types.System) []Binding {
 	collToElem := sys.Fn(coll, a)        // max, min, sum, only
 	collToInt := sys.Fn(coll, sys.Int)   // count
 	collToBool := sys.Fn(coll, sys.Bool) // empty, nonEmpty
+	// "iterate c f" computes a fixed point, and adapts the same way:
+	// a list function on lists and a bag function on bags. Declared
+	// here rather than as a plain string, which could say only one
+	// of the two.
+	iterateType := sys.Fn(coll,
+		sys.Fn(sys.Fn(sys.Tuple(coll, coll), coll), coll))
 	return []Binding{
+		{Name: "iterate", Type: iterateType},
 		{Name: opElem, Type: elemType},
 		{Name: opNotElem, Type: elemType},
 		{Name: "count", Type: collToInt},
