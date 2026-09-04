@@ -102,11 +102,39 @@ def file_at(repo, commit, prefix, rel):
     return out if out is not None else ""
 
 
+# A shared .smli may carry a block that morel-java has no
+# counterpart for -- morel-go's own environment, say, which no
+# amount of pulling can make match. It is fenced by these markers,
+# kept at the end of the file, and neither counted as divergence
+# here nor deleted by `pull-passing.py`.
+LOCAL_BEGIN = "(*) go-local:"
+LOCAL_END = "(*) end go-local"
+
+
+def strip_local(text):
+    """Removes go-local blocks, which morel-java is not expected to
+    have."""
+    out, skipping = [], False
+    for line in text.split("\n"):
+        if line.startswith(LOCAL_BEGIN):
+            skipping = True
+            # The blank lines that separate a block from what
+            # precedes it are the block's too; leaving them behind
+            # would count them as divergence.
+            while out and not out[-1].strip():
+                out.pop()
+        if not skipping:
+            out.append(line)
+        if line.startswith(LOCAL_END):
+            skipping = False
+    return "\n".join(out)
+
+
 def diff_lines(a, b):
     """Number of differing lines between two file contents (added
     + removed, ignoring the unified-diff header lines)."""
-    a_lines = a.splitlines(keepends=True)
-    b_lines = b.splitlines(keepends=True)
+    a_lines = strip_local(a).splitlines(keepends=True)
+    b_lines = strip_local(b).splitlines(keepends=True)
     n = 0
     for line in difflib.unified_diff(a_lines, b_lines, n=0):
         if line.startswith(("+++", "---", "@@")):

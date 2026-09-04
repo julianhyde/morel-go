@@ -238,6 +238,29 @@ def prune(java_text, run):
             return text
 
 
+# A shared .smli may carry a block that morel-java has no
+# counterpart for -- morel-go's own environment, say, which no
+# amount of pulling can make match. It is fenced by these markers
+# and kept at the end of the file: pruning takes it off before
+# regenerating and puts it back after, so the regenerated body is
+# still an ordered subsequence of morel-java's.
+LOCAL_BEGIN = "(*) go-local:"
+LOCAL_END = "(*) end go-local"
+
+
+def split_local(text):
+    """Splits text into (body, local), where local is the go-local
+    blocks and the blank lines before them."""
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        if line.startswith(LOCAL_BEGIN):
+            j = i
+            while j > 0 and not lines[j - 1].strip():
+                j -= 1
+            return "\n".join(lines[:j]), "\n".join(lines[j:])
+    return text, ""
+
+
 def is_subsequence(result, java):
     """Whether result's lines are an ordered subsequence of java's
     (every result line matched in java, in order — no line added
@@ -374,6 +397,10 @@ def main():
             java_text = f.read()
         with open(os.path.join(go_root, rel)) as f:
             go_text = f.read()
+        # A go-local block is morel-go's own; set it aside, and put
+        # it back once the body has been regenerated from java's.
+        # What is compared and counted is still the whole file.
+        _, local = split_local(go_text)
         # The runner needs to know which file this is; see
         # make_runner.
         def frun(text, rel=rel):
@@ -388,14 +415,17 @@ def main():
             # signal for a future task.
             print(f"  {rel:34} {'—':>6}  skip (morel-go crashes)")
             continue
-        # Invariants: the result round-trips, and is a subsequence
-        # of java. Never write a file that violates either.
-        if frun(new_text) != new_text:
-            sys.exit(f"error: {rel}: regenerated file does not "
-                     f"round-trip")
+        # Invariants: the body is a subsequence of java's, and the
+        # file as written -- body plus any go-local block -- round
+        # trips. Never write a file that violates either.
         if not is_subsequence(new_text, java_text):
             sys.exit(f"error: {rel}: regenerated file is not a "
                      f"subsequence of java")
+        if local:
+            new_text = new_text + local
+        if frun(new_text) != new_text:
+            sys.exit(f"error: {rel}: regenerated file does not "
+                     f"round-trip")
         jn = len(java_text.splitlines())
         gn = len(go_text.splitlines())
         nn = len(new_text.splitlines())
