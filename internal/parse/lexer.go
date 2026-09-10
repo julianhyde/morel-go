@@ -438,6 +438,19 @@ func (l *Lexer) scanEscape() error {
 	case l.hasDigits(decimalEscapeLen):
 		l.skipN(decimalEscapeLen)
 		return nil
+	case r == '\r' || r == '\n':
+		// A backslash at the end of a line continues the string on
+		// the next line: the backslash, the newline, and the spaces
+		// and tabs that begin the next line are ignored. A bare
+		// newline is still part of the string.
+		if r == '\r' && l.peek(1) == '\n' {
+			l.advance()
+		}
+		l.advance()
+		for l.peek(0) == ' ' || l.peek(0) == '\t' {
+			l.advance()
+		}
+		return nil
 	default:
 		span := token.Span{Start: start, End: l.pos}
 		return l.errorAt(span, "illegal escape")
