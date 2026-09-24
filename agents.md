@@ -126,9 +126,13 @@ Run `fullMake --no-clean` and confirm it passes. The gates, all of
 which must pass before committing:
 
 - `fullMake` (build, lint, tests);
-- `etc/check-convergence.py HEAD` — per-file divergence from
-  morel-java may never increase; a propagation or corpus-growth
-  commit should show it decreasing.
+- `etc/check-convergence.py --java-repo <morel-java clone> HEAD` —
+  per-file divergence from morel-java may never increase; a
+  propagation should show it decreasing. `--java-repo` is required and
+  has no default: pick a clone that contains the commit named in the
+  `Propagates` line, and check `~/dev/plan.md` for which clone is
+  current. The gate compares that commit and its parent, so the answer
+  does not change as morel-java moves on.
 
 New tests originate in morel-java: add them there first, then
 propagate back — do not grow a go-only test fork. One go-local

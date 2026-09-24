@@ -24,9 +24,10 @@ morel-java BEFORE the commit (at the parents) and AFTER. It fails
 if any file became MORE divergent — a section that java changed
 but go did not follow, even if other files converged enough to
 hide it in the net. The java commit is read from the go commit's
-`Propagates ... commit <sha>` line; a commit without one (e.g.
-corpus growth during bootstrap) is compared against the same java
-commit on both sides, so only go's own change is measured.
+`Propagates ... commit <sha>` line. A commit without one is refused:
+it used to be compared against whatever the java checkout was at,
+which made the answer depend on when the gate ran rather than on what
+the commit did.
 
 Report mode (--report) is the project dashboard: per-file
 divergence of the working tree against the java checkout's
@@ -36,10 +37,24 @@ Ledger mode (--ledger) lists the java commits already propagated,
 read from `Propagates` lines in the git log.
 
 Usage:
-    etc/check-convergence.py [GO_COMMIT] [--java JAVA_SHA]
-                             [--java-repo PATH] [--verbose]
-    etc/check-convergence.py --report [--java-repo PATH]
+    etc/check-convergence.py --java-repo PATH [GO_COMMIT]
+                             [--java JAVA_SHA] [--verbose]
+    etc/check-convergence.py --java-repo PATH --report
+                             [--go-rev REV] [--java-rev REV]
     etc/check-convergence.py --ledger
+
+`--java-repo` is required and has no default: see the comment on it
+below. Nothing else about the measurement is implicit either -- the
+gate compares GO_COMMIT against its parent, and the morel-java commit
+named in GO_COMMIT's `Propagates` line against *its* parent, so the
+answer depends on the two commits and not on where either repository
+happens to be checked out. Running the gate on an old commit today
+gives what it gave when that commit was made.
+
+`--report` is the exception, and is a dashboard rather than a gate: by
+default it compares working trees, which is a snapshot. Name
+`--go-rev` and `--java-rev` when the number has to mean the same thing
+twice.
 """
 import argparse
 import difflib
@@ -50,11 +65,13 @@ import sys
 
 GO_PREFIX = "testdata/script/"
 JAVA_PREFIX = "src/test/resources/script/"
-# The canonical morel-java checkout, which tracks origin/main.
-# `pull-passing.py` uses the same one: a run that pulls from one
-# checkout and measures against another can fail a file the commit
-# never touched.
-DEFAULT_JAVA_REPO = os.path.expanduser("~/dev/morel.1")
+# There is deliberately no default morel-java checkout. A hardcoded
+# path is not a criterion, it is a guess about which clone is current,
+# and the two ports guessed differently -- morel-go at ~/dev/morel.1,
+# morel-rust at ~/dev/morel.0 -- so the same propagation could pass
+# one gate and fail the other. Pass --java-repo; any clone containing
+# the commit being measured against gives the same answer, because the
+# commits, not the path, are what the comparison is pinned to.
 
 
 def git(repo, *args):
@@ -133,10 +150,16 @@ def java_sha_from_message(repo, commit):
     return m.group(1) if m else None
 
 
-def report(go_repo, java_repo):
-    """Prints the dashboard: working tree vs working tree."""
-    go_files = script_files(go_repo, None, GO_PREFIX)
-    java_files = script_files(java_repo, None, JAVA_PREFIX)
+def report(go_repo, java_repo, go_rev, java_rev):
+    """Prints the dashboard: `go_rev` against `java_rev`.
+
+    Either may be None, meaning that repository's working tree. A
+    dashboard of two working trees is the useful default -- it says
+    where the ports stand right now -- but it is a snapshot, not a
+    reproducible measurement, so name revisions when the number has
+    to mean the same thing twice."""
+    go_files = script_files(go_repo, go_rev, GO_PREFIX)
+    java_files = script_files(java_repo, java_rev, JAVA_PREFIX)
 
     shared = sorted(go_files & java_files)
     missing = sorted(java_files - go_files)
@@ -147,8 +170,8 @@ def report(go_repo, java_repo):
         print(f"{'shared file':40} {'go':>6} {'java':>6} "
               f"{'diff':>6}")
         for rel in shared:
-            a = file_at(go_repo, None, GO_PREFIX, rel)
-            b = file_at(java_repo, None, JAVA_PREFIX, rel)
+            a = file_at(go_repo, go_rev, GO_PREFIX, rel)
+            b = file_at(java_repo, java_rev, JAVA_PREFIX, rel)
             d = diff_lines(a, b)
             net += d
             print(f"{rel:40} {len(a.splitlines()):6} "
@@ -158,7 +181,7 @@ def report(go_repo, java_repo):
         total = 0
         print("not yet pulled from morel-java:")
         for rel in missing:
-            b = file_at(java_repo, None, JAVA_PREFIX, rel)
+            b = file_at(java_repo, java_rev, JAVA_PREFIX, rel)
             total += len(b.splitlines())
             print(f"  {rel:40} {len(b.splitlines()):6} lines")
         print(f"  ({len(missing)} files, {total} lines)")
@@ -215,10 +238,17 @@ def gate(go_repo, args):
         java_parent = git(args.java_repo, "rev-parse",
                           f"{java}^").strip()
     else:
-        # Not a propagation: measure go's own change against one
-        # fixed java commit.
-        java = git(args.java_repo, "rev-parse", "HEAD").strip()
-        java_parent = java
+        # Not a propagation. There is no java commit to compare
+        # against, and taking the java checkout's current HEAD would
+        # make the answer depend on when the gate was run rather than
+        # on what the commit did -- a run that passed at commit time
+        # would start failing as soon as morel-java moved. Say so.
+        sys.exit(
+            f"error: {go[:9]} has no 'Propagates ... commit <sha>' line, "
+            f"so there is no java commit to measure against.\n"
+            f"       Pass --java <sha> to name one explicitly. A port-local "
+            f"commit that propagates nothing has nothing to converge "
+            f"towards, and is not this gate's business.")
 
     print(f"go    {go[:9]}  (parent {go_parent[:9]})")
     print(f"java  {java[:9]}  (parent {java_parent[:9]})")
@@ -296,7 +326,15 @@ def main():
     p.add_argument("go_commit", nargs="?", default="HEAD")
     p.add_argument("--java",
                    help="morel-java commit SHA (else from message)")
-    p.add_argument("--java-repo", default=DEFAULT_JAVA_REPO)
+    p.add_argument("--java-repo", required=True,
+                   help="path to a morel-java clone that contains the "
+                        "commit being measured against")
+    p.add_argument("--go-rev",
+                   help="revision of this repo for --report "
+                        "(default: the working tree)")
+    p.add_argument("--java-rev",
+                   help="revision of the morel-java repo for --report "
+                        "(default: its working tree)")
     p.add_argument("--report", action="store_true",
                    help="dashboard: working tree vs java checkout")
     p.add_argument("--ledger", action="store_true",
@@ -307,7 +345,8 @@ def main():
 
     go_repo = os.getcwd()
     if args.report:
-        return report(go_repo, args.java_repo)
+        return report(go_repo, args.java_repo,
+                      args.go_rev, args.java_rev)
     if args.ledger:
         return ledger(go_repo)
     return gate(go_repo, args)
