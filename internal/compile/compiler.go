@@ -409,6 +409,8 @@ func sumRef(exp core.Exp) (*types.Fn, bool) {
 func sumEmptyZero(fn *types.Fn, span token.Span) (eval.Val, error) {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch fn.Result.String() {
+	case decimalName:
+		return eval.DecZero, nil
 	case intName:
 		return int32(0), nil
 	case realName:

@@ -765,3 +765,30 @@ func decDivD(a, b Decimal) (Val, error) {
 	}
 	return decOf(d, ok)
 }
+
+// decSum adds a list of decimals exactly, then rounds once. Overflow
+// if the total is too large.
+func decSum(list []Val) (Val, error) {
+	exp := int32(0)
+	first := true
+	for _, v := range list {
+		d := asDecimal(v)
+		if d.isZero() {
+			continue
+		}
+		if first || d.exp < exp {
+			exp, first = d.exp, false
+		}
+	}
+	if first {
+		// Every term is zero, so no exponent was chosen.
+		return DecZero, nil
+	}
+	total := new(big.Int)
+	for _, v := range list {
+		if d := asDecimal(v); !d.isZero() {
+			total.Add(total, d.scaledTo(exp))
+		}
+	}
+	return decOf(decCanonical(total, int(exp)))
+}
