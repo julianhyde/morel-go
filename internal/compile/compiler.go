@@ -561,10 +561,8 @@ func planFnName(name string, t types.Type) string {
 	if op, isOp := strings.CutPrefix(name, "op "); isOp {
 		// lint: sort until '^\t\t}' where '^\t\tcase '
 		switch op {
-		case "*", "+", "-":
+		case "*", "+", "-", "/":
 			return arithStruct(t) + "." + op
-		case "/":
-			return "Real./"
 		case "@":
 			return "List.@"
 		case "^":
@@ -604,6 +602,8 @@ func arithStruct(t types.Type) string {
 	}
 	// lint: sort until '^\t}' where '^\tcase '
 	switch arg.String() {
+	case "decimal":
+		return "Decimal"
 	case "real":
 		return "Real"
 	case "word":

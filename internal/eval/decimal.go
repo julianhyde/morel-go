@@ -388,13 +388,14 @@ func decRoundUp(mode decRoundMode, neg bool, quo, rem, pow *big.Int) bool {
 	if rem.Sign() == 0 {
 		return false
 	}
+	// lint: sort until '^\t}' where '^\tcase '
 	switch mode {
-	case decTrunc:
-		return false
-	case decFloor:
-		return neg
 	case decCeil:
 		return !neg
+	case decFloor:
+		return neg
+	case decTrunc:
+		return false
 	default:
 		// Half-even: the remainder against half of the divisor.
 		twice := new(big.Int).Lsh(rem, 1)
@@ -745,4 +746,22 @@ func FormatDecimal(v Val) string {
 // negative value or exponent.
 func DecimalToString(v Val, negation byte) string {
 	return asDecimal(v).ToString(negation)
+}
+
+// decAddD, decSubD, decMulD and decDivD are the decimal cases of the
+// overloaded operators "+", "-", "*" and "/".
+func decAddD(a, b Decimal) (Val, error) { return decOf(decAdd(a, b)) }
+
+func decSubD(a, b Decimal) (Val, error) {
+	return decOf(decAdd(a, b.negate()))
+}
+
+func decMulD(a, b Decimal) (Val, error) { return decOf(decMul(a, b)) }
+
+func decDivD(a, b Decimal) (Val, error) {
+	d, ok, err := decDiv(a, b)
+	if err != nil {
+		return nil, err
+	}
+	return decOf(d, ok)
 }

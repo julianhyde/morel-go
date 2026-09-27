@@ -43,6 +43,7 @@ const (
 	opNegate    = "op ~"
 	absName     = "abs"
 	decimalName = "decimal"
+	opDivide    = "op /"
 	lengthName  = "length"
 	opAt        = "op @"
 	opCaret     = "op ^"
@@ -101,7 +102,7 @@ var topBuiltins = map[string]topBuiltin{
 	opTimes:      {numPair, intName},
 	opPlus:       {numPair, intName},
 	opMinus:      {numPair, intName},
-	"op /":       {"real * real -> real", ""},
+	opDivide:     {numPair, realName},
 	opCons:       {"'a * 'a list -> 'a list", ""},
 	opLt:         {comparison, ""},
 	opLe:         {comparison, ""},
@@ -154,7 +155,7 @@ var infixOpNames = map[ast.Op]string{
 	ast.ElemOp:    opElem,
 	ast.NotElemOp: opNotElem,
 	ast.DivOp:     opDiv,
-	ast.DivideOp:  "op /",
+	ast.DivideOp:  opDivide,
 	ast.EqOp:      eqOpName,
 	ast.GeOp:      opGe,
 	ast.GtOp:      opGt,
@@ -185,6 +186,7 @@ var weakeningOps = map[string]bool{
 	// lint: sort until '^}' where '^\t'
 	absName:  true,
 	opDiv:    true,
+	opDivide: true,
 	opMinus:  true,
 	opMod:    true,
 	opNegate: true,
