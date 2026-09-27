@@ -423,6 +423,56 @@ func sumEmptyZero(fn *types.Fn, span token.Span) (eval.Val, error) {
 	}
 }
 
+// CheckDecimalLiterals reports the first "decimal" applied to a
+// string literal that is not a decimal, as
+// `decimal "12.x"` is.
+//
+// It runs before inlining, so that the literal it sees is one the
+// program wrote. A literal that only appears after inlining, as in
+// `let val s = "12.x" in decimal s end`, is not a compile error: the
+// program wrote a variable, and applying "decimal" to a string that
+// is not a literal raises Domain.
+func CheckDecimalLiterals(decl core.Decl) error {
+	var err error
+	r := &rewriter{}
+	r.exp = func(e core.Exp) (core.Exp, bool) {
+		if apply, ok := e.(*core.Apply); ok && err == nil {
+			if s, ok := decimalLiteralArg(apply); ok {
+				if _, valid := eval.DecParseExact(s); !valid {
+					err = &Error{
+						Span: apply.Span,
+						Msg:  "invalid decimal literal '" + s + "'",
+					}
+				}
+			}
+		}
+		return nil, false
+	}
+	r.rewriteDecl(decl)
+	return err
+}
+
+// decimalLiteralArg returns the string a call of the built-in
+// "decimal" function is applied to, and false for anything else.
+// A local declaration that shadows "decimal" gives the call another
+// result type, which is how one is told from the other.
+func decimalLiteralArg(e *core.Apply) (string, bool) {
+	switch builtinRefName(e.Fn) {
+	case decimalName, "Decimal." + decimalName:
+	default:
+		return "", false
+	}
+	if e.Type().String() != decimalName {
+		return "", false
+	}
+	lit, ok := e.Arg.(*core.Literal)
+	if !ok || lit.Kind != ast.StringLiteralOp {
+		return "", false
+	}
+	s, ok := lit.Value.(string)
+	return s, ok
+}
+
 // comparisonOperandType returns what one of the comparison
 // operators "<", "<=", ">" and ">=" is being applied to, and false
 // for any other expression. The operators apply to any type, and
@@ -1154,6 +1204,17 @@ func (c *compiler) compileApply(e *core.Apply, tail bool) (eval.Code,
 		err = c.checkComparable(t, e.Span)
 		if err != nil {
 			return nil, err
+		}
+	}
+	if s, ok := decimalLiteralArg(e); ok {
+		if d, valid := eval.DecParseExact(s); valid {
+			// A literal becomes the value, so the plan holds the
+			// value rather than a call of "decimal". An invalid one
+			// is left alone: it is a compile error only where the
+			// program wrote it, which CheckDecimalLiterals has
+			// already decided, and reaching it now means inlining
+			// put it here, where it raises Domain at run time.
+			return eval.Constant(d), nil
 		}
 	}
 	arg, err := c.compileExp(e.Arg)
