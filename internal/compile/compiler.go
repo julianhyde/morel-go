@@ -270,11 +270,41 @@ func (c *compiler) compileExp(exp core.Exp) (eval.Code, error) {
 			args[i] = a
 		}
 		return eval.Tuple(args), nil
+	case core.Rel:
+		return c.compileRel(e)
 	default:
 		return nil, &Error{
 			Msg: "cannot compile " + exp.Op().String(),
 		}
 	}
+}
+
+// compileRel compiles a relational node, by lowering it.
+//
+// The boundary morel-java's plan.md draws: "The compilers could
+// lower at their own boundary, which would let the tree survive
+// every *rewrite* pass and be lowered only for code generation."
+// A tree is what the passes carry and what a plan prints; a step
+// list is what runs, and this is where the one becomes the other.
+//
+// Nothing hands the compiler a tree yet -- the resolver returns a
+// step list, and that is M7's third increment -- so this is the
+// door, built before anything comes through it.
+func (c *compiler) compileRel(rel core.Rel) (eval.Code, error) {
+	lowered, reason := LowerRel(c.sys, rel)
+	if lowered == nil {
+		return nil, &Error{Msg: "cannot lower " + rel.OpName() +
+			": " + reason}
+	}
+	if _, isRel := lowered.(core.Rel); isRel {
+		// The lowering gave back a node, which would compile to
+		// this again. A leaf is an expression and lowers to
+		// itself, so this is a node it could not take apart.
+		return nil, &Error{
+			Msg: "cannot lower " + rel.OpName(),
+		}
+	}
+	return c.compileExp(lowered)
 }
 
 // builtinFnInfo returns the qualified name and argument arity of
@@ -640,7 +670,7 @@ func sumInstance(t types.Type) string {
 var planAliases = map[string]string{
 	// lint: sort until '^}' where '^\t"'
 	"app":       "List.app",
-	bagTyCon:    "Bag.fromList",
+	bagTyCon:    bagFromListName,
 	"chr":       "Char.chr",
 	"explode":   "String.explode",
 	"foldl":     "List.foldl",

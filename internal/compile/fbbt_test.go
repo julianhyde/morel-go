@@ -260,7 +260,7 @@ func TestFbbt(t *testing.T) {
 		pats: []*core.IDPat{f.r},
 		want: "r > ~1.00000005e-13 andalso " +
 			"(r < 1.00000005e-13 andalso " +
-			"#abs Real (~1e+13 * r) < 1)",
+			"#abs Real (~1e+13 * r) < 1.0)",
 	}, {
 		// The argument of an absolute value must be linear in one
 		// variable. This is not, so FBBT declines rather than

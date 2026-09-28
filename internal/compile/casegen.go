@@ -212,7 +212,7 @@ func conCaseGenerator(sys *types.System, pat *core.IDPat,
 		}
 		return &generator{
 			exp: &core.List{
-				T:    sys.Named("bag", pat.T),
+				T:    sys.List(pat.T),
 				Args: []core.Exp{con},
 			},
 			pat:      pat,
@@ -254,7 +254,7 @@ func conArmGenerator(sys *types.System, pat *core.IDPat,
 	for _, id := range core.PatIDs(p.Arg) {
 		steps = append(steps, &core.Scan{
 			Pat: id,
-			Exp: extentScanExp(sys, id.T, token.Span{}),
+			Exp: extentScanExp(sys, id.T, token.Span{}, id.Name),
 		})
 	}
 	if len(steps) == 0 {
@@ -264,7 +264,7 @@ func conArmGenerator(sys *types.System, pat *core.IDPat,
 		}
 		return &generator{
 			exp: &core.List{
-				T:    sys.Named("bag", pat.T),
+				T:    sys.List(pat.T),
 				Args: []core.Exp{conApply},
 			},
 			pat:      pat,
@@ -279,7 +279,7 @@ func conArmGenerator(sys *types.System, pat *core.IDPat,
 	}
 	steps = append(steps, &core.Yield{Exp: conApply})
 	built := &core.From{
-		T:     sys.Named("bag", pat.T),
+		T:     sys.List(pat.T),
 		Steps: steps,
 		Kind:  ast.FromOp,
 	}
@@ -289,8 +289,11 @@ func conArmGenerator(sys *types.System, pat *core.IDPat,
 		pat:      pat,
 		freePats: freePatsOf(built),
 		card:     finite,
-		unique:   true,
-		sealed:   true,
+		// The arm's query is a collection like any the predicate
+		// names, and is taken distinct where its duplicates would
+		// show, as morel-java's collection generator is.
+		unique: false,
+		sealed: true,
 	}
 }
 
@@ -323,9 +326,9 @@ func conPatExp(p core.Pat) (core.Exp, bool) {
 // extentScanExp builds a call of the internal extent builtin on
 // the whole extent of a type.
 func extentScanExp(sys *types.System, t types.Type,
-	span token.Span,
+	span token.Span, names ...string,
 ) core.Exp {
-	bagT := sys.Named("bag", t)
+	bagT := sys.List(t)
 	return &core.Apply{
 		T: bagT,
 		Fn: &core.ID{Pat: &core.IDPat{
@@ -335,8 +338,15 @@ func extentScanExp(sys *types.System, t types.Type,
 		Arg: &core.Literal{
 			Kind:  ast.UnitLiteralOp,
 			T:     sys.Unit,
-			Value: eval.NewRangeExtent(sys, t, nil),
+			Value: namedExtent(eval.NewRangeExtent(sys, t, nil), names),
 		},
 		Span: span,
 	}
+}
+
+// namedExtent records the names a scan bound on its extent.
+func namedExtent(extent *eval.RangeExtent, names []string,
+) *eval.RangeExtent {
+	extent.Names = names
+	return extent
 }

@@ -32,7 +32,8 @@ Sys.set ("now", "2024-01-01T00:00:00Z");
 Sys;
 > val it =
 >   {clearEnv=fn,colorSchemes=fn,deduceColorScheme=fn,env=fn,file={},
->    parseTree=fn,plan=fn,planEx=fn,set=fn,show=fn,showAll=fn,unset=fn}
+>    parseTree=fn,plan=fn,planEx=fn,planOf=fn,set=fn,show=fn,showAll=fn,
+>    unset=fn}
 >   : {clearEnv:unit -> unit,
 >       colorSchemes:unit
 >                     -> {comment:string, constant:string, error:string,
@@ -41,7 +42,7 @@ Sys;
 >                          typeVar:string} list,
 >       deduceColorScheme:unit -> string, env:unit -> (string * string) list,
 >       file:{...}, parseTree:string -> string, plan:unit -> string,
->       planEx:string -> string, set:string * 'a -> unit,
+>       planEx:string -> string, planOf:'a -> string, set:string * 'b -> unit,
 >       show:string -> string, showAll:unit -> (string * string) list,
 >       unset:string -> unit}
 
@@ -170,7 +171,7 @@ from (name, t) in Sys.env ()
 > StringCvt      {dropl:forall 'a. (char -> bool) -> ('a -> (char * 'a) option) -> 'a -> 'a, padLeft:char -> int -> string -> string, padRight:char -> int -> string -> string, scanString:forall 'a 'b. (('a -> (char * 'a) option) -> 'a -> ('b * 'a) option) -> string -> 'b option, skipWS:forall 'a. ('a -> (char * 'a) option) -> 'a -> 'a, splitl:forall 'a. (char -> bool) -> ('a -> (char * 'a) option) -> 'a -> string * 'a, takel:forall 'a. (char -> bool) -> ('a -> (char * 'a) option) -> 'a -> string}
 > Subscript      exn
 > Sun            weekday
-> Sys            {clearEnv:unit -> unit, colorSchemes:unit -> {comment:string, constant:string, error:string, identifier:string, keyword:string, name:string, numeric:string, string:string, symbol:string, typeVar:string} list, deduceColorScheme:unit -> string, env:unit -> (string * string) list, file:{...}, parseTree:string -> string, plan:unit -> string, planEx:string -> string, set:forall 'a. string * 'a -> unit, show:string -> string, showAll:unit -> (string * string) list, unset:string -> unit}
+> Sys            {clearEnv:unit -> unit, colorSchemes:unit -> {comment:string, constant:string, error:string, identifier:string, keyword:string, name:string, numeric:string, string:string, symbol:string, typeVar:string} list, deduceColorScheme:unit -> string, env:unit -> (string * string) list, file:{...}, parseTree:string -> string, plan:unit -> string, planEx:string -> string, planOf:forall 'a. 'a -> string, set:forall 'a. string * 'a -> unit, show:string -> string, showAll:unit -> (string * string) list, unset:string -> unit}
 > Thu            weekday
 > Time           {+:time * time -> time, -:time * time -> time, <:time * time -> bool, <=:time * time -> bool, >:time * time -> bool, >=:time * time -> bool, compare:time * time -> order, fmt:int -> time -> string, fromMicroseconds:int -> time, fromMilliseconds:int -> time, fromNanoseconds:int -> time, fromReal:real -> time, fromSeconds:int -> time, fromString:string -> time option, now:unit -> time, scan:forall 'a. ('a -> (char * 'a) option) -> 'a -> (time * 'a) option, toMicroseconds:time -> int, toMilliseconds:time -> int, toNanoseconds:time -> int, toReal:time -> real, toSeconds:time -> int, toString:time -> string, zeroTime:time}
 > Tue            weekday
@@ -366,38 +367,6 @@ Sys.showAll;
 > val it = fn : unit -> (string * string) list
 showAll;
 > val it = fn : unit -> (string * string) list
-map
-  (fn (p,v) =>
-    (p, if p elem ["directory", "scriptDirectory", "banner", "productVersion"]
-      then "?" else v))
-  (Sys.showAll ());
-> 1                    2
-> -------------------- -------------------------
-> banner               ?
-> colorScheme          NONE
-> directory            ?
-> excludeStructures    ^Test$
-> hybrid               true
-> inlinePassCount      5
-> lineWidth            SOME 78
-> matchCoverageEnabled true
-> matchStrict          false
-> maxUseDepth          SOME 50
-> now                  SOME 2024-01-01T00:00:00Z
-> output               TABULAR
-> printDepth           SOME 5
-> printLength          NONE
-> productName          morel-go
-> productVersion       ?
-> rangeMaxLength       16777215
-> relationalize        false
-> scriptDirectory      ?
-> stringDepth          NONE
-> stringFold           NONE
-> terminalBackground   NONE
-> timeZone             SOME UTC
->
-> val it : (string * string) list
 List.length (Sys.showAll ());
 > val it = 23 : int
 List.length (showAll ());

@@ -145,7 +145,8 @@ func TestKernelParseTree(t *testing.T) {
 		"typeVar:string} list, deduceColorScheme:unit -> string, " +
 		"env:unit -> (string * string) list, file:{...}, " +
 		"parseTree:string -> string, plan:unit -> string, " +
-		"planEx:string -> string, set:string * 'a -> unit, " +
+		"planEx:string -> string, planOf:'a -> string, " +
+		"set:string * 'b -> unit, " +
 		"show:string -> string, showAll:unit -> " +
 		"(string * string) list, unset:string -> unit}'\n" +
 		"  raised at: stdIn:1.5-1.9"

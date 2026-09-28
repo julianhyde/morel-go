@@ -230,7 +230,7 @@ func combineFieldGens(sys *types.System, pat *core.IDPat,
 		Exp: &core.Tuple{T: pat.T, Args: args},
 	})
 	built := &core.From{
-		T:     sys.Named("bag", pat.T),
+		T:     sys.List(pat.T),
 		Steps: steps,
 		Kind:  ast.FromOp,
 	}

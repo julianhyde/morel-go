@@ -255,12 +255,24 @@ func collectionBindings(sys *types.System) []Binding {
 		{Name: opElem, Type: elemType},
 		{Name: opNotElem, Type: elemType},
 		{Name: "count", Type: collToInt},
-		{Name: "empty", Type: collToBool},
-		{Name: "nonEmpty", Type: collToBool},
+		{Name: emptyName, Type: collToBool},
+		{Name: nonEmptyName, Type: collToBool},
 		{Name: "max", Type: collToElem},
 		{Name: "min", Type: collToElem},
 		{Name: sumName, Type: collToElem},
 		{Name: onlyName, Type: collToElem},
+	}
+}
+
+// IsCollectionAggregate reports whether a member of Bag or
+// Relational is one of the aggregates declared over "'a bag" that
+// adapt to a list: count, empty, max, min, nonEmpty, only and sum.
+func IsCollectionAggregate(member string) bool {
+	switch member {
+	case "count", emptyName, "max", "min", nonEmptyName, onlyName, sumName:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -275,9 +287,7 @@ func CollectionAggType(sys *types.System, member string,
 	if !ok {
 		return nil
 	}
-	// lint: sort until '^\t}' where '^\tcase '
-	switch member {
-	case "count", "empty", "max", "min", "nonEmpty", onlyName, sumName:
+	if IsCollectionAggregate(member) {
 		// The member's declared parameter is "'a bag"; replace it
 		// with a collection of the same element type.
 		elem := bagElem(fn.Param)
@@ -285,6 +295,9 @@ func CollectionAggType(sys *types.System, member string,
 			return nil
 		}
 		return sys.Fn(sys.Collection(elem), fn.Result)
+	}
+	// lint: sort until '^\t}' where '^\tcase '
+	switch member {
 	case "iterate":
 		// Every bag in the signature becomes a collection; their
 		// shared orderedness makes iterate a list function on

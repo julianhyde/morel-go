@@ -91,59 +91,16 @@ type generator struct {
 	freshPats []*core.IDPat
 }
 
-// generatorCache accumulates the generators deduced for each
-// pattern. Entries are only added, never removed, and a later
-// entry for a pattern is always at least as good as an earlier
-// one, so the best generator is the most recent.
-type generatorCache struct {
-	m map[*core.IDPat][]*generator
-}
-
-// add indexes a generator under every variable of its pattern.
-func (c *generatorCache) add(g *generator) {
-	for _, id := range core.PatIDs(g.pat) {
-		c.m[id] = append(c.m[id], g)
-	}
-}
-
-// everInfinite reports whether any generator recorded for a
-// pattern is infinite -- true of every extent variable, whose
-// extent generator is the first one registered and is never
-// removed.
-func (c *generatorCache) everInfinite(pat *core.IDPat) bool {
-	for _, g := range c.m[pat] {
-		if g.card == infinite {
+// readsFree reports whether a constraint the generator came from
+// reads a name: the name is then bound outside the generator, not
+// by it.
+func (g *generator) readsFree(pat *core.IDPat) bool {
+	for conjunct := range g.provenance {
+		if slices.Contains(freePatsOf(conjunct), pat) {
 			return true
 		}
 	}
 	return false
-}
-
-// best returns the most recently added generator for a pattern,
-// or nil.
-func (c *generatorCache) best(pat *core.IDPat) *generator {
-	gens := c.m[pat]
-	if len(gens) == 0 {
-		return nil
-	}
-	return gens[len(gens)-1]
-}
-
-// extentGenerator wraps a scan over an extent: the values of the
-// pattern's type. It is the first generator registered for every
-// unbounded pattern; finite by itself when the type is finite.
-func extentGenerator(scan *core.Scan) *generator {
-	card := finite
-	if isInfiniteExtent(scan.Exp) {
-		card = infinite
-	}
-	return &generator{
-		exp:    scan.Exp,
-		pat:    scan.Pat,
-		card:   card,
-		unique: true,
-		sealed: true,
-	}
 }
 
 // genContext is the environment generator deduction runs in: the
@@ -159,6 +116,11 @@ type genContext struct {
 	// it, and the wait may be a cycle; a bound that mentions only
 	// variables already bound cannot.
 	ungrounded map[*core.IDPat]bool
+	// leaves is every name a leaf of the query binds, extent or
+	// not. A generator that reads one of them from inside an
+	// "exists" would wait on that leaf, so the constraint that
+	// reads it stays a filter of the query instead.
+	leaves map[*core.IDPat]bool
 }
 
 // maybeGenerator deduces a generator for a variable from the
@@ -313,7 +275,7 @@ func prefixGenerator(sys *types.System, pat *core.IDPat,
 			T: listT,
 			Fn: &core.ID{Pat: &core.IDPat{
 				T:    sys.Fn(pairT, listT),
-				Name: "List.tabulate",
+				Name: listTabulateName,
 			}},
 			Arg: &core.Tuple{T: pairT, Args: []core.Exp{
 				count,
@@ -339,8 +301,8 @@ func maybeExists(ctx *genContext, pat *core.IDPat,
 	constraints []core.Exp,
 ) *generator {
 	for i, c := range constraints {
-		from, ok := c.(*core.From)
-		if !ok || from.Kind != ast.ExistsOp {
+		from := existsQueryOf(ctx.sys, c)
+		if from == nil {
 			continue
 		}
 		base := slices.Concat(constraints[:i], constraints[i+1:])
@@ -351,6 +313,63 @@ func maybeExists(ctx *genContext, pat *core.IDPat,
 	}
 	return nil
 }
+
+// existsQueryOf is the query an existential constraint tests: an
+// "exists" query as the step list writes it, or, as a tree writes
+// it, "Relational.nonEmpty" of a tree, read back as the step list
+// it lowers to.
+func existsQueryOf(sys *types.System, c core.Exp) *core.From {
+	if from, isFrom := c.(*core.From); isFrom {
+		if from.Kind == ast.ExistsOp {
+			return from
+		}
+		return nil
+	}
+	apply, isApply := c.(*core.Apply)
+	if !isApply {
+		return nil
+	}
+	id, isID := apply.Fn.(*core.ID)
+	if !isID || id.Pat.Name != relNonEmptyName &&
+		id.Pat.Name != nonEmptyName {
+		return nil
+	}
+	if from, isFrom := apply.Arg.(*core.From); isFrom {
+		// A query already lowered, inside a query that was.
+		return &core.From{T: from.T, Steps: from.Steps, Kind: ast.ExistsOp}
+	}
+	rel, isRel := apply.Arg.(core.Rel)
+	if !isRel {
+		return nil
+	}
+	if from, done := loweredRels[rel]; done {
+		return from
+	}
+	lowered, _ := LowerRel(sys, rel)
+	from, isFrom := lowered.(*core.From)
+	if !isFrom {
+		return nil
+	}
+	exists := &core.From{T: from.T, Steps: from.Steps, Kind: ast.ExistsOp}
+	// The lowering leaves a tree nested in the query reading the
+	// query's element through a binder, "let val v$0 = w$0 in ...";
+	// the binder is read out, so that the nested tree's test reads
+	// the scan's variable, as a constraint the derivation can
+	// invert.
+	if unbound, isFrom := relFoldSelectors(sys,
+		relUnbindRow(sys, exists)).(*core.From); isFrom {
+		exists = unbound
+	}
+	loweredRels[rel] = exists
+	return exists
+}
+
+// loweredRels is each tree read back as a query, by the tree. The
+// lowering names the query's scans afresh, and a tree that two
+// derivations read -- one per field of a tuple, say -- has to name
+// them the same both times, or a scan the derivations share is two
+// scans to the join that combines them.
+var loweredRels = map[core.Rel]*core.From{}
 
 // invertExists derives a generator for the outer variable from
 // one exists conjunct, trying after each of the body's filters.
@@ -402,32 +421,43 @@ func existsGenerator(ctx *genContext, pat *core.IDPat,
 		}
 	}
 	steps, dependent := existsScans(g, innerScans, covered)
-	steps = append(steps, &core.Scan{Pat: g.pat, Exp: g.exp})
+	// An "exists" is unordered, so what is derived inside it reads
+	// its collection as a bag, as morel-java's derivation does; the
+	// distinct scan that finishes the generator sorts it.
+	steps = append(steps, &core.Scan{Pat: g.pat, Exp: listToBag(sys, g.exp)})
 	if len(g.conds) > 0 {
 		steps = append(steps,
 			&core.Where{Exp: composeConjuncts(sys, g.conds)})
 	}
-	// The body's other filters apply inside — except one reading
+	// The body's other filters apply inside -- except one reading
 	// another unbounded variable, which the surviving quantifier
-	// filter enforces instead; one that reads a quantified
-	// variable no scan here binds cannot apply at all.
-	var filters []core.Exp
+	// filter enforces instead. One that reads a quantified variable
+	// no scan here binds is tested by an "exists" over the scans
+	// that bind what it reads, as morel-java's derivation does.
+	var filters, quantified []core.Exp
 	for _, c := range working {
 		if g.provenance[c] {
 			continue
 		}
-		include := true
+		include, nested := true, false
 		for _, f := range freePatsOf(c) {
 			if innerVars[f] && !covered[f] {
-				return nil
-			}
-			if extents[f] && !covered[f] {
+				nested = true
+			} else if (extents[f] || ctx.leaves[f]) && !covered[f] {
 				include = false
 			}
 		}
-		if include {
+		switch {
+		case !include:
+		case nested:
+			quantified = append(quantified, c)
+		default:
 			filters = append(filters, c)
 		}
+	}
+	if len(quantified) > 0 {
+		filters = append(filters,
+			existsOver(sys, innerScans, covered, quantified))
 	}
 	if len(filters) > 0 {
 		steps = append(steps,
@@ -440,7 +470,7 @@ func existsGenerator(ctx *genContext, pat *core.IDPat,
 	yieldExp, outerPat := rowOfOriginals(sys, yieldPats)
 	steps = append(steps, &core.Yield{Exp: yieldExp})
 	built := &core.From{
-		T:     sys.Named("bag", outerPat.Type()),
+		T:     sys.Bag(outerPat.Type()),
 		Steps: steps,
 		Kind:  ast.FromOp,
 	}
@@ -453,6 +483,32 @@ func existsGenerator(ctx *genContext, pat *core.IDPat,
 		card:     finite,
 		unique:   true,
 	}
+}
+
+// existsOver is an "exists" over the quantified variables that the
+// constraints read and nothing outside binds, testing the
+// constraints.
+func existsOver(sys *types.System, innerScans []*core.Scan,
+	covered map[*core.IDPat]bool, constraints []core.Exp,
+) core.Exp {
+	needed := map[*core.IDPat]bool{}
+	for _, c := range constraints {
+		for _, f := range freePatsOf(c) {
+			if !covered[f] {
+				needed[f] = true
+			}
+		}
+	}
+	var steps []core.FromStep
+	for _, s := range innerScans {
+		if slices.ContainsFunc(core.PatIDs(s.Pat), func(id *core.IDPat) bool {
+			return needed[id]
+		}) {
+			steps = append(steps, s)
+		}
+	}
+	steps = append(steps, &core.Where{Exp: composeConjuncts(sys, constraints)})
+	return &core.From{T: sys.Bool, Steps: steps, Kind: ast.ExistsOp}
 }
 
 // existsScans emits the quantified variables' own scans when the
@@ -532,7 +588,7 @@ func maybeRangeGenerator(ctx *genContext, pat *core.IDPat,
 	constraints []core.Exp,
 ) *generator {
 	sys := ctx.sys
-	if pat.T != sys.Int {
+	if !isDiscreteType(sys, pat.T) {
 		return nil
 	}
 	lo := chooseBound(ctx, pat, constraints, true)
@@ -541,6 +597,22 @@ func maybeRangeGenerator(ctx *genContext, pat *core.IDPat,
 		return nil
 	}
 	return rangeGenerator(sys, pat, lo, hi)
+}
+
+// isDiscreteType reports whether a type's values can be enumerated
+// between two bounds: int, char, bool and unit, and a tuple of
+// such, as morel-java's "isDiscrete".
+func isDiscreteType(sys *types.System, t types.Type) bool {
+	switch t {
+	case sys.Int, sys.Char, sys.Bool, sys.Unit:
+		return true
+	}
+	if tuple, isTuple := types.Unalias(t).(*types.Tuple); isTuple {
+		return !slices.ContainsFunc(tuple.Args, func(arg types.Type) bool {
+			return !isDiscreteType(sys, arg)
+		})
+	}
+	return false
 }
 
 // boundPreference is how much we like the shape of a bound.
@@ -792,40 +864,6 @@ func rangeCtorExp(sys *types.System, t types.Type, ctorName string,
 	}
 }
 
-// rangeItemScanExp turns a bounded range-list item into the
-// Range.flatten call that enumerates it, so that a scan narrowed
-// by range pushdown reads as what it has become. morel-java
-// rewrites the scan the same way; leaving it as a range list
-// would show `[1 .. 7]`, hiding the pushdown that produced the
-// bound. Returns nil for an item that is still unbounded, or a
-// point, which stay as they are.
-func rangeItemScanExp(sys *types.System, t types.Type,
-	item core.RangeItem,
-) core.Exp {
-	var loStrict, hiStrict bool
-	// lint: sort until '^\t}' where '^\tcase '
-	switch item.Kind {
-	case ast.RangeClosed:
-	case ast.RangeClosedOpen:
-		hiStrict = true
-	case ast.RangeOpen:
-		loStrict, hiStrict = true, true
-	case ast.RangeOpenClosed:
-		loStrict = true
-	default:
-		return nil
-	}
-	if item.Lo == nil || item.Hi == nil {
-		return nil
-	}
-	ctor := rangeCtorExp(sys, t,
-		rangeCtorName(loStrict, hiStrict), item.Lo, item.Hi)
-	if ctor == nil {
-		return nil
-	}
-	return rangeScanExp(sys, t, []core.Exp{ctor})
-}
-
 // rangeCtorName is the range constructor for the bounds'
 // openness.
 func rangeCtorName(loStrict, hiStrict bool) string {
@@ -984,7 +1022,7 @@ func generateUnion(sys *types.System, pat *core.IDPat,
 	for i, g := range gens {
 		exps[i] = g.exp
 	}
-	bagT := sys.Named("bag", pat.T)
+	bagT := sys.List(pat.T)
 	listT := sys.List(bagT)
 	return &generator{
 		exp: &core.Apply{
@@ -1214,7 +1252,7 @@ func pointGenerator(sys *types.System, pat *core.IDPat,
 	point := pointValue(conjunct, pat)
 	return &generator{
 		exp: &core.List{
-			T:    sys.Named("bag", pat.T),
+			T:    sys.List(pat.T),
 			Args: []core.Exp{point},
 		},
 		pat:        pat,
@@ -1229,6 +1267,17 @@ func pointGenerator(sys *types.System, pat *core.IDPat,
 
 // elemName is the top-level binding of the membership operator.
 const elemName = opElem
+
+// Names of the built-ins that read a collection whole.
+const (
+	relEmptyName     = "Relational.empty"
+	relNonEmptyName  = "Relational.nonEmpty"
+	emptyName        = "empty"
+	nonEmptyName     = "nonEmpty"
+	bagFromListName  = "Bag.fromList"
+	bagTabulateName  = "Bag.tabulate"
+	listTabulateName = "List.tabulate"
+)
 
 // matchesElem reports whether the conjunct is a membership test
 // whose element side mentions the variable.
@@ -1318,6 +1367,38 @@ func collectionGenerator(sys *types.System,
 		provenance: map[core.Exp]bool{conjunct: true},
 		conds:      conds,
 		freshPats:  freshPats,
+	}
+}
+
+// listToBag reads a list as a bag, "Bag.fromList coll". A
+// collection that is already a bag is returned unchanged.
+func listToBag(sys *types.System, coll core.Exp) core.Exp {
+	list, ok := coll.Type().(*types.List)
+	if !ok {
+		return coll
+	}
+	bagT := sys.Bag(list.Elem)
+	if apply, isApply := coll.(*core.Apply); isApply {
+		if id, isID := apply.Fn.(*core.ID); isID &&
+			id.Pat.Name == listTabulateName {
+			// A tabulated list is tabulated as a bag instead.
+			return &core.Apply{
+				T: bagT,
+				Fn: &core.ID{Pat: &core.IDPat{
+					T:    sys.Fn(apply.Arg.Type(), bagT),
+					Name: bagTabulateName,
+				}},
+				Arg: apply.Arg,
+			}
+		}
+	}
+	return &core.Apply{
+		T: bagT,
+		Fn: &core.ID{Pat: &core.IDPat{
+			T:    sys.Fn(coll.Type(), bagT),
+			Name: bagFromListName,
+		}},
+		Arg: coll,
 	}
 }
 

@@ -288,6 +288,7 @@ func (k *Kernel) sysBuiltins() map[string]eval.Val {
 		"Sys.env":               eval.Fn(k.sysEnv),
 		"Sys.plan":              eval.Fn(k.sysPlan),
 		"Sys.planEx":            eval.Fn(k.sysPlanEx),
+		"Sys.planOf":            eval.Fn(k.sysPlanOf),
 		"Sys.set":               eval.Fn(k.sysSet),
 		"Sys.show":              eval.Fn(k.sysShow),
 		"Sys.showAll":           eval.Fn(k.sysShowAll),
@@ -319,11 +320,23 @@ func (k *Kernel) sysBuiltins() map[string]eval.Val {
 	m["env"] = m["Sys.env"]
 	m["plan"] = m["Sys.plan"]
 	m["planEx"] = m["Sys.planEx"]
+	m["planOf"] = m["Sys.planOf"]
 	m["set"] = m["Sys.set"]
 	m["show"] = m["Sys.show"]
 	m["showAll"] = m["Sys.showAll"]
 	m["unset"] = m["Sys.unset"]
 	return m
+}
+
+// sysPlanOf is "Sys.planOf e" used as a value rather than
+// applied.
+//
+// The resolver replaces an application of it with the plan of its
+// argument, which is not evaluated, so this runs only where
+// something takes the function itself -- "map Sys.planOf xs", say
+// -- and by then the argument is a value and its plan is gone.
+func (k *Kernel) sysPlanOf(eval.Val) (eval.Val, error) {
+	return "Sys.planOf must be applied to an expression", nil
 }
 
 // sysPlanEx is "Sys.planEx phase": the most recent statement's
@@ -339,7 +352,11 @@ func (k *Kernel) sysPlanEx(arg eval.Val) (eval.Val, error) {
 	}
 	d := compile.Replan(k.planExDecl, k.inlineEnv(), k.sys,
 		k.recFns, k.inlinePassCount(), phase)
-	return compile.UnparseDecl(k.sys, d), nil
+	// A query's plan is its tree, as morel-java prints it.
+	// A phase before inlining, "~1", prints the query as written;
+	// any other has been through the inliner.
+	inlined := !strings.HasPrefix(phase, "~")
+	return compile.RelPlanDecl(k.sys, d, k.config.LineWidth, inlined), nil
 }
 
 // sysClearEnv is "Sys.clearEnv ()": it resets the session

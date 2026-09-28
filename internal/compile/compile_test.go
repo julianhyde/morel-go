@@ -393,7 +393,7 @@ func resolve(t *testing.T, src string) core.Decl {
 	if err != nil {
 		t.Fatalf("deduce %q: %v", src, err)
 	}
-	decl, err := compile.Resolve(resolved, nil)
+	decl, err := compile.Resolve(resolved, nil, 79)
 	if err != nil {
 		t.Fatalf("resolve %q: %v", src, err)
 	}

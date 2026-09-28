@@ -270,10 +270,11 @@ func TestRelPlanDecl(t *testing.T) {
 	decl := &core.NonRecValDecl{
 		Pat: &core.IDPat{T: rel.Type(), Name: "it"}, Exp: rel,
 	}
+	// A tree's every line ends in a newline, as morel-java's does.
 	want := "val it =\n" +
 		"  filter [$0 < 5] : int list\n" +
-		"    [1, 2] : int list"
-	if got := RelPlanDecl(sys, decl, 79); got != want {
+		"    [1, 2] : int list\n"
+	if got := RelPlanDecl(sys, decl, 79, false); got != want {
 		t.Errorf("planEx:\n got:\n%s\nwant:\n%s", got, want)
 	}
 	// A declaration whose value is not a query prints as it always
@@ -281,7 +282,7 @@ func TestRelPlanDecl(t *testing.T) {
 	plain := &core.NonRecValDecl{
 		Pat: &core.IDPat{T: sys.Int, Name: "it"}, Exp: f.i(3),
 	}
-	if got := RelPlanDecl(sys, plain, 79); got != "val it = 3" {
+	if got := RelPlanDecl(sys, plain, 79, false); got != "val it = 3" {
 		t.Errorf("planEx of a value = %q, want \"val it = 3\"", got)
 	}
 }

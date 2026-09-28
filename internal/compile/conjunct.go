@@ -137,6 +137,13 @@ func isInfiniteExtent(e core.Exp) bool {
 	return re != nil && re.Values == nil
 }
 
+// unboundedCollection reports whether a collection is one that
+// grounding must bound before it can be read: an infinite extent,
+// or a range with an open end.
+func unboundedCollection(exp core.Exp) bool {
+	return isInfiniteExtent(exp) || !finiteCollection(exp)
+}
+
 // ContainsUnbounded reports whether the declaration contains a
 // query scan over an infinite extent: an unbounded variable that
 // the grounding pass must replace with a finite generator before
@@ -151,8 +158,26 @@ func ContainsUnbounded(decl core.Decl) bool {
 				if !isScan {
 					continue
 				}
-				if isInfiniteExtent(scan.Exp) ||
-					!finiteCollection(scan.Exp) {
+				if unboundedCollection(scan.Exp) {
+					found = true
+				}
+			}
+		}
+		if rel, isRel := e.(core.Rel); isRel {
+			// A tree says it with a leaf rather than a scan: what
+			// a step list scans, a tree has as the input of the
+			// node above it, and a leaf is just an expression.
+			//
+			// The translation makes trees of nested queries, so a
+			// query that needs grounding can be inside a tree
+			// where no scan of it survives. Reading only the
+			// steps, this said no, grounding never ran, and the
+			// extent reached the evaluator as "infinite: int".
+			for _, in := range rel.Inputs() {
+				if _, nested := in.(core.Rel); nested {
+					continue
+				}
+				if unboundedCollection(in) {
 					found = true
 				}
 			}

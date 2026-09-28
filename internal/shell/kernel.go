@@ -708,7 +708,7 @@ func (k *Kernel) evalDecl(bindings []compile.Binding,
 	if err != nil {
 		panic(err)
 	}
-	coreDecl, err := compile.Resolve(resolved, nil)
+	coreDecl, err := compile.Resolve(resolved, nil, k.config.LineWidth)
 	if err != nil {
 		panic(err)
 	}
@@ -916,6 +916,41 @@ func (k *Kernel) overDeclEcho(coreDecl core.Decl) (string, bool) {
 	return "over " + overDecl.Name, true
 }
 
+// ground grounds a declaration's unbounded query variables, to a
+// fixpoint: expanding one query can expose another. Every query
+// goes through the pass, bounded or not: a query with nothing to
+// ground is still replaced by its tree, which is what the compiler
+// compiles.
+func (k *Kernel) ground(coreDecl core.Decl) (core.Decl, error) {
+	for i := range k.inlinePassCount() {
+		if i > 0 && !compile.ContainsUnbounded(coreDecl) {
+			break
+		}
+		coreDecl2, err := compile.Ground(coreDecl, k.sys, k.recFns)
+		if err != nil {
+			return nil, err
+		}
+		k.debugGrounded("grounded pass", coreDecl2)
+		if coreDecl2 == coreDecl {
+			break
+		}
+		coreDecl = coreDecl2
+	}
+	k.debugGrounded("grounded", coreDecl)
+	return coreDecl, nil
+}
+
+// debugGrounded prints a grounded declaration, and any generated
+// binder it reads but does not declare, where MOREL_REL_DEBUG asks
+// for it.
+func (k *Kernel) debugGrounded(label string, decl core.Decl) {
+	if os.Getenv("MOREL_REL_DEBUG") == "" {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "%s: %s\n%s", label,
+		compile.UnparseDecl(k.sys, decl), compile.DebugUnbound(decl))
+}
+
 func (k *Kernel) runStatement(n ast.Node) string {
 	k.pendingLines = nil
 	var decl ast.Decl
@@ -955,7 +990,7 @@ func (k *Kernel) runStatement(n ast.Node) string {
 		}
 		return k.echoTypeDecl(typeDecl)
 	}
-	coreDecl, err := compile.Resolve(resolved, k.overloads)
+	coreDecl, err := compile.Resolve(resolved, k.overloads, k.config.LineWidth)
 	if err != nil {
 		return k.formatCompileError(err)
 	}
@@ -989,27 +1024,15 @@ func (k *Kernel) runStatement(n ast.Node) string {
 		return k.formatCompileError(derr)
 	}
 	coreDecl = compile.Inline(
-		coreDecl, k.inlineEnv(), k.inlinePassCount(),
+		k.sys, coreDecl, k.inlineEnv(), k.inlinePassCount(),
 	)
 	// Later statements inline the pre-grounding form: grounding
 	// specializes queries to this statement's bindings, but the
 	// logical form is what a later query's own grounding wants.
 	inlined := coreDecl
-	// Ground unbounded query variables, to a fixpoint: expanding
-	// one query can expose another.
-	for range k.inlinePassCount() {
-		if !compile.ContainsUnbounded(coreDecl) {
-			break
-		}
-		coreDecl2, gerr := compile.Ground(coreDecl, k.sys,
-			k.recFns)
-		if gerr != nil {
-			return k.formatCompileError(gerr)
-		}
-		if coreDecl2 == coreDecl {
-			break
-		}
-		coreDecl = coreDecl2
+	coreDecl, gerr := k.ground(coreDecl)
+	if gerr != nil {
+		return k.formatCompileError(gerr)
 	}
 	compiled, err := compile.Statement(coreDecl, k.values, k.sys)
 	if err != nil {
@@ -1222,7 +1245,16 @@ func (k *Kernel) formatCompileError(err error) string {
 		return "internal error: " + err.Error()
 	}
 	if compileErr.Span == (token.Span{}) {
+		// No span to report it at, so the script sees nothing --
+		// unless the session asked to be shown what it is missing,
+		// which is what the flag is for. Without this the message
+		// went only to the gap count, and a compiler error with no
+		// span was indistinguishable from a statement that ran and
+		// printed nothing.
 		k.recordGap(err.Error())
+		if k.config.ShowUnsupported {
+			return err.Error()
+		}
 		return ""
 	}
 	if unsupported(compileErr.Msg) {
@@ -1284,7 +1316,7 @@ func (k *Kernel) executeTypeOnly(src string) string {
 	// its type; it is not evaluated, so a redundant match is still
 	// an error.
 	var lines []string
-	coreDecl, cerr := compile.Resolve(resolved, k.overloads)
+	coreDecl, cerr := compile.Resolve(resolved, k.overloads, k.config.LineWidth)
 	if cerr == nil {
 		warnings, covErr := compile.CheckCoverage(k.sys, coreDecl)
 		if covErr != nil {

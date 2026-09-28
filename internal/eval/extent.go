@@ -19,6 +19,7 @@ package eval
 
 import (
 	"errors"
+	"slices"
 	"strconv"
 
 	"github.com/hydromatic/morel-go/internal/types"
@@ -77,6 +78,11 @@ type RangeExtent struct {
 	T         types.Type
 	RangeSets map[string]ValRangeSet
 	Values    []Val
+	// Names are the names the scan of this extent bound: one for
+	// its element, or one per component where the pattern was a
+	// tuple. A tree erases the pattern, and reads the names back
+	// from here to name what it builds and what it cannot bound.
+	Names []string
 }
 
 // NewRangeExtent returns the extent of a type under per-path
@@ -183,9 +189,9 @@ func populateExtent(sys *types.System, t types.Type, path string,
 }
 
 // populateDatatype emits every value of a datatype: each
-// constructor in name order, a constructor with an argument once
-// per value of its argument type. Named types that are not
-// datatypes (collections) are infinite.
+// constructor in the order it was declared, a constructor with an
+// argument once per value of its argument type. Named types that
+// are not datatypes (collections) are infinite.
 func populateDatatype(sys *types.System, t *types.Named,
 	path string, rangeSets map[string]ValRangeSet, emit func(Val),
 ) bool {
@@ -193,6 +199,9 @@ func populateDatatype(sys *types.System, t *types.Named,
 	if cons == nil {
 		return false
 	}
+	slices.SortFunc(cons, func(a, b types.Constructor) int {
+		return a.Ordinal - b.Ordinal
+	})
 	for _, con := range cons {
 		if con.Arg == nil {
 			emit(Con{

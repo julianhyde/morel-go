@@ -20,6 +20,7 @@ package compile
 import (
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"unicode"
@@ -47,8 +48,8 @@ import (
 // morel-go's inliner leaves the identifier alone, so the
 // substitution happens here instead, on the tree a plan is
 // rendered from and never on the tree that is evaluated.
-func resolveBuiltins(d core.Decl) core.Decl {
-	r := &rewriter{}
+func resolveBuiltins(sys *types.System, d core.Decl) core.Decl {
+	r := &rewriter{sys: sys}
 	r.exp = func(e core.Exp) (core.Exp, bool) {
 		id, ok := e.(*core.ID)
 		if !ok || strings.Contains(id.Pat.Name, ".") {
@@ -155,6 +156,12 @@ type unparser struct {
 	// boundInPlan is every variable the plan binds, which is what
 	// distinguishes a fragment's parameter from a global it names.
 	boundInPlan map[*core.IDPat]bool
+	// inlined is whether the expression has been through the
+	// inliner. morel-java's inliner replaces "elem" and "notelem"
+	// with calls that its printer writes as "op elem (a, b)", where
+	// before inlining it writes "a elem b"; nothing here changes the
+	// expression, so the stage decides.
+	inlined bool
 }
 
 // frame is an open region: where in docs it began, how far a break
@@ -252,7 +259,8 @@ func (u *unparser) render() string {
 // two nested trees may each allocate "v$0", and a printer sees
 // the whole text and numbers what it finds.
 func (u *unparser) name(pat *core.IDPat) {
-	if prefix, isGen := genPrefix(pat.Name); isGen {
+	if prefix, isGen := genPrefix(pat.Name); isGen &&
+		os.Getenv("MOREL_REL_RAW") == "" {
 		u.put(u.genName(pat, prefix))
 		return
 	}
@@ -302,6 +310,17 @@ func (u *unparser) genName(pat *core.IDPat, prefix string) string {
 	return name
 }
 
+// realLiteralText renders a real literal as morel-java writes one:
+// a whole number keeps its ".0", so that "1000.0" reads back as a
+// real and not an int.
+func realLiteralText(v float32) string {
+	s := strconv.FormatFloat(float64(v), 'g', -1, 32)
+	if strings.ContainsAny(s, ".eEIN") {
+		return s
+	}
+	return s + ".0"
+}
+
 // suffixed quotes a name that has to be quoted to be read back --
 // a reserved word such as "left" -- and appends the renumbering
 // suffix. The suffix goes outside the quotes, so that what is
@@ -318,7 +337,7 @@ func suffixed(name string, i int) string {
 func (u *unparser) decl(d core.Decl) {
 	switch d := d.(type) {
 	case *core.NonRecValDecl:
-		if u.treeMode {
+		if u.treeMode || u.width > 0 {
 			// The value may start on the next line, indented two,
 			// which is what a "let" wants: "let" belongs at the
 			// head of a line of its own, not trailing an "=".
@@ -388,6 +407,10 @@ func (u *unparser) exp(e core.Exp, left, right int) {
 		})
 	case *core.Literal:
 		u.literal(e)
+	case *core.Ordinal:
+		// The row's position, which a node that counts its rows
+		// binds as "$ordinal".
+		u.put("$ordinal")
 	case *core.RangeList:
 		u.rangeList(e)
 	case *core.Selector:
@@ -409,6 +432,10 @@ func (u *unparser) exp(e core.Exp, left, right int) {
 			})
 			return
 		}
+		if lowered := u.lowered(e); lowered != nil {
+			u.exp(lowered, left, right)
+			return
+		}
 		u.put(e.OpName())
 		u.relArgs(e)
 		for _, input := range e.Inputs() {
@@ -418,6 +445,34 @@ func (u *unparser) exp(e core.Exp, left, right int) {
 	default:
 		u.put("?")
 	}
+}
+
+// lowered is the step list a node lowers to, or nil where the
+// lowering declines.
+//
+// Outside tree mode this printer writes Morel, and Morel has no
+// node: a query is a "from" with steps. So the boundary the
+// compiler draws is drawn here too -- a tree is what the passes
+// carry, a step list is what is written and what runs -- and the
+// prefix form below is what is left when the lowering cannot.
+//
+// It is scaffolding, and says so: once "Sys.planEx" prints the
+// tree (spec.md §6, and M7), nothing outside tree mode has a node
+// to print.
+func (u *unparser) lowered(rel core.Rel) core.Exp {
+	if u.sys == nil {
+		return nil
+	}
+	exp, _ := LowerRel(u.sys, rel)
+	if exp == nil {
+		return nil
+	}
+	if _, isRel := exp.(core.Rel); isRel {
+		// A node the lowering could not take apart, which would
+		// print as this again.
+		return nil
+	}
+	return exp
 }
 
 // letIndent is how far a "let" indents its declaration and its
@@ -437,7 +492,7 @@ const letIndent = 2
 // relation still prints in place, whose own line breaks would
 // fall inside this indentation.
 func (u *unparser) letExp(e *core.Let) {
-	if !u.treeMode {
+	if !u.treeMode && u.width == 0 {
 		u.put("let ")
 		u.decl(e.Decl)
 		u.put(" in ")
@@ -533,8 +588,7 @@ func (u *unparser) literal(e *core.Literal) {
 	case core.Unit:
 		u.put("()")
 	case float32:
-		u.put(negText(strconv.FormatFloat(float64(v), 'g', -1,
-			32)))
+		u.put(negText(realLiteralText(v)))
 	case int32:
 		if e.Kind == ast.CharLiteralOp {
 			u.put(charText(v))
@@ -570,24 +624,57 @@ func charText(c rune) string {
 	}
 }
 
-// rangeList renders "[lo .. hi]" forms.
+// rangeList renders a range list as morel-java's Core writes it: a
+// call of "Range.flatten" on a list of range constructors, so that
+// "[1 .. 5, 10]" is "#flatten Range ([CLOSED (1, 5), POINT 10])".
 func (u *unparser) rangeList(e *core.RangeList) {
-	u.put("[")
+	u.put("#flatten Range ([")
 	for i, item := range e.Items {
 		if i > 0 {
 			u.put(", ")
 		}
-		if item.Lo != nil {
-			u.exp(item.Lo, 0, 0)
-		}
-		if item.Kind != ast.RangePoint {
-			u.put(" .. ")
-			if item.Hi != nil {
-				u.exp(item.Hi, 0, 0)
-			}
-		}
+		u.rangeItem(item)
 	}
-	u.put("]")
+	u.put("])")
+}
+
+// rangeItem renders one range constructor and its bounds.
+func (u *unparser) rangeItem(item core.RangeItem) {
+	one := func(name string, bound core.Exp) {
+		u.put(name + " ")
+		_, r := binding(precApply, 'l')
+		u.exp(bound, r, 0)
+	}
+	two := func(name string) {
+		u.put(name + " (")
+		u.exp(item.Lo, 0, 0)
+		u.put(", ")
+		u.exp(item.Hi, 0, 0)
+		u.put(")")
+	}
+	// lint: sort until '^\t}' where '^\tcase '
+	switch item.Kind {
+	case ast.RangeAll:
+		u.put("ALL")
+	case ast.RangeAtLeast:
+		one("AT_LEAST", item.Lo)
+	case ast.RangeAtMost:
+		one("AT_MOST", item.Hi)
+	case ast.RangeClosed:
+		two("CLOSED")
+	case ast.RangeClosedOpen:
+		two("CLOSED_OPEN")
+	case ast.RangeGreaterThan:
+		one("GREATER_THAN", item.Lo)
+	case ast.RangeLessThan:
+		one("LESS_THAN", item.Hi)
+	case ast.RangeOpen:
+		two("OPEN")
+	case ast.RangeOpenClosed:
+		two("OPEN_CLOSED")
+	case ast.RangePoint:
+		one("POINT", item.Lo)
+	}
 }
 
 // infixName maps a core operator name to its infix spelling, for
@@ -599,7 +686,7 @@ func (u *unparser) rangeList(e *core.RangeList) {
 func infixName(name string) (string, int, rune) {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch name {
-	case eqOpName, opGe, opGt, opLe, opLt, opNe:
+	case eqOpName, opElem, opGe, opGt, opLe, opLt, opNe, opNotElem:
 		return strings.TrimPrefix(name, "op "), precCompare, 'n'
 	case opAt, opCons:
 		return strings.TrimPrefix(name, "op "), precCons, 'r'
@@ -653,14 +740,22 @@ func (u *unparser) apply(e *core.Apply, left, right int) {
 			return
 		}
 	}
-	if op, prec, assoc := infixOf(e.Fn); op != "" {
+	if op, prec, assoc := infixOf(e.Fn); op != "" &&
+		(!u.inlined || op != "elem" && op != "notelem") {
 		if tuple, ok := e.Arg.(*core.Tuple); ok &&
 			len(tuple.Args) == 2 {
 			l, r := binding(prec, assoc)
+			// A non-associative operator's operand is parenthesized
+			// when it is an operator of the same precedence:
+			// "b = (i = 0)".
+			innerL, innerR := l, r
+			if assoc == 'n' {
+				innerL, innerR = l+1, r+1
+			}
 			u.wrap(left, right, l, r, func() {
-				u.exp(tuple.Args[0], left, l)
+				u.exp(tuple.Args[0], left, innerL)
 				u.put(" " + op + " ")
-				u.exp(tuple.Args[1], r, right)
+				u.exp(tuple.Args[1], innerR, right)
 			})
 			return
 		}
@@ -668,7 +763,8 @@ func (u *unparser) apply(e *core.Apply, left, right int) {
 	fnText, ok := u.applyFnText(e)
 	l, r := binding(precApply, 'l')
 	if id, isID := e.Fn.(*core.ID); isID {
-		if op, _, _ := infixName(id.Pat.Name); op != "" {
+		if op, _, _ := infixName(id.Pat.Name); op != "" &&
+			(!u.inlined || op != "elem" && op != "notelem") {
 			// An infix operator applied to something other than a
 			// pair is not an infix call; it is written as an
 			// application of the operator's name: "`op +` p".
@@ -802,16 +898,31 @@ func (u *unparser) caseExp(e *core.Case, left, right int) {
 		}
 	}
 	u.wrap(left, right, 1, 1, func() {
+		// A "case" that does not fit puts each arm after the first
+		// on a line of its own, behind the "|" that introduces it.
+		// Only where there is a width to fit.
+		layout := u.treeMode || u.width > 0
+		if layout {
+			u.startGroup(letIndent)
+		}
 		u.put("case ")
 		u.exp(e.Exp, 0, 0)
 		u.put(" of ")
 		for i, m := range e.Matches {
 			if i > 0 {
-				u.put(" | ")
+				if layout {
+					u.softBreak()
+					u.put("| ")
+				} else {
+					u.put(" | ")
+				}
 			}
 			u.pat(m.Pat)
 			u.put(" => ")
 			u.exp(m.Exp, 0, 0)
+		}
+		if layout {
+			u.endGroup()
 		}
 	})
 }

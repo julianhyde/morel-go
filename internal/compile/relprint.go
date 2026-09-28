@@ -48,6 +48,31 @@ import (
 // and a parser -- tells a continuation from a grandchild by
 // position.
 
+// planOfName is the built-in whose argument is a plan rather than
+// a value.
+const planOfName = "Sys.planOf"
+
+// relPlanOf is the text "Sys.planOf e" returns: the tree for e,
+// where e is a query, and e itself where it is not -- a leaf is a
+// bare expression, so an expression of collection type is already
+// a tree of one node.
+func relPlanOf(sys *types.System, exp core.Exp,
+	width int,
+) string {
+	if from, isFrom := exp.(*core.From); isFrom {
+		if tree, _ := TranslateFrom(sys, from); tree != nil {
+			return RelPlan(sys, tree, width, true)
+		}
+	}
+	// Not a query, so there is no tree; say what the expression
+	// is.
+	u := &unparser{
+		sys: sys, seen: map[string][]*core.IDPat{}, width: width,
+	}
+	u.exp(exp, 0, 0)
+	return u.render()
+}
+
 // A relation that §6.2 forbids printing in place -- inside a
 // "let", a "case", the argument of "nonEmpty", a field of a record
 // -- is replaced by a reference, "r$0", "r$1", ..., numbered from
@@ -274,21 +299,66 @@ func RelPlan(sys *types.System, exp core.Exp, width int,
 // Otherwise every plan of a query would begin "val it = r$0" and
 // its one interesting line would be an indirection.
 func RelPlanDecl(sys *types.System, decl core.Decl,
-	width int,
+	width int, inlined bool,
 ) string {
 	d, isVal := decl.(*core.NonRecValDecl)
 	if !isVal {
 		return UnparseDecl(sys, decl)
 	}
 	tree := d.Exp
+	if from, isFrom := tree.(*core.From); isFrom {
+		if t, _ := TranslateFrom(sys, from); t != nil {
+			tree = t
+		}
+	} else {
+		// Not a query, but the queries inside it are trees, and
+		// print as relations broken out of the expression.
+		tree = translateNested(sys, tree)
+	}
 	if _, isRel := tree.(core.Rel); !isRel {
-		return UnparseDecl(sys, decl)
+		if !containsRel(tree) {
+			// A query that translates to a leaf alone -- a scan
+			// of a collection with nothing above it -- is that
+			// collection, and prints as the expression it is,
+			// laid out to the width.
+			u := &unparser{
+				sys: sys, seen: map[string][]*core.IDPat{},
+				width: width, inlined: inlined,
+			}
+			u.decl(&core.NonRecValDecl{Pat: d.Pat, Exp: tree})
+			return u.render()
+		}
+		// An expression that holds a relation: the expression on
+		// the "val" line, referring to each relation, and the
+		// relations below it.
+		u := &unparser{
+			sys:         sys,
+			seen:        map[string][]*core.IDPat{},
+			width:       width,
+			treeMode:    true,
+			inlined:     inlined,
+			boundInPlan: relBoundPats(tree),
+		}
+		u.decl(&core.NonRecValDecl{Pat: d.Pat, Exp: tree})
+		u.hardBreak()
+		for i := 0; ; i++ {
+			if i >= len(u.relDefs) {
+				break
+			}
+			rel := u.relDefs[i]
+			u.hardBreak()
+			u.put(u.relHeader(i) + " =")
+			u.hardBreak()
+			u.relTree(rel, relIndent, true)
+		}
+		return relPlanText(u)
 	}
 	u := &unparser{
 		sys:         sys,
 		seen:        map[string][]*core.IDPat{},
 		width:       width,
 		treeMode:    true,
+		inlined:     inlined,
 		boundInPlan: relBoundPats(tree),
 	}
 	u.put("val ")
@@ -306,11 +376,37 @@ func RelPlanDecl(sys *types.System, decl core.Decl,
 		u.hardBreak()
 		u.relTree(rel, relIndent, true)
 	}
+	return relPlanText(u)
+}
+
+// relPlanText is the rendered plan, ending in a newline as
+// morel-java's does -- a tree's every line ends in one -- and the
+// legend after a blank line.
+func relPlanText(u *unparser) string {
 	text := u.render()
+	if !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
 	if legend := u.typeLegend(); legend != "" {
 		text += "\n" + legend
 	}
-	return strings.TrimSuffix(text, "\n")
+	return text
+}
+
+// containsRel reports whether an expression holds a relational
+// node anywhere inside it.
+func containsRel(exp core.Exp) bool {
+	found := false
+	r := &rewriter{}
+	r.exp = func(e core.Exp) (core.Exp, bool) {
+		if _, isRel := e.(core.Rel); isRel {
+			found = true
+			return e, true
+		}
+		return nil, false
+	}
+	r.rewriteExp(exp)
+	return found
 }
 
 // relTree writes a node and the lines below it: a node prints as a
@@ -403,19 +499,20 @@ func (u *unparser) relArgs(rel core.Rel) {
 }
 
 // relGroupArgs writes a group's keys and its aggregates, each
-// list in brackets of its own, and omits a list that is empty.
+// list in brackets of its own, and omits the aggregates where
+// there are none.
 func (u *unparser) relGroupArgs(r *core.Group) {
-	if len(r.Keys) > 0 {
-		u.relArg(func() {
-			for i, k := range r.Keys {
-				if i > 0 {
-					u.put(", ")
-				}
-				u.put(k.Label + " = ")
-				u.exp(k.Exp, 0, 0)
+	// The keys are always written, "[]" where there are none, so
+	// that the aggregates are always the second list.
+	u.relArg(func() {
+		for i, k := range r.Keys {
+			if i > 0 {
+				u.put(", ")
 			}
-		})
-	}
+			u.put(k.Label + " = ")
+			u.exp(k.Exp, 0, 0)
+		}
+	})
 	if len(r.Aggs) > 0 {
 		u.relArg(func() {
 			for i, a := range r.Aggs {
@@ -453,7 +550,7 @@ func (u *unparser) relArg(body func()) {
 // Two types that print the same moniker share a reference, because
 // the moniker is all the plan says about them.
 func (u *unparser) typeRef(t types.Type) string {
-	moniker := t.String()
+	moniker := relMoniker(t)
 	if len(moniker) <= relMaxTypeLength {
 		return moniker
 	}
@@ -466,6 +563,64 @@ func (u *unparser) typeRef(t types.Type) string {
 	return "t$" + strconv.Itoa(len(u.typeNames)-1)
 }
 
+// relMoniker is a type as a plan writes it, which is as morel-java's
+// type keys describe it: a tuple type that is the argument of a
+// parameterized type is parenthesized, "('a,(bool * int)) either",
+// alone or beside other arguments.
+func relMoniker(t types.Type) string {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch t := t.(type) {
+	case *types.Fn:
+		param := relMoniker(t.Param)
+		if _, isFn := t.Param.(*types.Fn); isFn {
+			param = "(" + param + ")"
+		}
+		return param + " -> " + relMoniker(t.Result)
+	case *types.List:
+		return relMonikerArg(t.Elem) + " list"
+	case *types.Named:
+		if len(t.Args) == 0 {
+			return t.Name
+		}
+		args := make([]string, len(t.Args))
+		for i, arg := range t.Args {
+			args[i] = relMonikerArg(arg)
+		}
+		if len(args) == 1 {
+			return args[0] + " " + t.Name
+		}
+		return "(" + strings.Join(args, ",") + ") " + t.Name
+	case *types.Record:
+		if t.Progressive {
+			return t.String()
+		}
+		fields := make([]string, len(t.Fields))
+		for i, f := range t.Fields {
+			fields[i] = f.Label + ":" + relMoniker(f.Type)
+		}
+		return "{" + strings.Join(fields, ", ") + "}"
+	case *types.Tuple:
+		args := make([]string, len(t.Args))
+		for i, arg := range t.Args {
+			args[i] = relMonikerArg(arg)
+		}
+		return strings.Join(args, " * ")
+	default:
+		return t.String()
+	}
+}
+
+// relMonikerArg parenthesizes a tuple or function type where it
+// is a component of another.
+func relMonikerArg(t types.Type) string {
+	switch t.(type) {
+	case *types.Fn, *types.Tuple:
+		return "(" + relMoniker(t) + ")"
+	default:
+		return relMoniker(t)
+	}
+}
+
 // typeLegend is one line per reference typeRef handed out, in the
 // order they were handed out, or empty where there were none.
 func (u *unparser) typeLegend() string {
@@ -474,11 +629,4 @@ func (u *unparser) typeLegend() string {
 		b.WriteString("t$" + strconv.Itoa(i) + " " + name + "\n")
 	}
 	return b.String()
-}
-
-// isInput0 reports whether an expression is "$0" itself, which a
-// projection of the element leaves out of its arguments.
-func isInput0(e core.Exp) bool {
-	in, isIn := e.(*core.Input)
-	return isIn && in.Ordinal == 0
 }

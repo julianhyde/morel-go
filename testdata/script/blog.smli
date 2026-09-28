@@ -1666,6 +1666,19 @@ from d in scott.depts
 > val it = ["ACCOUNTING","RESEARCH","SALES","OPERATIONS"]
 >   : string bag
 
+(* Yield is a record expression with a single field.
+ * Current is a record. *)
+from i in [1, 2, 3]
+  yield {j = i + 1}
+  yield current;
+> j
+> -
+> 2
+> 3
+> 4
+>
+> val it : {j:int} list
+
 (* For each department, compute the total salary of the clerks. *)
 from e in scott.emps
   group e.deptno

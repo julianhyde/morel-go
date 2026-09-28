@@ -34,15 +34,16 @@ import (
 // overload registry (which may be nil) is read to select the
 // winning instance at an overloaded use, and updated when a
 // "val inst" declaration registers a new instance.
-func Resolve(resolved *Resolved, overloads *OverloadEnv) (core.Decl,
-	error,
-) {
+func Resolve(resolved *Resolved, overloads *OverloadEnv,
+	lineWidth int,
+) (core.Decl, error) {
 	r := &resolver{
 		typeMap:          resolved.TypeMap,
 		aggSubst:         map[ast.Node]*core.IDPat{},
 		overloads:        overloads,
 		dictionaryParams: map[string]*core.IDPat{},
 		freePats:         map[freeKey]*core.IDPat{},
+		lineWidth:        lineWidth,
 	}
 	decl, _, err := r.toDecl(nil, resolved.Decl)
 	return decl, err
@@ -100,6 +101,8 @@ func (r *resolver) freePat(name string, t types.Type) *core.IDPat {
 // the TypeResolver deduced.
 type resolver struct {
 	typeMap *TypeMap
+	// lineWidth is the width "Sys.planOf" lays a plan out within.
+	lineWidth int
 	// currentRow is the value that "current" rewrites to inside a
 	// query step: the current row, a record of the query variables
 	// (or the sole variable). It is nil outside a query.
@@ -146,9 +149,6 @@ type resolver struct {
 	freePats map[freeKey]*core.IDPat
 	// dictCount names dictionary parameters uniquely ("dict$0", ...).
 	dictCount int
-	// recordCount names the values a record modifier is applied to
-	// uniquely ("v$0", ...).
-	recordCount int
 }
 
 // buildRow is the value of a query row: the sole variable, or a
@@ -673,6 +673,9 @@ func (r *resolver) toApply(env *coreEnv, apply *ast.Apply,
 	if err != nil {
 		return nil, err
 	}
+	if builtinName(fn) == planOfName {
+		return r.planOf(arg), nil
+	}
 	apply2 := &core.Apply{
 		T:    t,
 		Fn:   fn,
@@ -680,6 +683,22 @@ func (r *resolver) toApply(env *coreEnv, apply *ast.Apply,
 		Span: apply.Span(),
 	}
 	return apply2, nil
+}
+
+// planOf is "Sys.planOf e": the plan of e, which is not
+// evaluated.
+//
+// Expanded here, where the argument's Core is to hand. Expanding
+// later would be worse than inconvenient: the rewrite passes run
+// to a fixed point, so the answer would depend on when the
+// inliner reached the call, and a plan's text must depend on the
+// query and nothing else.
+func (r *resolver) planOf(arg core.Exp) core.Exp {
+	sys := r.typeMap.sys
+	text := relPlanOf(sys, arg, r.lineWidth)
+	return &core.Literal{
+		T: sys.String, Kind: ast.StringLiteralOp, Value: text,
+	}
 }
 
 // setSurfaceType gives a bound name the type the binding displays.
@@ -1884,7 +1903,7 @@ func (r *resolver) toScanStep(cur *coreEnv,
 	case ast.ScanUnbounded:
 		// A sourceless scan iterates the extent of the pattern's
 		// type: all its values, restricted by nothing yet.
-		exp = r.extentExp(pat.Type(), s.Span())
+		exp = r.extentExp(pat.Type(), s.Span(), extentNames(pat)...)
 	default:
 		return nil, nil, &Error{
 			Span: s.Span(),
@@ -1986,7 +2005,7 @@ func (r *resolver) extentScans(s *ast.Scan, pat core.Pat,
 		}
 		steps = append(steps, &core.Scan{
 			Pat:  id,
-			Exp:  r.extentExp(id.T, s.Span()),
+			Exp:  r.extentExp(id.T, s.Span(), id.Name),
 			Join: join,
 		})
 	}
@@ -2044,12 +2063,36 @@ func (r *resolver) toRaise(env *coreEnv, raise *ast.Raise,
 	}, nil
 }
 
+// extentNames are the names a scan's pattern binds, where the
+// extent can carry them: one name, or one per component of a
+// tuple of names.
+func extentNames(pat core.Pat) []string {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch p := pat.(type) {
+	case *core.IDPat:
+		return []string{p.Name}
+	case *core.TuplePat:
+		names := make([]string, 0, len(p.Args))
+		for _, arg := range p.Args {
+			id, isID := arg.(*core.IDPat)
+			if !isID {
+				return nil
+			}
+			names = append(names, id.Name)
+		}
+		return names
+	default:
+		return nil
+	}
+}
+
 // extentExp builds the source of a sourceless scan: a call of the
 // internal extent builtin on the (materialized, if finite) extent
 // of the element type.
 func (r *resolver) extentExp(t types.Type, span token.Span,
+	names ...string,
 ) core.Exp {
-	return extentScanExp(r.typeMap.sys, t, span)
+	return extentScanExp(r.typeMap.sys, t, span, names...)
 }
 
 // toFn converts a function. A single rule that binds one name
@@ -2609,8 +2652,8 @@ func selectField(sys *types.System, record *core.ID,
 // modifier is applied to; the "$" keeps it distinct from any
 // user-written name.
 func (r *resolver) freshRecordName() string {
-	name := "v$" + itoa(r.recordCount)
-	r.recordCount++
+	name := "v$" + itoa(nestedNext)
+	nestedNext++
 	return name
 }
 

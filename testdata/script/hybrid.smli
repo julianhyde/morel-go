@@ -183,6 +183,21 @@ in
 end;
 *)
 
+(* A query that joins a Calcite table, `scott.depts`, to a Morel list,
+ * `dnames`, runs in Morel, and the plan shows it: the whole query,
+ * including the filter on "dname", is the body of the marshal rather
+ * than a Calcite plan. *)
+val dnames = ["SALES", "RESEARCH"];
+> val dnames = ["SALES","RESEARCH"] : string list
+from d in scott.depts, n in dnames
+  where d.dname = n
+  yield d.deptno;
+> val it = [20,30] : int bag
+
+(*) The same query without the list is pushed down in full.
+from d in scott.depts where d.dname = "SALES" yield d.deptno;
+> val it = [30] : int bag
+
 (*) Recursive query, 3
 Sys.set ("hybrid", false);
 > val it = () : unit

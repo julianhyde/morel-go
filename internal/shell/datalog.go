@@ -205,7 +205,7 @@ func (k *Kernel) compileIsolated(
 	if err != nil {
 		return nil, err
 	}
-	coreDecl, err := compile.Resolve(resolved, nil)
+	coreDecl, err := compile.Resolve(resolved, nil, defaultLineWidth)
 	if err != nil {
 		return nil, err
 	}

@@ -235,6 +235,14 @@ from i in [1, 2, 3],
     j in (from k in [5, 1, 4, 2, 3] order DESC k take i where k mod 2 = 1);
 > val it = [{i=1,j=5},{i=2,j=5},{i=3,j=5},{i=3,j=3}] : {i:int, j:int} list
 
+(* 'group' in a correlated subquery: count how many inner rows match the
+ * outer row. *)
+from i in [2, 3],
+    x in (from k in [1, 2, 3, 4, 5, 6]
+        where k mod i = 0
+        group {} compute {c = count over ()});
+> val it = [{i=2,x={c=3}},{i=3,x={c=2}}] : {i:int, x:{c:int}} list
+
 (* 'group' with a key that depends on the outer row, producing several groups
  * per outer row. *)
 from i in [1, 2],
@@ -665,6 +673,13 @@ from e in emps
   yield {ordinal, e.name};
 > val it = [{name="Shaggy",`ordinal`=0},{name="Scooby",`ordinal`=1}]
 >   : {name:string, `ordinal`:int} list
+
+(* 'ordinal' inside a 'let' in a yield. Only a yield installs the counter
+ * that 'ordinal' reads, and a 'let' in its expression does not end the row,
+ * so the counter reaches into one. 'x' is read twice, so the let survives
+ * inlining and the compiler really does see it. *)
+from i in [1, 2, 3] yield (let val x = i * 2 in x + x + ordinal end);
+> val it = [4,9,14] : int list
 
 from e in emps
   order e.deptno
@@ -1271,6 +1286,12 @@ from e in emps
   where d > 10;
 > val it = [{d=20},{d=30},{d=30}] : {d:int} list
 
+(*) same as previous, using 'current'
+from e in emps
+  yield {d = e.deptno}
+  where current.d > 10;
+> val it = [{d=20},{d=30},{d=30}] : {d:int} list
+
 (*) similar to previous, but an atom named 'deptno'
 from e in emps
   yield e.deptno
@@ -1322,6 +1343,14 @@ from i in [1,2] yield r = i + 1 join u in [3,4];
 (*) Equality is still available via parentheses.
 from i in [1,2,3] yield (i = 2);
 > val it = [false,true,false] : bool list
+
+(* A binder whose name equals the record's only field name is still a
+ * binder, not a scattered record yield. *)
+from i in [1,2,3] yield r = {r = i} where r.r > 1;
+> val it = [{r=2},{r=3}] : {r:int} list
+
+from i in [1,2,3] group g = {g = i} where g.g > 1;
+> val it = [{g=2},{g=3}] : {g:int} list
 
 from i in [1,2,3] group g = {g = i} yield g.g;
 > val it = [1,2,3] : int list
@@ -2650,6 +2679,11 @@ from e in emps
 group {} compute sum over e.id;
 > val it = [406] : int list
 
+(*) empty 'group' with singleton record 'compute'
+from e in emps
+group {} compute {sumId = sum over e.id};
+> val it = [{sumId=406}] : {sumId:int} list
+
 (* 'group' with aggregate function that references the key.
  * Uses List.length (not sum) because sum is bag-only and anonymous
  * functions in list context cannot yet adapt bag-only aggregates. *)
@@ -3027,6 +3061,11 @@ from
   group {} compute count over "a";
 > val it = [1] : int list
 
+(*) Empty 'from' with empty 'group' and one aggregate function in a record
+from
+  group {} compute {c = count over "a"};
+> val it = [{c=1}] : {c:int} list
+
 (*) Empty from with group
 let
   val ten = 6 + 4
@@ -3344,10 +3383,6 @@ yield {r1.j, r1.s};
 > val it =
 >   [{j=3,s=""},{j=4,s="m"},{j=5,s="mo"},{j=6,s="mor"},{j=7,s="more"},
 >    {j=8,s="morel"}] : {j:int, s:string} list
-Sys.plan();
-> val it =
->   "from(sink join(pat r1, exp apply2(fnValue List.tabulate, constant(6), match(i, tuple(stack(offset 1, name i), apply2(fnValue Int.+, stack(offset 1, name i), constant(3)), apply3(fnValue String.substring, constant(morel), constant(0), stack(offset 1, name i))))), sink collect(tuple(apply(fnValue nth:1, argCode stack(offset 1, name r1)), apply(fnValue nth:2, argCode stack(offset 1, name r1))))))"
->   : string
 
 
 Sys.set ("hybrid", true);

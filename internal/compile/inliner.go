@@ -54,13 +54,14 @@ type InlineEnv struct {
 // cross-statement inlining, beta-reduction, and singleton-case
 // substitution stay on, but bindings are not eliminated and
 // constant cases are not folded.
-func Inline(decl core.Decl, env *InlineEnv, passCount int,
+func Inline(sys *types.System, decl core.Decl, env *InlineEnv,
+	passCount int,
 ) core.Decl {
 	if passCount <= 0 {
-		return newPass(decl, env, true).rewriteDecl(decl)
+		return newPass(sys, decl, env, true).rewriteDecl(decl)
 	}
 	for range passCount {
-		decl2 := newPass(decl, env, false).rewriteDecl(decl)
+		decl2 := newPass(sys, decl, env, false).rewriteDecl(decl)
 		if decl2 == decl {
 			break
 		}
@@ -70,7 +71,8 @@ func Inline(decl core.Decl, env *InlineEnv, passCount int,
 }
 
 // newPass prepares one inlining pass over the declaration.
-func newPass(decl core.Decl, env *InlineEnv, limited bool,
+func newPass(sys *types.System, decl core.Decl, env *InlineEnv,
+	limited bool,
 ) *inliner {
 	inl := &inliner{
 		analysis: analyze(decl),
@@ -79,6 +81,12 @@ func newPass(decl core.Decl, env *InlineEnv, limited bool,
 		subst:    map[*core.IDPat]core.Exp{},
 		minted:   map[*core.IDPat]bool{},
 	}
+	// The rewriter rebuilds a relational node through the
+	// constructors, which derive its type, so it needs the type
+	// system. Nothing rewrote a node until the resolver began
+	// returning one, and a rewriter without this dereferenced nil
+	// the moment one did.
+	inl.sys = sys
 	inl.exp = inl.visit
 	return inl
 }
@@ -142,6 +150,9 @@ func (inl *inliner) visit(e core.Exp) (core.Exp, bool) {
 		}
 		pat, ok := decl.Pat.(*core.IDPat)
 		if !ok {
+			return nil, false
+		}
+		if containsInput(decl.Exp) {
 			return nil, false
 		}
 		if containsCheck(decl.Exp) {
@@ -351,5 +362,19 @@ func containsRecDecl(e core.Exp) bool {
 		return nil, false
 	}
 	r.rewriteExp(e)
+	return found
+}
+
+func containsInput(exp core.Exp) bool {
+	found := false
+	r := &rewriter{}
+	r.exp = func(e core.Exp) (core.Exp, bool) {
+		if _, isInput := e.(*core.Input); isInput {
+			found = true
+			return e, true
+		}
+		return nil, false
+	}
+	r.rewriteExp(exp)
 	return found
 }

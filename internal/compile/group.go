@@ -57,14 +57,11 @@ func (r *typeResolver) deduceGroup(stepEnv typeEnv,
 			return nil, nil, err
 		}
 		fields = append(append([]labelTerm{}, keyFields...), aggFields...)
-		elem = r.rowElem(fields)
-	}
-	if group.Binder != "" {
-		// A binder names the whole group row: a record of the key and
-		// aggregate fields, or the sole field's bare value when the
-		// group is an atom. The plain rowElem collapse above would
-		// wrongly drop a singleton record (group g = {} compute {c =
-		// ...}) to a bare value.
+		// The row is a record of the key and aggregate fields, or the
+		// sole field's bare value when the group is an atom. A plain
+		// collapse of one field to a bare value would wrongly drop a
+		// singleton record, "group {} compute {c = ...}", whose braces
+		// ask for a record.
 		if groupRowIsAtom(group, compute, len(fields)) {
 			elem = fields[0].term
 		} else {
@@ -73,6 +70,9 @@ func (r *typeResolver) deduceGroup(stepEnv typeEnv,
 			sortFields(sorted)
 			elem = r.recordTerm(sorted)
 		}
+	}
+	if group.Binder != "" {
+		// A binder names the whole group row.
 		fields = []labelTerm{{label: group.Binder, term: elem}}
 	}
 	return fields, elem, nil

@@ -80,6 +80,37 @@ JAVA_PREFIX = "src/test/resources/script/"
 # not: a dataset morel-go does not have, output morel-go deliberately
 # omits, or a difference that is not a difference in meaning.
 ACCEPTED = {
+    "built-in/sys.smli": (
+        52,
+        "`Sys.plan` text, `Sys.parseTree`, and the product name and "
+        "banner, which are this port's own.",
+    ),
+    "relational.smli": (
+        70,
+        "`Sys.plan` text, which names the step list this port runs; the "
+        "warning morel-java gives for sorting on a record whose fields "
+        "are out of order; a `compute` that names its group's key; and "
+        "the numbering of type variables in an error message.",
+    ),
+    "such-that.smli": (
+        16,
+        "one statement, a bounded transitive closure whose recursive "
+        "rule counts its depth in arithmetic: this port's inversion of "
+        "the recursive function yields a row short of the depth column.",
+    ),
+    "optimize.smli": (
+        11,
+        "`Sys.planEx` of a statement with a local datatype: morel-java "
+        "prints the `local datatype ... in ... end` the statement lives "
+        "in, and this port's Core has no such wrapper.",
+    ),
+    "hybrid.smli": (
+        291,
+        "the Calcite plans that `Sys.plan` prints. morel-go has no "
+        "Calcite, so it omits every one of this file's plan assertions, "
+        "and the tests of what a `decimal` literal or aggregate pushes "
+        "down to Calcite.",
+    ),
     "blog.smli": (
         296,
         "the `foodmart` dataset, which morel-go does not have. Its "
@@ -90,13 +121,6 @@ ACCEPTED = {
     "foreign.smli": (
         194,
         "the `foodmart` dataset, as in blog.smli.",
-    ),
-    "hybrid.smli": (
-        281,
-        "the Calcite plans that `Sys.plan` prints. morel-go has no "
-        "Calcite, so it omits every one of this file's plan "
-        "assertions, and the tests of what a `decimal` literal or "
-        "aggregate pushes down to Calcite.",
     ),
 }
 
