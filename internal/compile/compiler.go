@@ -743,7 +743,7 @@ type fromBuilder struct {
 func (b *fromBuilder) add(step core.FromStep) error {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch s := step.(type) {
-	case *core.Group:
+	case *core.GroupStep:
 		stage, outPats, err := b.c.compileGroup(s)
 		if err != nil {
 			return err
@@ -823,7 +823,7 @@ func (c *compiler) patSlots(pats []core.Pat) []int {
 // output field patterns (the query's variables downstream). The key
 // and aggregate-argument expressions are compiled over the input
 // row's slots; each key and aggregate gets an output slot.
-func (c *compiler) compileGroup(g *core.Group) (eval.FromStage,
+func (c *compiler) compileGroup(g *core.GroupStep) (eval.FromStage,
 	[]core.Pat, error,
 ) {
 	keys := make([]eval.GroupKeyCode, len(g.Keys))
@@ -946,13 +946,13 @@ func (c *compiler) compileStep(step core.FromStep,
 		}, nil
 	case *core.SetOp:
 		return c.compileSetOp(s, *scanPats)
-	case *core.Skip:
+	case *core.SkipStep:
 		count, err := c.compileExp(s.Exp)
 		if err != nil {
 			return nil, err
 		}
 		return &eval.SkipStage{Count: count}, nil
-	case *core.Take:
+	case *core.TakeStep:
 		count, err := c.compileExp(s.Exp)
 		if err != nil {
 			return nil, err

@@ -240,7 +240,7 @@ func (x *expander) markUsed(from *core.From) {
 func implicitCollect(steps []core.FromStep) bool {
 	for _, step := range steps {
 		switch s := step.(type) {
-		case *core.Group, *core.Into, *core.Through:
+		case *core.GroupStep, *core.Into, *core.Through:
 			return false
 		case *core.Yield:
 			if s.Fields == nil {

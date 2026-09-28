@@ -1517,12 +1517,12 @@ func (r *resolver) toQueryStep(env, cur *coreEnv,
 		exp, err := r.beforeFirstRow(func() (core.Exp, error) {
 			return r.toExp(env, s.Exp)
 		})
-		return []core.FromStep{&core.Skip{Exp: exp}}, cur, false, err
+		return []core.FromStep{&core.SkipStep{Exp: exp}}, cur, false, err
 	case *ast.TakeStep:
 		exp, err := r.beforeFirstRow(func() (core.Exp, error) {
 			return r.toExp(env, s.Exp)
 		})
-		return []core.FromStep{&core.Take{Exp: exp}}, cur, false, err
+		return []core.FromStep{&core.TakeStep{Exp: exp}}, cur, false, err
 	case *ast.ThroughStep:
 		return r.toThroughStep(env, cur, s)
 	case *ast.UnorderStep:
@@ -1586,7 +1586,7 @@ func (r *resolver) toGroupStep(cur *coreEnv,
 			return nil, nil, nil, err
 		}
 	}
-	groupStep := &core.Group{Keys: keys, Aggs: aggs}
+	groupStep := &core.GroupStep{Keys: keys, Aggs: aggs}
 	groupSteps := []core.FromStep{groupStep}
 	if len(residuals) > 0 {
 		// Re-yield the visible row: keys and direct aggregates

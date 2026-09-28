@@ -207,7 +207,7 @@ func cloneStep(s core.FromStep, fresh map[*core.IDPat]*core.IDPat,
 ) core.FromStep {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch s := s.(type) {
-	case *core.Group:
+	case *core.GroupStep:
 		keys := make([]core.GroupKey, len(s.Keys))
 		for i, k := range s.Keys {
 			keys[i].Exp = cloneExp(k.Exp, fresh)
@@ -221,7 +221,7 @@ func cloneStep(s core.FromStep, fresh map[*core.IDPat]*core.IDPat,
 			}
 			aggs[i].Pat = cloneIDPat(a.Pat, fresh)
 		}
-		return &core.Group{Keys: keys, Aggs: aggs}
+		return &core.GroupStep{Keys: keys, Aggs: aggs}
 	case *core.Into:
 		return &core.Into{Fn: cloneExp(s.Fn, fresh)}
 	case *core.Order:
@@ -235,10 +235,10 @@ func cloneStep(s core.FromStep, fresh map[*core.IDPat]*core.IDPat,
 			Args:     cloneExps(s.Args, fresh),
 			Distinct: s.Distinct,
 		}
-	case *core.Skip:
-		return &core.Skip{Exp: cloneExp(s.Exp, fresh)}
-	case *core.Take:
-		return &core.Take{Exp: cloneExp(s.Exp, fresh)}
+	case *core.SkipStep:
+		return &core.SkipStep{Exp: cloneExp(s.Exp, fresh)}
+	case *core.TakeStep:
+		return &core.TakeStep{Exp: cloneExp(s.Exp, fresh)}
 	case *core.Through:
 		fn := cloneExp(s.Fn, fresh)
 		return &core.Through{Pat: clonePat(s.Pat, fresh), Fn: fn}

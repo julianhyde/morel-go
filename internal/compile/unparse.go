@@ -659,7 +659,7 @@ func (u *unparser) step(step core.FromStep, scans *int,
 		} else {
 			u.put(" distinct")
 		}
-	case *core.Group:
+	case *core.GroupStep:
 		u.group(s)
 	case *core.Into:
 		u.put(" into ")
@@ -685,10 +685,10 @@ func (u *unparser) step(step core.FromStep, scans *int,
 		}
 		u.put(" in ")
 		u.exp(s.Exp, precQuery+1, precQuery+1)
-	case *core.Skip:
+	case *core.SkipStep:
 		u.put(" skip ")
 		u.exp(s.Exp, 0, 0)
-	case *core.Take:
+	case *core.TakeStep:
 		u.put(" take ")
 		u.exp(s.Exp, 0, 0)
 	case *core.Through:
@@ -733,7 +733,7 @@ func (u *unparser) yield(s *core.Yield, rowVar **core.IDPat,
 }
 
 // group renders a group step.
-func (u *unparser) group(s *core.Group) {
+func (u *unparser) group(s *core.GroupStep) {
 	u.put(" group ")
 	if len(s.Keys) == 1 && len(s.Aggs) == 0 {
 		u.exp(s.Keys[0].Exp, 0, 0)

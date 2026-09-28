@@ -383,7 +383,7 @@ func (c *coverageChecker) walkFrom(f *core.From) {
 func stepExps(step core.FromStep) []core.Exp {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch s := step.(type) {
-	case *core.Group:
+	case *core.GroupStep:
 		var out []core.Exp
 		for _, k := range s.Keys {
 			out = append(out, k.Exp)
@@ -403,9 +403,9 @@ func stepExps(step core.FromStep) []core.Exp {
 		return []core.Exp{s.Exp}
 	case *core.SetOp:
 		return s.Args
-	case *core.Skip:
+	case *core.SkipStep:
 		return []core.Exp{s.Exp}
-	case *core.Take:
+	case *core.TakeStep:
 		return []core.Exp{s.Exp}
 	case *core.Through:
 		return []core.Exp{s.Fn}

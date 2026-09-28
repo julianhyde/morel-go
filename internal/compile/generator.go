@@ -362,7 +362,7 @@ func invertExists(ctx *genContext, pat *core.IDPat,
 	for _, step := range from.Steps {
 		// lint: sort until '^\t\t}' where '^\t\tcase '
 		switch s := step.(type) {
-		case *core.Group, *core.Yield:
+		case *core.GroupStep, *core.Yield:
 			// No constraints to add.
 		case *core.Scan:
 			innerScans = append(innerScans, s)

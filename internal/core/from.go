@@ -148,31 +148,31 @@ func (*Distinct) Op() ast.Op { return ast.DistinctOp }
 
 func (*Distinct) fromStep() {}
 
-// Skip is "skip exp": it drops the first exp rows.
-type Skip struct {
+// SkipStep is "skip exp": it drops the first exp rows.
+type SkipStep struct {
 	Exp Exp
 }
 
 // Op implements FromStep.
-func (*Skip) Op() ast.Op { return ast.SkipOp }
+func (*SkipStep) Op() ast.Op { return ast.SkipOp }
 
-func (*Skip) fromStep() {}
+func (*SkipStep) fromStep() {}
 
-// Take is "take exp": it keeps the first exp rows.
-type Take struct {
+// TakeStep is "take exp": it keeps the first exp rows.
+type TakeStep struct {
 	Exp Exp
 }
 
 // Op implements FromStep.
-func (*Take) Op() ast.Op { return ast.TakeOp }
+func (*TakeStep) Op() ast.Op { return ast.TakeOp }
 
-func (*Take) fromStep() {}
+func (*TakeStep) fromStep() {}
 
-// Group is "group keys compute aggregates": it partitions the rows
+// GroupStep is "group keys compute aggregates": it partitions the rows
 // by the key values and, for each group, produces a row of the key
 // fields and the aggregate fields. Each field binds an output
 // variable that later steps see.
-type Group struct {
+type GroupStep struct {
 	Keys []GroupKey
 	Aggs []GroupAgg
 }
@@ -197,9 +197,9 @@ type GroupAgg struct {
 }
 
 // Op implements FromStep.
-func (*Group) Op() ast.Op { return ast.GroupOp }
+func (*GroupStep) Op() ast.Op { return ast.GroupOp }
 
-func (*Group) fromStep() {}
+func (*GroupStep) fromStep() {}
 
 // Into is "into f": it applies f to the whole collection,
 // producing a scalar.

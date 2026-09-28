@@ -208,7 +208,7 @@ func (r *rewriter) rewriteDecl(d core.Decl) core.Decl {
 func (r *rewriter) rewriteStep(s core.FromStep) core.FromStep {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch s := s.(type) {
-	case *core.Group:
+	case *core.GroupStep:
 		return r.rewriteGroup(s)
 	case *core.Into:
 		fn := r.rewriteExp(s.Fn)
@@ -235,18 +235,18 @@ func (r *rewriter) rewriteStep(s core.FromStep) core.FromStep {
 			}
 		}
 		return s
-	case *core.Skip:
+	case *core.SkipStep:
 		exp := r.rewriteExp(s.Exp)
 		if exp == s.Exp {
 			return s
 		}
-		return &core.Skip{Exp: exp}
-	case *core.Take:
+		return &core.SkipStep{Exp: exp}
+	case *core.TakeStep:
 		exp := r.rewriteExp(s.Exp)
 		if exp == s.Exp {
 			return s
 		}
-		return &core.Take{Exp: exp}
+		return &core.TakeStep{Exp: exp}
 	case *core.Through:
 		fn := r.rewriteExp(s.Fn)
 		if fn == s.Fn {
@@ -295,7 +295,7 @@ func (r *rewriter) rewriteYield(s *core.Yield) core.FromStep {
 
 // rewriteGroup rewrites a group step's key and aggregate
 // expressions.
-func (r *rewriter) rewriteGroup(s *core.Group) core.FromStep {
+func (r *rewriter) rewriteGroup(s *core.GroupStep) core.FromStep {
 	keys := make([]core.GroupKey, len(s.Keys))
 	aggs := make([]core.GroupAgg, len(s.Aggs))
 	changed := false
@@ -322,5 +322,5 @@ func (r *rewriter) rewriteGroup(s *core.Group) core.FromStep {
 	if !changed {
 		return s
 	}
-	return &core.Group{Keys: keys, Aggs: aggs}
+	return &core.GroupStep{Keys: keys, Aggs: aggs}
 }

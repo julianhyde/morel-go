@@ -266,7 +266,7 @@ func (a *analyzer) exps(exps []core.Exp) {
 func (a *analyzer) step(s core.FromStep) {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch s := s.(type) {
-	case *core.Group:
+	case *core.GroupStep:
 		for _, k := range s.Keys {
 			a.exp(k.Exp)
 			a.declare(k.Pat)
@@ -287,9 +287,9 @@ func (a *analyzer) step(s core.FromStep) {
 		a.declarePat(s.Pat)
 	case *core.SetOp:
 		a.exps(s.Args)
-	case *core.Skip:
+	case *core.SkipStep:
 		a.exp(s.Exp)
-	case *core.Take:
+	case *core.TakeStep:
 		a.exp(s.Exp)
 	case *core.Through:
 		a.exp(s.Fn)
