@@ -136,12 +136,34 @@ type unparser struct {
 	docs    []pp.Doc
 	frames  []frame
 	width   int
+
+	// gen and genCount renumber generated binders; see name.
+	gen      map[*core.IDPat]string
+	genCount map[string]int
+	// treeMode is whether a relational node breaks out onto lines
+	// of its own, which is what plan text prints; see relTree.
+	treeMode bool
+	// typeNames are the monikers a legend has been asked for, in
+	// the order they were asked for; see typeRef.
+	typeNames []string
+	// relDefs are the relations broken out of the expressions that
+	// held them, in the order they were first referred to, and
+	// relParamCache what each reads from outside itself; see
+	// relRef.
+	relDefs       []core.Rel
+	relParamCache map[core.Rel][]*core.IDPat
+	// boundInPlan is every variable the plan binds, which is what
+	// distinguishes a fragment's parameter from a global it names.
+	boundInPlan map[*core.IDPat]bool
 }
 
-// frame is an open group: where in docs it began, and its indent.
+// frame is an open region: where in docs it began, how far a break
+// inside it indents, and whether it decides for itself whether to
+// break.
 type frame struct {
 	start  int
 	indent int
+	group  bool
 }
 
 func (u *unparser) put(s string) { u.pending.WriteString(s) }
@@ -158,17 +180,47 @@ func (u *unparser) flush() {
 // fits and broken at its soft breaks otherwise; a broken line is
 // indented by indent from where the region began.
 func (u *unparser) startGroup(indent int) {
+	u.start(indent, true)
+}
+
+// startNest begins a region that is indented but not grouped. A
+// group decides for itself whether to break; a nest only says
+// where a break lands. It is what a "let" wants: its four breaks
+// are one decision, and two of the parts they enclose are
+// indented.
+func (u *unparser) startNest(indent int) {
+	u.start(indent, false)
+}
+
+func (u *unparser) start(indent int, group bool) {
 	u.flush()
-	u.frames = append(u.frames, frame{start: len(u.docs), indent: indent})
+	u.frames = append(u.frames,
+		frame{start: len(u.docs), indent: indent, group: group})
 }
 
 // endGroup ends the region that startGroup began.
-func (u *unparser) endGroup() {
+func (u *unparser) endGroup() { u.end() }
+
+// endNest ends the region that startNest began.
+func (u *unparser) endNest() { u.end() }
+
+func (u *unparser) end() {
 	u.flush()
 	f := u.frames[len(u.frames)-1]
 	u.frames = u.frames[:len(u.frames)-1]
 	inner := pp.Concat(u.docs[f.start:]...)
-	u.docs = append(u.docs[:f.start], pp.Group(pp.Nest(f.indent, inner)))
+	d := pp.Nest(f.indent, inner)
+	if f.group {
+		d = pp.Group(d)
+	}
+	u.docs = append(u.docs[:f.start], d)
+}
+
+// hardBreak is a break that is always taken. Tree mode uses it
+// between nodes, which are one to a line whatever the width.
+func (u *unparser) hardBreak() {
+	u.flush()
+	u.docs = append(u.docs, pp.HardLine())
 }
 
 // softBreak offers a line break, which is a space if the group it is
@@ -189,7 +241,21 @@ func (u *unparser) render() string {
 }
 
 // name renders a variable, renumbering repeats of its name.
+//
+// A generated name -- one the printer or a pass made, which a "$"
+// marks and which no identifier can contain -- is renumbered
+// differently: the whole sequence is numbered from zero in order
+// of first occurrence, per prefix, so that "v$123", "v$110",
+// "v$200", "v$110" print as "v$0", "v$1", "v$2", "v$1". That is
+// what makes the text depend on the query and nothing else, and
+// it survives nesting, which a rule about allocation does not:
+// two nested trees may each allocate "v$0", and a printer sees
+// the whole text and numbers what it finds.
 func (u *unparser) name(pat *core.IDPat) {
+	if prefix, isGen := genPrefix(pat.Name); isGen {
+		u.put(u.genName(pat, prefix))
+		return
+	}
 	list := u.seen[pat.Name]
 	for i, p := range list {
 		if p == pat {
@@ -199,6 +265,41 @@ func (u *unparser) name(pat *core.IDPat) {
 	}
 	u.seen[pat.Name] = append(list, pat)
 	u.put(suffixed(pat.Name, len(list)))
+}
+
+// genPrefix splits a generated name into its prefix and reports
+// whether it is one: "v$12" is generated with prefix "v", and
+// "x" is not. Each prefix is numbered in its own sequence, so a
+// tree's "v$" and a lowering's "w$" do not interleave.
+func genPrefix(name string) (string, bool) {
+	i := strings.IndexByte(name, '$')
+	if i <= 0 || i == len(name)-1 {
+		return "", false
+	}
+	for _, c := range name[i+1:] {
+		if c < '0' || c > '9' {
+			return "", false
+		}
+	}
+	return name[:i], true
+}
+
+// genName is a generated binder's name in the text: its prefix
+// and its position in that prefix's sequence.
+func (u *unparser) genName(pat *core.IDPat, prefix string) string {
+	if u.gen == nil {
+		u.gen = map[*core.IDPat]string{}
+	}
+	if name, ok := u.gen[pat]; ok {
+		return name
+	}
+	if u.genCount == nil {
+		u.genCount = map[string]int{}
+	}
+	name := prefix + "$" + strconv.Itoa(u.genCount[prefix])
+	u.genCount[prefix]++
+	u.gen[pat] = name
+	return name
 }
 
 // suffixed quotes a name that has to be quoted to be read back --
@@ -217,6 +318,19 @@ func suffixed(name string, i int) string {
 func (u *unparser) decl(d core.Decl) {
 	switch d := d.(type) {
 	case *core.NonRecValDecl:
+		if u.treeMode {
+			// The value may start on the next line, indented two,
+			// which is what a "let" wants: "let" belongs at the
+			// head of a line of its own, not trailing an "=".
+			u.startGroup(letIndent)
+			u.put("val ")
+			u.pat(d.Pat)
+			u.put(" =")
+			u.softBreak()
+			u.exp(d.Exp, 0, 0)
+			u.endGroup()
+			return
+		}
 		u.put("val ")
 		u.pat(d.Pat)
 		u.put(" = ")
@@ -255,14 +369,14 @@ func (u *unparser) exp(e core.Exp, left, right int) {
 		u.wrap(left, right, 1, 1, func() { u.from(e) })
 	case *core.ID:
 		u.name(e.Pat)
+	case *core.Input:
+		// "$0" is the element of the node's input, and "$1", for a
+		// join, the element of its right input. They are never
+		// record labels and never appear in an element type:
+		// fields are addressed by label, inputs by position.
+		u.put(e.Name())
 	case *core.Let:
-		u.wrap(left, right, 1, 1, func() {
-			u.put("let ")
-			u.decl(e.Decl)
-			u.put(" in ")
-			u.exp(e.Exp, 0, 0)
-			u.put(" end")
-		})
+		u.wrap(left, right, 1, 1, func() { u.letExp(e) })
 	case *core.List:
 		// A list literal is an application underneath, so as an
 		// argument it parenthesizes.
@@ -280,9 +394,72 @@ func (u *unparser) exp(e core.Exp, left, right int) {
 		u.put(selectorText(e.Name))
 	case *core.Tuple:
 		u.tuple(e)
+	case core.Rel:
+		// A relational operator is the first non-whitespace on its
+		// line, so a relation reached from inside an expression
+		// cannot print here. In tree mode it is broken out and
+		// referred to; elsewhere it prints in place, in prefix
+		// form, as any other expression does.
+		if u.treeMode {
+			// A reference has the shape of an application, so it
+			// is parenthesized where an application would be.
+			l, r := binding(precApply, 'l')
+			u.wrap(left, right, l, r, func() {
+				u.put(u.relRef(e))
+			})
+			return
+		}
+		u.put(e.OpName())
+		u.relArgs(e)
+		for _, input := range e.Inputs() {
+			u.put(" ")
+			u.exp(input, precApply, right)
+		}
 	default:
 		u.put("?")
 	}
+}
+
+// letIndent is how far a "let" indents its declaration and its
+// body when it breaks.
+const letIndent = 2
+
+// letExp renders a "let".
+//
+// One decision, four breaks: a "let" that does not fit becomes
+// "let", its declaration, "in", its body and "end", each on a
+// line, with the declaration and the body indented two. One
+// group, so they are taken together; nests rather than groups
+// inside it, so the two that are indented do not decide for
+// themselves.
+//
+// Only in a plan. Elsewhere there is no width to fit, and a
+// relation still prints in place, whose own line breaks would
+// fall inside this indentation.
+func (u *unparser) letExp(e *core.Let) {
+	if !u.treeMode {
+		u.put("let ")
+		u.decl(e.Decl)
+		u.put(" in ")
+		u.exp(e.Exp, 0, 0)
+		u.put(" end")
+		return
+	}
+	u.startGroup(0)
+	u.startNest(letIndent)
+	u.put("let")
+	u.softBreak()
+	u.decl(e.Decl)
+	u.endNest()
+	u.softBreak()
+	u.put("in")
+	u.startNest(letIndent)
+	u.softBreak()
+	u.exp(e.Exp, 0, 0)
+	u.endNest()
+	u.softBreak()
+	u.put("end")
+	u.endGroup()
 }
 
 // wrap parenthesizes body when the context binds tighter than the
@@ -311,25 +488,38 @@ func (u *unparser) exps(args []core.Exp) {
 
 // tuple renders a tuple, as a record when its type is one.
 func (u *unparser) tuple(e *core.Tuple) {
+	// A record or tuple may break after a comma, one field to a
+	// line, which is the other place a plan's lines get long.
 	if rec, ok := e.T.(*types.Record); ok {
+		u.startGroup(0)
 		u.put("{")
 		for i, f := range rec.Fields {
 			if i > 0 {
-				u.put(", ")
+				u.put(",")
+				u.softBreak()
 			}
 			u.put(f.Label + " = ")
 			u.exp(e.Args[i], 0, 0)
 		}
 		u.put("}")
+		u.endGroup()
 		return
 	}
 	if len(e.Args) == 0 {
 		u.put("()")
 		return
 	}
+	u.startGroup(0)
 	u.put("(")
-	u.exps(e.Args)
+	for i, arg := range e.Args {
+		if i > 0 {
+			u.put(",")
+			u.softBreak()
+		}
+		u.exp(arg, 0, 0)
+	}
 	u.put(")")
+	u.endGroup()
 }
 
 // literal renders a constant.

@@ -102,10 +102,104 @@ func cloneExp(e core.Exp, fresh map[*core.IDPat]*core.IDPat,
 		return &core.RangeList{T: e.T, Items: items, Span: e.Span}
 	case *core.Tuple:
 		return &core.Tuple{T: e.T, Args: cloneExps(e.Args, fresh)}
+	case core.Rel:
+		return cloneRel(e, fresh)
 	default:
 		// Leaves without bindings: Literal, Con, Selector, Unit.
 		return e
 	}
+}
+
+// cloneRel deep-copies a relational node.
+//
+// By copying the node and replacing its parts, where the rewriter
+// rebuilds through the constructors. The rewriter has to derive
+// the type again because it may have changed an element's; a copy
+// changes no type at all -- it renames patterns -- so the node it
+// came from has the type the copy should have.
+//
+// A node's "$0" is not copied and does not need to be: it is a
+// node of its own with an ordinal, not a variable, so two copies
+// of a tree do not share a binding by sharing a "$0".
+func cloneRel(rel core.Rel, fresh map[*core.IDPat]*core.IDPat,
+) core.Exp {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch e := rel.(type) {
+	case *core.Filter:
+		n := *e
+		n.Input = cloneExp(e.Input, fresh)
+		n.Condition = cloneExp(e.Condition, fresh)
+		return &n
+	case *core.Group:
+		return cloneGroupRel(e, fresh)
+	case *core.Join:
+		n := *e
+		// The binder is declared by the join, so a copy gets its
+		// own; map it before the right input that reads it.
+		if e.Binder != nil {
+			n.Binder = cloneIDPat(e.Binder, fresh)
+		}
+		n.Left = cloneExp(e.Left, fresh)
+		n.Right = cloneExp(e.Right, fresh)
+		n.Condition = cloneExp(e.Condition, fresh)
+		return &n
+	case *core.Project:
+		n := *e
+		n.Input = cloneExp(e.Input, fresh)
+		n.Exp = cloneExp(e.Exp, fresh)
+		return &n
+	case *core.SetRel:
+		n := *e
+		n.Args = cloneExps(e.Args, fresh)
+		return &n
+	case *core.Skip:
+		n := *e
+		n.Input = cloneExp(e.Input, fresh)
+		n.Count = cloneExp(e.Count, fresh)
+		return &n
+	case *core.Sort:
+		n := *e
+		n.Input = cloneExp(e.Input, fresh)
+		n.Exp = cloneExp(e.Exp, fresh)
+		return &n
+	case *core.Take:
+		n := *e
+		n.Input = cloneExp(e.Input, fresh)
+		n.Count = cloneExp(e.Count, fresh)
+		return &n
+	case *core.Unorder:
+		n := *e
+		n.Input = cloneExp(e.Input, fresh)
+		return &n
+	default:
+		return rel
+	}
+}
+
+// cloneGroupRel deep-copies a group: its keys, which it declares,
+// and its aggregates.
+func cloneGroupRel(e *core.Group,
+	fresh map[*core.IDPat]*core.IDPat,
+) core.Exp {
+	n := *e
+	n.Input = cloneExp(e.Input, fresh)
+	n.Keys = make([]core.RelGroupKey, len(e.Keys))
+	for i, k := range e.Keys {
+		n.Keys[i] = k
+		if k.Pat != nil {
+			n.Keys[i].Pat = cloneIDPat(k.Pat, fresh)
+		}
+		n.Keys[i].Exp = cloneExp(k.Exp, fresh)
+	}
+	n.Aggs = make([]core.RelGroupAgg, len(e.Aggs))
+	for i, a := range e.Aggs {
+		n.Aggs[i] = a
+		n.Aggs[i].Fn = cloneExp(a.Fn, fresh)
+		if a.Arg != nil {
+			n.Aggs[i].Arg = cloneExp(a.Arg, fresh)
+		}
+	}
+	return &n
 }
 
 // cloneExps deep-copies a slice of expressions.

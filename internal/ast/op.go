@@ -151,6 +151,16 @@ const (
 	OverOp
 	OrdinalOp
 	TypeStringOp
+
+	// InputOp and the operators below it are the relational tree
+	// (see core.Rel). GroupOp, SkipOp, TakeOp, UnorderOp, UnionOp,
+	// IntersectOp and ExceptOp are shared with the from-steps of
+	// the same name.
+	InputOp
+	FilterOp
+	ProjectOp
+	JoinOp
+	SortOp
 )
 
 var opNames = map[Op]string{
@@ -260,6 +270,11 @@ var opNames = map[Op]string{
 	IntoOp:       "into",
 	ThroughOp:    "through",
 	RequireOp:    "require",
+	InputOp:      "input",
+	FilterOp:     "filter",
+	ProjectOp:    "project",
+	JoinOp:       "join",
+	SortOp:       "sort",
 	DistinctOp:   "distinct",
 	UnorderOp:    "unorder",
 	UnionOp:      "union",

@@ -368,6 +368,13 @@ func (c *coverageChecker) walkExp(exp core.Exp) {
 		for _, a := range e.Args {
 			c.walkExp(a)
 		}
+	case core.Rel:
+		for _, x := range e.Inputs() {
+			c.walkExp(x)
+		}
+		for _, x := range relExps(e) {
+			c.walkExp(x)
+		}
 	}
 }
 

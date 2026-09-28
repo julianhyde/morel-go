@@ -19,6 +19,7 @@ package compile
 
 import (
 	"github.com/hydromatic/morel-go/internal/core"
+	"github.com/hydromatic/morel-go/internal/types"
 )
 
 // rewriter rebuilds a Core tree bottom-up. A node whose children
@@ -33,6 +34,10 @@ import (
 // falls through to the structural rebuild below.
 type rewriter struct {
 	exp func(e core.Exp) (core.Exp, bool)
+	// sys is needed to rebuild a relational node, whose type is
+	// derived from its parts. A rewriter that never meets one may
+	// leave it nil.
+	sys *types.System
 }
 
 // rewriteExp rewrites an expression, preserving pointer identity
@@ -104,10 +109,181 @@ func (r *rewriter) rewriteExp(e core.Exp) core.Exp {
 			return &core.Tuple{T: e.T, Args: args}
 		}
 		return e
+	case core.Rel:
+		return r.rewriteRel(e)
 	default:
 		// Leaves: Literal, ID, Con, Selector, Ordinal, Unit.
 		return e
 	}
+}
+
+// rewriteRel rewrites a relational node: its inputs, and the
+// expressions over its element.
+//
+// A node's type is derived from its parts, so a rewrite rebuilds
+// through the constructors rather than copying the type across: a
+// rewrite that changes an element's type and keeps the old one is
+// exactly what the validator exists to catch, and rebuilding
+// cannot produce it.
+func (r *rewriter) rewriteRel(rel core.Rel) core.Exp {
+	sys := r.sys
+	// lint: sort until '^\t}' where '^\tcase '
+	switch e := rel.(type) {
+	case *core.Filter:
+		input, cond := r.rewriteExp(e.Input), r.rewriteExp(e.Condition)
+		if input == e.Input && cond == e.Condition {
+			return e
+		}
+		return core.NewFilter(input, cond)
+	case *core.Group:
+		return r.rewriteGroupRel(e)
+	case *core.Join:
+		left, right := r.rewriteExp(e.Left), r.rewriteExp(e.Right)
+		cond := r.rewriteExp(e.Condition)
+		if left == e.Left && right == e.Right &&
+			cond == e.Condition {
+			return e
+		}
+		return core.NewJoin(sys, e.Kind, e.Binder, left, right, cond)
+	case *core.Project:
+		input, exp := r.rewriteExp(e.Input), r.rewriteExp(e.Exp)
+		if input == e.Input && exp == e.Exp {
+			return e
+		}
+		return core.NewProject(sys, input, exp)
+	case *core.SetRel:
+		if args, changed := r.rewriteExps(e.Args); changed {
+			return core.NewSetRel(sys, e.Kind, e.Distinct, args)
+		}
+		return e
+	case *core.Skip:
+		input, count := r.rewriteExp(e.Input), r.rewriteExp(e.Count)
+		if input == e.Input && count == e.Count {
+			return e
+		}
+		return core.NewSkip(input, count)
+	case *core.Sort:
+		input, exp := r.rewriteExp(e.Input), r.rewriteExp(e.Exp)
+		if input == e.Input && exp == e.Exp {
+			return e
+		}
+		return core.NewSort(sys, input, exp, e.Span)
+	case *core.Take:
+		input, count := r.rewriteExp(e.Input), r.rewriteExp(e.Count)
+		if input == e.Input && count == e.Count {
+			return e
+		}
+		return core.NewTake(input, count)
+	case *core.Unorder:
+		if input := r.rewriteExp(e.Input); input != e.Input {
+			return core.NewUnorder(sys, input)
+		}
+		return e
+	default:
+		return rel
+	}
+}
+
+// relExps are the expressions a node evaluates -- the ones that
+// are not its inputs, and that read its element as "$0".
+//
+// Inputs come from the node's own "Inputs", which the datatype
+// provides; this is the other half, so that a pass which only
+// needs to *walk* a node can have both without a switch of its
+// own. A pass that rebuilds still needs one, because rebuilding
+// goes through the constructors.
+func relExps(rel core.Rel) []core.Exp {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch e := rel.(type) {
+	case *core.Filter:
+		return []core.Exp{e.Condition}
+	case *core.Group:
+		out := make([]core.Exp, 0, len(e.Keys)+2*len(e.Aggs))
+		for _, k := range e.Keys {
+			out = append(out, k.Exp)
+		}
+		for _, a := range e.Aggs {
+			out = append(out, a.Fn)
+			if a.Arg != nil {
+				out = append(out, a.Arg)
+			}
+		}
+		return out
+	case *core.Join:
+		return []core.Exp{e.Condition}
+	case *core.Project:
+		return []core.Exp{e.Exp}
+	case *core.Skip:
+		return []core.Exp{e.Count}
+	case *core.Sort:
+		return []core.Exp{e.Exp}
+	case *core.Take:
+		return []core.Exp{e.Count}
+	default:
+		// A set operator and an unorder evaluate nothing of their
+		// own; their inputs are all there is.
+		return nil
+	}
+}
+
+// relBinders are the patterns a node declares: a join's binder,
+// which names its left element inside its right input, and a
+// group's keys, which an aggregate of the same group may name.
+//
+// A pass that counts uses has to know these are declarations and
+// not references, or it counts a binding as a use of something
+// outside the node.
+func relBinders(rel core.Rel) []*core.IDPat {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch e := rel.(type) {
+	case *core.Group:
+		var out []*core.IDPat
+		for _, k := range e.Keys {
+			if k.Pat != nil {
+				out = append(out, k.Pat)
+			}
+		}
+		return out
+	case *core.Join:
+		if e.Binder == nil {
+			return nil
+		}
+		return []*core.IDPat{e.Binder}
+	default:
+		return nil
+	}
+}
+
+// rewriteGroupRel rewrites a group's keys and aggregates.
+func (r *rewriter) rewriteGroupRel(e *core.Group) core.Exp {
+	input := r.rewriteExp(e.Input)
+	changed := input != e.Input
+	keys := make([]core.RelGroupKey, len(e.Keys))
+	for i, k := range e.Keys {
+		// The key's pattern is carried across: it is what an
+		// aggregate of this group names, and what the lowering
+		// calls the key, and a rewrite that dropped it would
+		// rename the key after its label -- which for a distinct
+		// is "$0".
+		keys[i] = core.RelGroupKey{
+			Label: k.Label, Exp: r.rewriteExp(k.Exp), Pat: k.Pat,
+		}
+		changed = changed || keys[i].Exp != k.Exp
+	}
+	aggs := make([]core.RelGroupAgg, len(e.Aggs))
+	for i, a := range e.Aggs {
+		aggs[i] = a
+		aggs[i].Fn = r.rewriteExp(a.Fn)
+		if a.Arg != nil {
+			aggs[i].Arg = r.rewriteExp(a.Arg)
+		}
+		changed = changed || aggs[i].Fn != a.Fn ||
+			aggs[i].Arg != a.Arg
+	}
+	if !changed {
+		return e
+	}
+	return core.NewGroup(r.sys, input, keys, aggs)
 }
 
 // rewriteRangeList rewrites the bounds of a range list.

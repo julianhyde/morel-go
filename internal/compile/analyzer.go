@@ -252,6 +252,15 @@ func (a *analyzer) exp(e core.Exp) {
 		}
 	case *core.Tuple:
 		a.exps(e.Args)
+	case core.Rel:
+		// A node declares before it reads: a join's binder is in
+		// scope in its right input, and a group's key in the
+		// aggregates beside it.
+		for _, pat := range relBinders(e) {
+			a.declare(pat)
+		}
+		a.exps(e.Inputs())
+		a.exps(relExps(e))
 	}
 }
 

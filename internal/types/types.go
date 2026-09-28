@@ -402,6 +402,53 @@ func WrittenChecked(t Type) bool {
 	return ok && a.Name == "" && len(a.Checks) > 0
 }
 
+// Bag returns the type "elem bag". A bag is a datatype instance
+// rather than a type of its own, which is why it is built here
+// from the name rather than by a constructor.
+func (s *System) Bag(elem Type) Type {
+	return s.Named("bag", elem)
+}
+
+// CollectionOf returns "elem list" or "elem bag", according to
+// whether the collection is ordered. It is the constructor the
+// relational tree's kind rules are written in terms of: a kind is
+// part of a node's type, not a property of the value that flows
+// through it.
+func (s *System) CollectionOf(ordered bool, elem Type) Type {
+	if ordered {
+		return s.List(elem)
+	}
+	return s.Bag(elem)
+}
+
+// ElemOf is the element type of a list or a bag, or nil if the
+// type is neither.
+func ElemOf(t Type) Type {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch t := Unalias(t).(type) {
+	case *Collection:
+		return t.Elem
+	case *List:
+		return t.Elem
+	case *Named:
+		if t.Name == "bag" && len(t.Args) == 1 {
+			return t.Args[0]
+		}
+	}
+	return nil
+}
+
+// IsCollection reports whether a type is a list or a bag.
+func IsCollection(t Type) bool { return ElemOf(t) != nil }
+
+// IsOrdered reports whether a collection type is a list rather
+// than a bag. A type whose orderedness is still free counts as
+// unordered, as it prints.
+func IsOrdered(t Type) bool {
+	_, isList := Unalias(t).(*List)
+	return isList
+}
+
 // LabelLess is the ordering of record labels: numeric labels
 // first, in numeric order, then names alphabetically.
 func LabelLess(a, b string) bool {
