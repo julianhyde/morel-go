@@ -109,3 +109,14 @@ func SchemeForBackgroundForTest(background string) string {
 // UnrawForTest exposes unraw, which rewrites a raw string literal
 // as the escaped literal with the same content.
 func UnrawForTest(s string) string { return unraw(s) }
+
+// EquivalentOutputForTest exposes equivalentOutput.
+func EquivalentOutputForTest(sys *types.System, actual, expected string) bool {
+	return equivalentOutput(sys, actual, expected)
+}
+
+// KernelSysForTest returns a fresh kernel's type system, which knows
+// the built-in types such as "bag".
+func KernelSysForTest() *types.System {
+	return NewKernel("test").sys
+}

@@ -18,6 +18,7 @@
 package shell
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/hydromatic/morel-go/internal/eval"
@@ -32,6 +33,9 @@ import (
 // in doubt it returns false — a false positive would hide a real
 // divergence.
 func equivalentOutput(sys *types.System, actual, expected string) bool {
+	if ruleLine(strings.Split(expected, "\n")) >= 0 {
+		return tablesEquivalent(sys, actual, expected)
+	}
 	a := splitOutput(actual)
 	e := splitOutput(unraw(expected))
 	if a.val == "" || e.val == "" {
@@ -652,4 +656,84 @@ func (m *outputMatcher) datatypeEqual(t *types.Named, o0, o1 any) bool {
 	ctor, _ := l0[0].(string)
 	argType := m.ctorArgType(ctor, t)
 	return argType != nil && m.valuesEqual(argType, l0[1], l1[1])
+}
+
+// tablesEquivalent reports whether two outputs are equivalent when the
+// expected one is a table, which is how a collection of records
+// prints under "output = tabular": a header, a rule of dashes, one
+// line per row, a blank line, and the value's type.
+//
+// A bag's rows are in no particular order, so the rows are compared
+// as a multiset; everything else must match as text. Only a table
+// whose rows are single lines is compared this way: a row with a
+// nested record or collection spans several lines, and a multiset of
+// lines could pair a line with the wrong row. A truncated table,
+// whose last row is "...", shows which rows it shows, and a
+// different order may show different ones; its rows are compared as
+// text.
+func tablesEquivalent(sys *types.System, actual, expected string) bool {
+	if actual == expected {
+		return true
+	}
+	lines0 := strings.Split(actual, "\n")
+	lines1 := strings.Split(expected, "\n")
+	rule := ruleLine(lines1)
+	// Rows end at the blank line before the type line; the header, the
+	// rule, and whatever precedes them -- warnings, say -- must match
+	// as text, and so must the blank line and the type.
+	typeLine := len(lines1) - 1
+	end := typeLine - 1
+	if len(lines0) != len(lines1) ||
+		ruleLine(lines0) != rule ||
+		end <= rule ||
+		lines1[end] != "" ||
+		!slices.Equal(lines0[:rule+1], lines1[:rule+1]) ||
+		!slices.Equal(lines0[end:], lines1[end:]) {
+		return false
+	}
+	// The type line is "val name : type". A list's rows are in order,
+	// and only a row of scalars is one line.
+	last := lines1[typeLine]
+	colon := strings.LastIndex(last, " : ")
+	if colon < 0 {
+		return false
+	}
+	t, err := sys.Parse(last[colon+3:])
+	if err != nil {
+		return false
+	}
+	named, ok := t.(*types.Named)
+	if !ok || named.Name != bagType || len(named.Args) != 1 ||
+		!isRecordLike(types.Unalias(named.Args[0])) {
+		return false
+	}
+	c := &Config{sys: sys}
+	for _, f := range recordLikeFields(named.Args[0]) {
+		if _, ok := c.optionScalar(f.Type); !ok && !c.isScalar(f.Type) {
+			return false
+		}
+	}
+	rows0 := lines0[rule+1 : end]
+	rows1 := lines1[rule+1 : end]
+	if slices.Contains(rows0, tabularEllipsis) ||
+		slices.Contains(rows1, tabularEllipsis) {
+		return slices.Equal(rows0, rows1)
+	}
+	sorted0 := slices.Clone(rows0)
+	sorted1 := slices.Clone(rows1)
+	slices.Sort(sorted0)
+	slices.Sort(sorted1)
+	return slices.Equal(sorted0, sorted1)
+}
+
+// ruleLine returns the index of a table's rule, the line of dashes
+// under the header, or -1 if there is none.
+func ruleLine(lines []string) int {
+	for i := 1; i < len(lines); i++ {
+		if strings.HasPrefix(lines[i], "-") &&
+			strings.Trim(lines[i], "- ") == "" {
+			return i
+		}
+	}
+	return -1
 }
