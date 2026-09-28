@@ -246,7 +246,7 @@ from e in scott.emps where e.deptno = 30 yield {e.ename, e.comm};
 >   [{comm=SOME 300,ename="ALLEN"},{comm=SOME 500,ename="WARD"},
 >    {comm=SOME 1400,ename="MARTIN"},{comm=NONE,ename="BLAKE"},
 >    {comm=SOME 0,ename="TURNER"},{comm=NONE,ename="JAMES"}]
->   : {comm:real option, ename:string} bag
+>   : {comm:decimal option, ename:string} bag
 from e in scott.emps where e.deptno = 10 yield e.mgr;
 > val it = [SOME 7839,NONE,SOME 7782] : int option bag
 from e in scott.emps where e.comm = NONE andalso e.deptno = 30 yield e.ename;
@@ -261,12 +261,61 @@ from e in scott.emps
   where Option.isSome e.comm
   yield (e.ename, valOf e.comm);
 > val it = [("ALLEN",300),("WARD",500),("MARTIN",1400),("TURNER",0)]
->   : (string * real) bag
+>   : (string * decimal) bag
 from e in scott.emps
   group e.deptno compute {c = count over (), s = sum over e.sal};
 > val it =
 >   [{c=5,deptno=20,s=10875},{c=3,deptno=10,s=8750},{c=6,deptno=30,s=9400}]
->   : {c:int, deptno:int, s:real} bag
+>   : {c:int, deptno:int, s:decimal} bag
+(* A DECIMAL column has type 'decimal'. A 'decimal' literal is converted at
+ * compile time, and becomes a SQL DECIMAL literal. *)
+from e in scott.emps where e.sal > decimal "2900" yield {e.ename, e.sal};
+> val it =
+>   [{ename="JONES",sal=2975},{ename="SCOTT",sal=3000},{ename="KING",sal=5000},
+>    {ename="FORD",sal=3000}] : {ename:string, sal:decimal} bag
+(* Decimal values from Morel keep their scale when passed to Calcite. *)
+from e in scott.emps, x in [decimal "1250.5", decimal "2975.25"]
+  where e.sal < x andalso e.deptno = 30
+  yield {e.ename, e.sal, x};
+> val it =
+>   [{ename="ALLEN",sal=1600,x=2975.25},{ename="WARD",sal=1250,x=1250.5},
+>    {ename="WARD",sal=1250,x=2975.25},{ename="MARTIN",sal=1250,x=1250.5},
+>    {ename="MARTIN",sal=1250,x=2975.25},{ename="BLAKE",sal=2850,x=2975.25},
+>    {ename="TURNER",sal=1500,x=2975.25},{ename="JAMES",sal=950,x=1250.5},
+>    {ename="JAMES",sal=950,x=2975.25}]
+>   : {ename:string, sal:decimal, x:decimal} bag
+(* A call to an operator in a structure, such as 'Decimal.*', is sent to
+ * Calcite as Morel code, and the operator name is quoted, as in '#`*`'. *)
+from x in [decimal "1.25", decimal "2.5", decimal "0.001"]
+  yield Decimal.`*` (x, decimal "2");
+> val it = [2.5,5,0.002] : decimal list
+(* Arithmetic on 'decimal' values is evaluated by Morel, not Calcite, because
+ * Calcite's DECIMAL type has less precision. *)
+from e in scott.emps
+  where e.deptno = 10
+  yield {e.ename, pay = e.sal * decimal "1.05" + getOpt (e.comm, decimal "0")};
+> val it =
+>   [{ename="CLARK",pay=2572.5},{ename="KING",pay=5250},
+>    {ename="MILLER",pay=1365}] : {ename:string, pay:decimal} bag
+(* Comparing a 'decimal option' column using '=' or '<>' is translated to
+ * '=' and 'IS NULL', not 'IS NOT DISTINCT FROM', because the values in the
+ * column and in the query may have different scales. *)
+from e in scott.emps where e.comm = SOME (decimal "300") yield e.ename;
+> val it = ["ALLEN"] : string bag
+from e in scott.emps where e.comm = SOME (decimal "1400") yield e.ename;
+> val it = ["MARTIN"] : string bag
+from e in scott.emps where e.comm <> SOME (decimal "300") compute count over ();
+> val it = 13 : int
+(* A 'decimal' literal that Calcite cannot represent is evaluated by Morel.
+ * An integer must fit in a BIGINT. *)
+from e in scott.emps where e.sal < decimal "9999999999999999999"
+  compute count over ();
+> val it = 14 : int
+from e in scott.emps where e.sal < decimal "1E100" compute count over ();
+> val it = 14 : int
+from e in scott.emps where e.sal > decimal "0.000000000000000000001"
+  compute count over ();
+> val it = 14 : int
 Sys.set ("hybrid", false);
 > val it = () : unit
 

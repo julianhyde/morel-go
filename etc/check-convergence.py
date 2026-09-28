@@ -81,21 +81,22 @@ JAVA_PREFIX = "src/test/resources/script/"
 # omits, or a difference that is not a difference in meaning.
 ACCEPTED = {
     "blog.smli": (
-        288,
+        296,
         "the `foodmart` dataset, which morel-go does not have. Its "
         "schema is dumped in full, so every morel-java change to a "
         "foodmart column type grows a block morel-go has no way to "
         "follow.",
     ),
     "foreign.smli": (
-        186,
+        194,
         "the `foodmart` dataset, as in blog.smli.",
     ),
     "hybrid.smli": (
-        187,
+        281,
         "the Calcite plans that `Sys.plan` prints. morel-go has no "
         "Calcite, so it omits every one of this file's plan "
-        "assertions.",
+        "assertions, and the tests of what a `decimal` literal or "
+        "aggregate pushes down to Calcite.",
     ),
 }
 

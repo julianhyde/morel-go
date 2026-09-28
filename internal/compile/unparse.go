@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/hydromatic/morel-go/internal/ast"
 	"github.com/hydromatic/morel-go/internal/core"
@@ -207,7 +208,7 @@ func (u *unparser) exp(e core.Exp, left, right int) {
 	case *core.RangeList:
 		u.rangeList(e)
 	case *core.Selector:
-		u.put("#" + e.Name)
+		u.put(selectorText(e.Name))
 	case *core.Tuple:
 		u.tuple(e)
 	default:
@@ -448,16 +449,43 @@ func (u *unparser) applyFnText(e *core.Apply) (string, bool) {
 		}
 		return "", false
 	case *core.Selector:
-		return "#" + fn.Name, true
+		return selectorText(fn.Name), true
 	default:
 		return "", false
 	}
 }
 
-// sharpName renders "Structure.member" as "#member Structure".
+// sharpName renders "Structure.member" as "#member Structure", or
+// "#`*` Structure" for a member that is an operator.
 func sharpName(qualified string) string {
 	dot := strings.Index(qualified, ".")
-	return "#" + qualified[dot+1:] + " " + qualified[:dot]
+	return selectorText(qualified[dot+1:]) + " " + qualified[:dot]
+}
+
+// selectorText renders a record selector, "#label" or "#1". A label
+// that is not letters, digits, underscores and primes -- an operator
+// such as "*" -- is enclosed in back-ticks, "#`*`", which the parser
+// reads back as the same selector.
+func selectorText(label string) string {
+	if isPlainLabel(label) {
+		return "#" + label
+	}
+	return "#`" + strings.ReplaceAll(label, "`", "``") + "`"
+}
+
+// isPlainLabel reports whether a label can follow "#" without
+// quoting: non-empty, and letters, digits, underscores and primes.
+func isPlainLabel(label string) bool {
+	if label == "" {
+		return false
+	}
+	for _, r := range label {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' &&
+			r != '\'' {
+			return false
+		}
+	}
+	return true
 }
 
 // caseExp renders a case, spelling the boolean-connective

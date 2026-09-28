@@ -250,6 +250,11 @@ func allFieldsOption(t types.Type) bool {
 // isNumericType reports whether a column of this type is right-aligned,
 // as int, real, and word columns are.
 func isNumericType(t types.Type) bool {
+	// "decimal" is a number too, though a datatype rather than a
+	// primitive.
+	if named, ok := t.(*types.Named); ok && named.Name == decimalType {
+		return true
+	}
 	prim, ok := t.(*types.Primitive)
 	if !ok {
 		return false
