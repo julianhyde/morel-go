@@ -187,3 +187,34 @@ func TestBlank(t *testing.T) {
 		}
 	}
 }
+
+// A backslash-escaped quote does not end a string literal. The
+// runner tracks quotes to know whether a statement is complete, so
+// reading the escaped quote as the closing one would leave a literal
+// open to the end of the input: the statement would never run, and
+// neither would anything after it. So the test asserts that the
+// statement after the literal runs, which is what would be lost.
+func TestRunnerEscapedQuoteInStringLiteral(t *testing.T) {
+	out, count, err := run(t, "val a = \"x\\\"y\";\nval b = 2;\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "<val a = \"x\\\"y\";>\n<\nval b = 2;>\n"
+	if out != want || count != 2 {
+		t.Errorf("got %q (count %d), want %q (count 2)",
+			out, count, want)
+	}
+}
+
+// As TestRunnerEscapedQuoteInStringLiteral, for a char literal.
+func TestRunnerEscapedQuoteInCharLiteral(t *testing.T) {
+	out, count, err := run(t, "val a = #\"\\\"\";\nval b = 2;\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "<val a = #\"\\\"\";>\n<\nval b = 2;>\n"
+	if out != want || count != 2 {
+		t.Errorf("got %q (count %d), want %q (count 2)",
+			out, count, want)
+	}
+}
