@@ -19,6 +19,7 @@ package compile
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"unicode"
@@ -27,6 +28,7 @@ import (
 	"github.com/hydromatic/morel-go/internal/core"
 	"github.com/hydromatic/morel-go/internal/eval"
 	"github.com/hydromatic/morel-go/internal/parse"
+	"github.com/hydromatic/morel-go/internal/pp"
 	"github.com/hydromatic/morel-go/internal/types"
 )
 
@@ -71,9 +73,15 @@ func resolveBuiltins(d core.Decl) core.Decl {
 // a name are renumbered in first-appearance order: the first
 // keeps the name, later ones append "_1", "_2", and so on.
 func UnparseDecl(sys *types.System, decl core.Decl) string {
-	u := &unparser{sys: sys, seen: map[string][]*core.IDPat{}}
+	return UnparseDeclWidth(sys, decl, 0)
+}
+
+// UnparseDeclWidth is UnparseDecl laid out to fit a width; a width of
+// 0 is no width, and prints what UnparseDecl prints.
+func UnparseDeclWidth(sys *types.System, decl core.Decl, width int) string {
+	u := &unparser{sys: sys, seen: map[string][]*core.IDPat{}, width: width}
 	u.decl(decl)
-	return u.sb.String()
+	return u.render()
 }
 
 // Operator contexts: an operator's left and right binding powers.
@@ -113,11 +121,72 @@ func binding(prec int, assoc rune) (int, int) {
 // unparser accumulates the rendering.
 type unparser struct {
 	sys  *types.System
-	sb   strings.Builder
 	seen map[string][]*core.IDPat
+
+	// The text is built as a document, so that a layout can be chosen
+	// to fit a width. A run of characters with no break in it
+	// accumulates in pending and becomes one text when a break
+	// arrives, which keeps the document small and lets the unparse
+	// methods go on appending characters. Until a break point is
+	// offered -- a group around something that may be laid out either
+	// way -- the document is a flat concatenation, and renders the
+	// same at every width. A width of 0 means no width: every group is
+	// laid out flat, so nothing printed changes.
+	pending strings.Builder
+	docs    []pp.Doc
+	frames  []frame
+	width   int
 }
 
-func (u *unparser) put(s string) { u.sb.WriteString(s) }
+// frame is an open group: where in docs it began, and its indent.
+type frame struct {
+	start  int
+	indent int
+}
+
+func (u *unparser) put(s string) { u.pending.WriteString(s) }
+
+// flush turns the pending text into a document.
+func (u *unparser) flush() {
+	if u.pending.Len() > 0 {
+		u.docs = append(u.docs, pp.Text(u.pending.String()))
+		u.pending.Reset()
+	}
+}
+
+// startGroup begins a region that is laid out on one line if it
+// fits and broken at its soft breaks otherwise; a broken line is
+// indented by indent from where the region began.
+func (u *unparser) startGroup(indent int) {
+	u.flush()
+	u.frames = append(u.frames, frame{start: len(u.docs), indent: indent})
+}
+
+// endGroup ends the region that startGroup began.
+func (u *unparser) endGroup() {
+	u.flush()
+	f := u.frames[len(u.frames)-1]
+	u.frames = u.frames[:len(u.frames)-1]
+	inner := pp.Concat(u.docs[f.start:]...)
+	u.docs = append(u.docs[:f.start], pp.Group(pp.Nest(f.indent, inner)))
+}
+
+// softBreak offers a line break, which is a space if the group it is
+// in fits on a line.
+func (u *unparser) softBreak() {
+	u.flush()
+	u.docs = append(u.docs, pp.Line())
+}
+
+// render returns the text, laid out to fit the width.
+func (u *unparser) render() string {
+	u.flush()
+	width := u.width
+	if width <= 0 {
+		width = math.MaxInt32
+	}
+	return pp.Render(width, pp.Concat(u.docs...))
+}
 
 // name renders a variable, renumbering repeats of its name.
 func (u *unparser) name(pat *core.IDPat) {
@@ -509,16 +578,22 @@ func isPlainLabel(label string) bool {
 }
 
 // caseExp renders a case, spelling the boolean-connective
-// encodings back as operators.
+// encodings back as operators. An andalso or orelse chain is a group
+// of its own, so an outer one breaks before an inner one does, and a
+// condition that fits stays on its line; they are where a long plan
+// line is worth breaking.
 func (u *unparser) caseExp(e *core.Case, left, right int) {
 	if cond, ifTrue, ifFalse, ok := asBoolCase(e); ok {
 		if isBoolLiteral(ifFalse, false) &&
 			!isBoolLiteral(ifTrue, true) {
 			l, r := binding(precAndalso, 'l')
 			u.wrap(left, right, l, r, func() {
+				u.startGroup(0)
 				u.exp(cond, left, l)
-				u.put(" andalso ")
+				u.softBreak()
+				u.put("andalso ")
 				u.exp(ifTrue, r, right)
+				u.endGroup()
 			})
 			return
 		}
@@ -526,9 +601,12 @@ func (u *unparser) caseExp(e *core.Case, left, right int) {
 			!isBoolLiteral(ifFalse, false) {
 			l, r := binding(precOrelse, 'l')
 			u.wrap(left, right, l, r, func() {
+				u.startGroup(0)
 				u.exp(cond, left, l)
-				u.put(" orelse ")
+				u.softBreak()
+				u.put("orelse ")
 				u.exp(ifFalse, r, right)
+				u.endGroup()
 			})
 			return
 		}

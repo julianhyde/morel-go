@@ -119,7 +119,7 @@ func (f *fbbtFixture) strengthen(where core.Exp,
 func (f *fbbtFixture) text(e core.Exp) string {
 	u := &unparser{sys: f.sys, seen: map[string][]*core.IDPat{}}
 	u.exp(e, 0, 0)
-	return u.sb.String()
+	return u.render()
 }
 
 func TestFbbt(t *testing.T) {
