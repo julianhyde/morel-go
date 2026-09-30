@@ -33,7 +33,7 @@ if it fails; fix the code until it is green.
 
 **Never mix planning changes with code changes in one commit.**
 Planning changes (`plan.md`) and code changes (everything else,
-including `agents.md`) go in separate commits, so that either kind
+including `AGENTS.md`) go in separate commits, so that either kind
 can be cherry-picked onto `main` without the other. If a piece of
 work updates both, make two commits.
 
