@@ -28,6 +28,33 @@ Sys.set ("printLength", NONE);
 Sys.set ("stringDepth", NONE);
 > val it = () : unit
 
+(* A call to the prefix operator "~" unparses as a prefix call, and "~"
+ * binds tighter than any binary operator, so "~x + 1" needs no
+ * parentheses and "~(x + 1)" keeps them. *)
+fn x => ~x + 1;
+> val it = fn : int -> int
+Sys.planEx "resolved";
+> val it = "val it = fn x => ~ x + 1" : string
+fn x => ~(x + 1);
+> val it = fn : int -> int
+Sys.planEx "resolved";
+> val it = "val it = fn x => ~ (x + 1)" : string
+fn x => 2 * (~x);
+> val it = fn : int -> int
+Sys.planEx "resolved";
+> val it = "val it = fn x => 2 * (~ x)" : string
+
+(* An infix operator applied to something other than a pair, "op + p", is
+ * written as an application, because it is not an infix call. *)
+fn p => op + p;
+> val it = fn : int * int -> int
+Sys.planEx "resolved";
+> val it = "val it = fn p => `op +` p" : string
+fn p => (op + p) * 2;
+> val it = fn : int * int -> int
+Sys.planEx "resolved";
+> val it = "val it = fn p => `op +` p * 2" : string
+
 (*) Literals
 Sys.parseTree "1";
 > val it = "(int_literal 1)" : string
@@ -128,11 +155,8 @@ Sys.parseTree "[1] @ [2] @ [3]";
  * operand and not the chain: "~x div 2" is "(~x) div 2". Multiplication
  * cannot tell the two apart -- "~(x * 2)" and "(~x) * 2" are the same
  * number -- so "div" is the case that pins it, and 5 div 2 is the value
- * that differs.
- *
- * It is not prefix syntax, though: in Standard ML "~" is an ordinary
- * function and "~e" applies it, so "~f x" is "(~ f) x" -- application
- * is left-associative -- rather than a negation of the call. *)
+ * that differs. Application binds tighter still: "~f x" negates the
+ * result of the call. *)
 Sys.parseTree "~x";
 > val it = "(negate (id x))" : string
 Sys.parseTree "~x * 2";
@@ -143,14 +167,10 @@ let val x = 5 in ~x div 2 end;
 > val it = ~3 : int
 Sys.parseTree "~~x";
 > val it = "(negate (negate (id x)))" : string
-Sys.parseTree "~f x";
-> val it = "(apply (negate (id f)) (id x))" : string
 Sys.parseTree "~a + b";
 > val it = "(plus (negate (id a)) (id b))" : string
 Sys.parseTree "1 + ~a";
 > val it = "(plus (int_literal 1) (negate (id a)))" : string
-Sys.parseTree "~f x";
-> val it = "(apply (negate (id f)) (id x))" : string
 
 (*) Conditionals
 Sys.parseTree "if a then b else c";

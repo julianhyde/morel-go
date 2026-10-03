@@ -408,6 +408,19 @@ func (u *unparser) apply(e *core.Apply, left, right int) {
 	}
 	fnText, ok := u.applyFnText(e)
 	l, r := binding(precApply, 'l')
+	if id, isID := e.Fn.(*core.ID); isID {
+		if op, _, _ := infixName(id.Pat.Name); op != "" {
+			// An infix operator applied to something other than a
+			// pair is not an infix call; it is written as an
+			// application of the operator's name: "`op +` p".
+			fnText, ok = "`"+id.Pat.Name+"`", true
+		}
+	}
+	if fnText == "~" {
+		// A prefix operator has no left operand, so anything to
+		// its left parenthesizes it: "2 * (~ x)", never "2 * ~ x".
+		l = 0
+	}
 	u.wrap(left, right, l, r, func() {
 		if ok {
 			u.put(fnText)
@@ -435,6 +448,13 @@ func (u *unparser) applyFnText(e *core.Apply) (string, bool) {
 		name := fn.Pat.Name
 		if name == notName {
 			return notName, true
+		}
+		if name == opNegate {
+			// A prefix operator, written before its one operand;
+			// it binds more tightly than any binary operator, so
+			// "~ $0 + 1" needs no parentheses and "~ ($0 + 1)"
+			// keeps them.
+			return "~", true
 		}
 		qualified := planFnName(name, fn.Pat.T)
 		if strings.Contains(qualified, ".") {
