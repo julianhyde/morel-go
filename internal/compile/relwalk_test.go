@@ -249,7 +249,7 @@ func TestUnparseLowersNode(t *testing.T) {
 		Pat: &core.IDPat{T: tree.Type(), Name: "it"}, Exp: tree,
 	}
 	got := UnparseDecl(sys, decl)
-	want := "val it = from w$0 in [1, 2, 3] take 2"
+	want := "val it = from v$0 in [1, 2, 3] take 2"
 	if got != want {
 		t.Errorf("unparse of a tree:\n got %s\nwant %s", got, want)
 	}
@@ -288,7 +288,7 @@ func TestInlinerRewritesNode(t *testing.T) {
 	}
 	out := Inline(sys, decl, env, 2)
 	got := UnparseDecl(sys, out)
-	want := "val it = from w$0 in [1, 2, 3] order w$0"
+	want := "val it = from v$0 in [1, 2, 3] order v$0"
 	if got != want {
 		t.Errorf("the inliner should substitute into the node:"+
 			"\n got %s\nwant %s", got, want)
@@ -348,10 +348,10 @@ func TestTranslateBindsNestedTree(t *testing.T) {
 	// The element is bound, and the nested tree reads the name.
 	// Without the binder the nested tree says "$0", which is its
 	// own element -- "e = e", which is always true.
-	if !strings.Contains(got, "val v$0 = ") {
+	if !strings.Contains(got, "val v$1 = v$0 ") {
 		t.Errorf("no binder minted for the nested tree: %s", got)
 	}
-	if strings.Contains(got, "w$1 = w$1") {
+	if strings.Contains(got, "v$2, v$2") {
 		t.Errorf("the nested tree captured the element: %s", got)
 	}
 }

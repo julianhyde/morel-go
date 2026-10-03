@@ -235,7 +235,7 @@ func (l *lowerer) join(b *lowerBuilder, j *core.Join) core.Exp {
 	// what the lowering made of it: a dependent join substitutes
 	// its binder in first, and the result is a collection nothing
 	// named.
-	pat := l.scanPat(j.Right, rightElem)
+	pat := l.scanPat(j.Right, rightElem, "$1")
 	scan := &core.Scan{
 		Pat: pat, Exp: right, Join: joinOpOf(j.Kind),
 	}
@@ -389,7 +389,9 @@ func setOpOf(kind core.SetKind) ast.Op {
 
 // scanPat is what to call a scan's binder: the pattern the caller
 // gave the collection, where it gave one and the type agrees, and
-// otherwise a fresh name.
+// otherwise input, the name the tree gives that element: "$0", or
+// "$1" for a join's right input. Binders are told apart by
+// identity, so many may share that name; a plan numbers them.
 //
 // A pattern rather than a name, because one generator may bound
 // several leaves -- "(x, y) elem pairs" bounds both -- and the
@@ -397,12 +399,12 @@ func setOpOf(kind core.SetKind) ast.Op {
 // under one name and reading the components back out would lose
 // the names the query wrote, where a pattern of them keeps both.
 func (l *lowerer) scanPat(collection core.Exp,
-	elem types.Type,
+	elem types.Type, input string,
 ) core.Pat {
 	if pat, ok := l.names[collection]; ok && pat.Type() == elem {
 		return pat
 	}
-	return l.freshPat(elem)
+	return &core.IDPat{T: elem, Name: input}
 }
 
 // freshPat creates a binder the lowering needs and the query did
@@ -518,7 +520,7 @@ func (b *lowerBuilder) scan(l *lowerer, collection core.Exp,
 		l.decline("scan over a non-collection")
 		return nil
 	}
-	pat := l.scanPat(collection, elem)
+	pat := l.scanPat(collection, elem, "$0")
 	if steps := splicedSteps(lowered, pat); steps != nil &&
 		len(b.steps) == 0 {
 		// The collection is a query that scans what we were about

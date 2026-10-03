@@ -3383,6 +3383,10 @@ yield {r1.j, r1.s};
 > val it =
 >   [{j=3,s=""},{j=4,s="m"},{j=5,s="mo"},{j=6,s="mor"},{j=7,s="more"},
 >    {j=8,s="morel"}] : {j:int, s:string} list
+Sys.plan();
+> val it =
+>   "from(sink join(pat v$0, exp apply2(fnValue List.tabulate, constant(6), match(i, tuple(stack(offset 1, name i), apply2(fnValue Int.+, stack(offset 1, name i), constant(3)), apply3(fnValue String.substring, constant(morel), constant(0), stack(offset 1, name i))))), sink collect(tuple(apply(fnValue nth:1, argCode stack(offset 1, name $0)), apply(fnValue nth:2, argCode stack(offset 1, name $0))))))"
+>   : string
 
 
 Sys.set ("hybrid", true);
@@ -3417,6 +3421,10 @@ in
   yield e139.name
 end;
 > val it = ["Shaggy","Scooby"] : string list
+Sys.plan();
+> val it =
+>   "from(sink join(pat v$0, exp constant([[10, 100, Fred], [20, 101, Velma], [30, 102, Shaggy], [30, 103, Scooby]]), sink where(condition apply2(fnValue =, apply(fnValue nth:0, argCode stack(offset 1, name $0)), constant(30)), sink collect(apply(fnValue nth:2, argCode stack(offset 1, name $0))))))"
+>   : string
 
 (* Same, via a predicate
  * (Funky variable names like 'e140' are just to ensure stable plans.) *)
@@ -3429,6 +3437,10 @@ in
   yield e142.name
 end;
 > val it = ["Shaggy","Scooby"] : string list
+Sys.plan();
+> val it =
+>   "from(sink join(pat v$0, exp constant([[10, 100, Fred], [20, 101, Velma], [30, 102, Shaggy], [30, 103, Scooby]]), sink where(condition apply2(fnValue =, apply(fnValue nth:0, argCode stack(offset 1, name $0)), constant(30)), sink collect(apply(fnValue nth:2, argCode stack(offset 1, name $0))))))"
+>   : string
 
 (*) into and through
 from i in [1,2,3]

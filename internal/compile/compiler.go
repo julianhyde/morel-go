@@ -58,9 +58,10 @@ func Statement(decl core.Decl,
 	values map[string]eval.Val, sys *types.System,
 ) (*Compiled, error) {
 	c := &compiler{
-		values: values,
-		slots:  map[*core.IDPat]int{},
-		sys:    sys,
+		values:    values,
+		slots:     map[*core.IDPat]int{},
+		sys:       sys,
+		planNames: new(int),
 	}
 	var code, plan eval.Code
 	var ids []*core.IDPat
@@ -129,6 +130,10 @@ type compiler struct {
 	sys      *types.System
 	captures []eval.Capture
 	nSlots   int
+	// planNames counts the scan binders named after a node's
+	// input, which the plan numbers in the order it prints them.
+	// One count serves a statement and every function inside it.
+	planNames *int
 }
 
 // resolveSlot returns the frame slot of a variable. A variable
@@ -941,6 +946,7 @@ func (c *compiler) compileStep(step core.FromStep,
 		}
 		return &eval.OrderStage{Key: key}, nil
 	case *core.Scan:
+		name := c.scanName(s.Pat)
 		source, err := c.compileExp(s.Exp)
 		if err != nil {
 			return nil, err
@@ -971,9 +977,7 @@ func (c *compiler) compileStep(step core.FromStep,
 			}, nil
 		}
 		*scanPats = append(*scanPats, s.Pat)
-		return &eval.ScanStage{
-			Source: source, Pat: pat, Name: corePatDesc(s.Pat),
-		}, nil
+		return &eval.ScanStage{Source: source, Pat: pat, Name: name}, nil
 	case *core.SetOp:
 		return c.compileSetOp(s, *scanPats)
 	case *core.SkipStep:
@@ -1166,10 +1170,11 @@ func sortedVarIDs(pats []core.Pat) []*core.IDPat {
 // body referenced from enclosing scopes.
 func (c *compiler) compileFn(fn *core.Fn) (eval.Code, error) {
 	inner := &compiler{
-		values: c.values,
-		slots:  map[*core.IDPat]int{},
-		parent: c,
-		sys:    c.sys,
+		values:    c.values,
+		slots:     map[*core.IDPat]int{},
+		parent:    c,
+		sys:       c.sys,
+		planNames: c.planNames,
 	}
 	param, err := inner.compilePat(fn.IDPat)
 	if err != nil {
@@ -1324,6 +1329,24 @@ func (c *compiler) compileCase(caseExp *core.Case, tail bool) (
 		}
 	}
 	return eval.Case(scrutinee, clauses, caseExp.Span, tail), nil
+}
+
+// scanName is how the plan writes a scan's pattern. A binder
+// named after a node's input, "$0" or "$1", is "v$" and its
+// position among such binders in the plan, so that the text does
+// not depend on how the binder came to be; reads of it remain
+// "$0" and "$1".
+func (c *compiler) scanName(p core.Pat) string {
+	if id, isID := p.(*core.IDPat); isID &&
+		(id.Name == "$0" || id.Name == "$1") {
+		if c.planNames == nil {
+			c.planNames = new(int)
+		}
+		n := *c.planNames
+		*c.planNames++
+		return "v$" + strconv.Itoa(n)
+	}
+	return corePatDesc(p)
 }
 
 // corePatDesc renders a core pattern as the compiled plan shows it,

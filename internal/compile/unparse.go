@@ -278,8 +278,12 @@ func (u *unparser) name(pat *core.IDPat) {
 // genPrefix splits a generated name into its prefix and reports
 // whether it is one: "v$12" is generated with prefix "v", and
 // "x" is not. Each prefix is numbered in its own sequence, so a
-// tree's "v$" and a lowering's "w$" do not interleave.
+// tree's "v$" and a lowering's "w$" do not interleave. A binder
+// named after a node's input, "$0" or "$1", is a "v$" too.
 func genPrefix(name string) (string, bool) {
+	if name == "$0" || name == "$1" {
+		return "v", true
+	}
 	i := strings.IndexByte(name, '$')
 	if i <= 0 || i == len(name)-1 {
 		return "", false
