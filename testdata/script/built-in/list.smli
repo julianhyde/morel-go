@@ -352,6 +352,10 @@ List.mapi;
 > val it = fn : (int * 'a -> 'b) -> 'a list -> 'b list
 List.mapi (fn (i, s) => String.sub (s, i)) ["abc", "xyz"];
 > val it = [#"a",#"y"] : char list
+Sys.plan ();
+> val it =
+>   "apply2(fnValue List.mapi, match(v, tailApply(fnCode match((i, s), apply2(fnValue String.sub, stack(offset 1, name s), stack(offset 2, name i))), argCode stack(offset 1, name v))), tuple(constant(abc), constant(xyz)))"
+>   : string
 
 (*) val map : ('a -> 'b) -> 'a list -> 'b list
 List.map;
@@ -514,5 +518,9 @@ List.collate (fn (x, y) => if x < y then LESS else if x = y then EQUAL else GREA
 > val it = GREATER : order
 List.collate (fn (x, y) => if x < y then LESS else if x = y then EQUAL else GREATER) ([], []);
 > val it = EQUAL : order
+Sys.plan ();
+> val it =
+>   "apply2(fnValue List.collate, match(v, tailApply(fnCode match((x, y), tailApply(fnCode match(true, constant([LESS]), _, tailApply(fnCode match(true, constant([EQUAL]), _, constant([GREATER])), argCode apply2(fnValue =, stack(offset 2, name x), stack(offset 1, name y)))), argCode apply2(fnValue <, stack(offset 2, name x), stack(offset 1, name y)))), argCode stack(offset 1, name v))), tuple(tuple, tuple))"
+>   : string
 
 (*) End list.smli

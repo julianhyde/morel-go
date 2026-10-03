@@ -85,14 +85,18 @@ func ConstantValue(code Code) (Val, bool) {
 	return nil, false
 }
 
-// GetSlot returns code that reads a variable's slot.
-func GetSlot(slot int, name string) Code {
-	return &getCode{slot: slot, name: name}
+// GetSlot returns code that reads a variable's slot. Offset is
+// where the plan says the variable is: its distance from the top
+// of morel-java's stack, which lays out variables differently
+// from a frame; 0 where it is not on that stack.
+func GetSlot(slot, offset int, name string) Code {
+	return &getCode{slot: slot, offset: offset, name: name}
 }
 
 type getCode struct {
-	name string
-	slot int
+	name   string
+	slot   int
+	offset int
 }
 
 func (c *getCode) Eval(f *Frame) (Val, error) {
@@ -100,11 +104,11 @@ func (c *getCode) Eval(f *Frame) (Val, error) {
 }
 
 func (c *getCode) Describe() string {
-	// The plan describes a local by its frame slot, 1-based: the
-	// parameter (slot 0, allocated first) is offset 1, the next
-	// local offset 2, and so on. This is a fixed slot index counted
-	// from the frame's base, not a live stack depth from the top.
-	return "stack(offset " + strconv.Itoa(c.slot+1) +
+	offset := c.offset
+	if offset == 0 {
+		offset = c.slot + 1
+	}
+	return "stack(offset " + strconv.Itoa(offset) +
 		", name " + c.name + ")"
 }
 

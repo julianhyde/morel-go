@@ -134,6 +134,18 @@ type compiler struct {
 	// input, which the plan numbers in the order it prints them.
 	// One count serves a statement and every function inside it.
 	planNames *int
+	// layout is where each variable would be on morel-java's
+	// stack, which the plan's offsets count; see stackLayout.
+	layout *stackLayout
+	// recPeers are the bindings of the recursive declaration
+	// whose expressions are being compiled; a function among them
+	// has a slot for each.
+	recPeers []*core.IDPat
+	// letCase is the case that a let of a pattern became, "let
+	// val v = e in case v of pat => body end", which morel-java
+	// compiles as the let it was, pushing the pattern's variables
+	// rather than starting a frame.
+	letCase *core.Case
 }
 
 // resolveSlot returns the frame slot of a variable. A variable
@@ -222,7 +234,8 @@ func (c *compiler) compileExp(exp core.Exp) (eval.Code, error) {
 		return c.compileFrom(e)
 	case *core.ID:
 		if slot, ok := c.resolveSlot(e.Pat); ok {
-			return eval.GetSlot(slot, e.Pat.Name), nil
+			return eval.GetSlot(slot, c.layout.offset(e.Pat),
+				e.Pat.Name), nil
 		}
 		if sumType, ok := sumRef(e); ok {
 			// A bare "sum", as in "group i compute sum", is a
@@ -260,7 +273,7 @@ func (c *compiler) compileExp(exp core.Exp) (eval.Code, error) {
 		if !ok {
 			return nil, &Error{Msg: "'ordinal' has no query"}
 		}
-		return eval.GetSlot(slot, ordinalName), nil
+		return eval.GetSlot(slot, 0, ordinalName), nil
 	case *core.RangeList:
 		return c.compileRangeList(e)
 	case *core.Selector:
@@ -729,7 +742,8 @@ func (c *compiler) compileFrom(from *core.From) (eval.Code, error) {
 	if from.Ordinal != nil {
 		ordinalSlot = c.allocSlot(from.Ordinal)
 	}
-	b := &fromBuilder{c: c}
+	b := &fromBuilder{c: c, base: c.layout}
+	defer func() { c.layout = b.base }()
 	for _, step := range from.Steps {
 		err := b.add(step)
 		if err != nil {
@@ -745,6 +759,7 @@ func (c *compiler) compileFrom(from *core.From) (eval.Code, error) {
 		}
 	}
 	query := eval.From(b.allSlots, b.stages, collect, ordinalSlot)
+	c.layout = b.base
 	if b.intoFn != nil {
 		fn, err := c.compileExp(b.intoFn)
 		if err != nil {
@@ -772,6 +787,9 @@ type fromBuilder struct {
 	allSlots []int
 	yieldExp core.Exp
 	intoFn   core.Exp
+	// base is the stack layout below the query, which a step
+	// that replaces the row returns to.
+	base *stackLayout
 }
 
 // add compiles one query step into the builder.
@@ -822,6 +840,11 @@ func (b *fromBuilder) add(step core.FromStep) error {
 
 // rebind adds a stage that replaces the current row with new fields.
 func (b *fromBuilder) rebind(stage eval.FromStage, outPats []core.Pat) {
+	ids := make([]*core.IDPat, 0, len(outPats))
+	for _, p := range outPats {
+		ids = append(ids, core.PatIDs(p)...)
+	}
+	b.c.layout = b.base.push(ids)
 	b.stages = append(b.stages, stage)
 	b.rowPats = outPats
 	b.allSlots = append(b.allSlots, b.c.patSlots(outPats)...)
@@ -951,6 +974,7 @@ func (c *compiler) compileStep(step core.FromStep,
 		if err != nil {
 			return nil, err
 		}
+		c.layout = c.layout.push(core.PatIDs(s.Pat))
 		pat, err := c.compilePat(s.Pat)
 		if err != nil {
 			return nil, err
@@ -1122,11 +1146,12 @@ var setOpKinds = map[ast.Op]eval.SetOpKind{
 func (c *compiler) rowCode(pats []core.Pat, elem types.Type) eval.Code {
 	ids := sortedVarIDs(pats)
 	if len(ids) == 1 && !singletonRecord(elem, ids[0].Name) {
-		return eval.GetSlot(c.slots[ids[0]], ids[0].Name)
+		return eval.GetSlot(c.slots[ids[0]], c.layout.offset(ids[0]),
+			ids[0].Name)
 	}
 	args := make([]eval.Code, len(ids))
 	for i, id := range ids {
-		args[i] = eval.GetSlot(c.slots[id], id.Name)
+		args[i] = eval.GetSlot(c.slots[id], c.layout.offset(id), id.Name)
 	}
 	return eval.Tuple(args)
 }
@@ -1175,6 +1200,9 @@ func (c *compiler) compileFn(fn *core.Fn) (eval.Code, error) {
 		parent:    c,
 		sys:       c.sys,
 		planNames: c.planNames,
+		layout: c.layout.frame(&rewriter{sys: c.sys},
+			[]core.Exp{fn.Exp}, [][]*core.IDPat{{fn.IDPat}},
+			c.recPeers)[0],
 	}
 	param, err := inner.compilePat(fn.IDPat)
 	if err != nil {
@@ -1314,11 +1342,18 @@ func (c *compiler) compileCase(caseExp *core.Case, tail bool) (
 	if err != nil {
 		return nil, err
 	}
+	frames := c.caseFrames(caseExp)
+	layout, recPeers := c.layout, c.recPeers
+	defer func() { c.layout, c.recPeers = layout, recPeers }()
 	clauses := make([]eval.MatchClause, len(caseExp.Matches))
 	for i, m := range caseExp.Matches {
 		pat, err := c.compilePat(m.Pat)
 		if err != nil {
 			return nil, err
+		}
+		c.layout = frames[i]
+		if caseExp != c.letCase {
+			c.recPeers = nil
 		}
 		body, err := c.compileBody(m.Exp, tail)
 		if err != nil {
@@ -1329,6 +1364,22 @@ func (c *compiler) compileCase(caseExp *core.Case, tail bool) (
 		}
 	}
 	return eval.Case(scrutinee, clauses, caseExp.Span, tail), nil
+}
+
+// caseFrames is the layout each arm of a case starts with. An arm
+// is a frame of its own, as a function is, except in the case a
+// let of a pattern became, whose one arm pushes its variables.
+func (c *compiler) caseFrames(caseExp *core.Case) []*stackLayout {
+	pats := make([][]*core.IDPat, len(caseExp.Matches))
+	exps := make([]core.Exp, len(caseExp.Matches))
+	for i, m := range caseExp.Matches {
+		pats[i] = core.PatIDs(m.Pat)
+		exps[i] = m.Exp
+	}
+	if caseExp == c.letCase {
+		return []*stackLayout{c.layout.push(pats[0])}
+	}
+	return c.layout.frame(&rewriter{sys: c.sys}, exps, pats, c.recPeers)
 }
 
 // scanName is how the plan writes a scan's pattern. A binder
@@ -1554,7 +1605,14 @@ func (c *compiler) compileLet(let *core.Let, tail bool) (eval.Code,
 		if err != nil {
 			return nil, err
 		}
+		layout, letCase := c.layout, c.letCase
+		if caseExp, ok := letOfPat(d, let.Exp); ok {
+			c.letCase = caseExp
+		} else {
+			c.layout = c.layout.push(core.PatIDs(d.Pat))
+		}
 		body, err := c.compileBody(let.Exp, tail)
+		c.layout, c.letCase = layout, letCase
 		if err != nil {
 			return nil, err
 		}
@@ -1566,21 +1624,44 @@ func (c *compiler) compileLet(let *core.Let, tail bool) (eval.Code,
 		// separate NonRecValDecl bindings the body already sees.
 		return c.compileBody(let.Exp, tail)
 	case *core.RecValDecl:
+		var peers []*core.IDPat
 		for _, bind := range d.Binds {
 			if idPat, ok := bind.Pat.(*core.IDPat); ok {
 				c.allocSlot(idPat)
 			}
+			peers = append(peers, core.PatIDs(bind.Pat)...)
 		}
+		layout := c.layout
+		c.layout = c.layout.push(peers)
 		body, err := c.compileBody(let.Exp, tail)
+		c.layout = layout
 		if err != nil {
 			return nil, err
 		}
+		recPeers := c.recPeers
+		c.recPeers = peers
+		defer func() { c.recPeers = recPeers }()
 		return c.compileRec(d, body)
 	default:
 		return nil, &Error{
 			Msg: "cannot compile " + let.Decl.Op().String(),
 		}
 	}
+}
+
+// letOfPat reports whether a let is the form a let of a pattern
+// becomes, "let val v = e in case v of pat => body end", and
+// returns the case.
+func letOfPat(d *core.NonRecValDecl, body core.Exp) (*core.Case, bool) {
+	caseExp, ok := body.(*core.Case)
+	if !ok || len(caseExp.Matches) != 1 {
+		return nil, false
+	}
+	id, ok := caseExp.Exp.(*core.ID)
+	if !ok || id.Pat != d.Pat {
+		return nil, false
+	}
+	return caseExp, true
 }
 
 // compileRec compiles a recursive declaration, giving every

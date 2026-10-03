@@ -308,6 +308,10 @@ Bag.fold (fn (a, b) => b) 0 (bag [1,2,3]);
 > val it = 0 : int
 Bag.fold (fn (a, b) => a - b) 0 (bag [1,2,3,4]);
 > val it = 2 : int
+Sys.plan ();
+> val it =
+>   "apply3(fnValue Bag.fold, match(v, tailApply(fnCode match((a, b), apply2(fnValue Int.-, stack(offset 2, name a), stack(offset 1, name b))), argCode stack(offset 1, name v))), constant(0), apply(fnValue Bag.fromList, argCode tuple(constant(1), constant(2), constant(3), constant(4))))"
+>   : string
 
 (*) val exists : ('a -> bool) -> 'a bag -> bool
 Bag.`exists`;
