@@ -348,10 +348,10 @@ func TestTranslateBindsNestedTree(t *testing.T) {
 	// The element is bound, and the nested tree reads the name.
 	// Without the binder the nested tree says "$0", which is its
 	// own element -- "e = e", which is always true.
-	if !strings.Contains(got, "val v$1 = v$0 ") {
+	if !strings.Contains(got, "val v$0 = e ") {
 		t.Errorf("no binder minted for the nested tree: %s", got)
 	}
-	if strings.Contains(got, "v$2, v$2") {
+	if strings.Contains(got, "v$1, v$1") {
 		t.Errorf("the nested tree captured the element: %s", got)
 	}
 }

@@ -110,6 +110,9 @@ type Filter struct {
 
 	Input     Exp
 	Condition Exp
+	// Name is the binder whose collection the input's element comes
+	// from, which names the node's id in plan text; see ElementName.
+	Name string
 }
 
 // Op implements Exp.
@@ -128,6 +131,8 @@ type Project struct {
 
 	Input Exp
 	Exp   Exp
+	// Name names the node's id, as Filter's does.
+	Name string
 }
 
 // Op implements Exp.
@@ -210,6 +215,11 @@ type Join struct {
 	Left      Exp
 	Right     Exp
 	Condition Exp
+	// LeftName and RightName are the binders whose collections the
+	// inputs' elements come from, which name the join's two ids in
+	// plan text, as Filter's Name does.
+	LeftName  string
+	RightName string
 }
 
 // Op implements Exp.
@@ -276,6 +286,8 @@ type Group struct {
 	// distinct.
 	Keys []RelGroupKey
 	Aggs []RelGroupAgg
+	// Name names the node's id, as Filter's does.
+	Name string
 }
 
 // Op implements Exp.
@@ -303,6 +315,8 @@ type Sort struct {
 	// reason, and morel-java's nodes are all built at position
 	// zero, so this is morel-go's to keep.
 	Span token.Span
+	// Name names the node's id, as Filter's does.
+	Name string
 }
 
 // Op implements Exp.
@@ -421,3 +435,50 @@ func (s *SetRel) OpName() string { return s.Kind.OpName() }
 
 // Inputs implements Rel.
 func (s *SetRel) Inputs() []Exp { return s.Args }
+
+// Named gives a node that reads its input's element one at a time --
+// a filter, a projection, a group, a sort -- the name of the binder
+// whose collection that element comes from, and returns the node. A
+// plan prints the node's id under that name: "filter e [#deptno e >
+// 20]" for "from e in emps where e.deptno > 20". Any other expression
+// is returned as it is.
+func Named(exp Exp, name string) Exp {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch r := exp.(type) {
+	case *Filter:
+		r.Name = name
+	case *Group:
+		r.Name = name
+	case *Project:
+		r.Name = name
+	case *Sort:
+		r.Name = name
+	}
+	return exp
+}
+
+// ElementName is the binder that names a tree's element, which a node
+// over it would take its name from: the name of a filter or a sort,
+// whose element is its input's; through a node that keeps its input's
+// element; and empty for a leaf, a join's pair, or what a projection
+// or a group builds.
+func ElementName(exp Exp) string {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch r := exp.(type) {
+	case *Filter:
+		return r.Name
+	case *SetRel:
+		if len(r.Args) > 0 {
+			return ElementName(r.Args[0])
+		}
+	case *Skip:
+		return ElementName(r.Input)
+	case *Sort:
+		return r.Name
+	case *Take:
+		return ElementName(r.Input)
+	case *Unorder:
+		return ElementName(r.Input)
+	}
+	return ""
+}

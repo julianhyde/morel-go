@@ -57,6 +57,10 @@ type lowerer struct {
 	// names is what to call the scan of a collection, by
 	// identity; see LowerRelNamed.
 	names map[core.Exp]core.Pat
+	// leafName is the name of the id of the node over the leaf the
+	// lowering reaches next, which names the leaf's scan; see
+	// scanPat.
+	leafName string
 }
 
 // LowerRel lowers a tree into an expression that executes, or
@@ -133,6 +137,20 @@ func (l *lowerer) into(b *lowerBuilder, exp core.Exp) core.Exp {
 	rel, isRel := exp.(core.Rel)
 	if !isRel {
 		return b.scan(l, exp)
+	}
+	// A leaf below a node is scanned under the name of the node's id.
+	// lint: sort until '^\t}' where '^\tcase '
+	switch r := rel.(type) {
+	case *core.Filter:
+		l.leafName = r.Name
+	case *core.Group:
+		l.leafName = r.Name
+	case *core.Join:
+		l.leafName = r.LeftName
+	case *core.Project:
+		l.leafName = r.Name
+	case *core.Sort:
+		l.leafName = r.Name
 	}
 	// lint: sort until '^\t}' where '^\tcase '
 	switch r := rel.(type) {
@@ -235,6 +253,7 @@ func (l *lowerer) join(b *lowerBuilder, j *core.Join) core.Exp {
 	// what the lowering made of it: a dependent join substitutes
 	// its binder in first, and the result is a collection nothing
 	// named.
+	l.leafName = j.RightName
 	pat := l.scanPat(j.Right, rightElem, "$1")
 	scan := &core.Scan{
 		Pat: pat, Exp: right, Join: joinOpOf(j.Kind),
@@ -404,7 +423,15 @@ func (l *lowerer) scanPat(collection core.Exp,
 	if pat, ok := l.names[collection]; ok && pat.Type() == elem {
 		return pat
 	}
-	return &core.IDPat{T: elem, Name: input}
+	name := input
+	if l.leafName != "" {
+		// Named after the node's id, between "$"s, so that it
+		// captures no name the query wrote, as the id does not; a
+		// plan prints it as the id's name. See planName.
+		name = "$" + l.leafName + "$"
+	}
+	l.leafName = ""
+	return &core.IDPat{T: elem, Name: name}
 }
 
 // freshPat creates a binder the lowering needs and the query did

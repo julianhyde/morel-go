@@ -285,12 +285,13 @@ func relHasTakeOrSkip(tree core.Exp) bool {
 // conditions conjoined, the lower one's first.
 func (x *relExpander) filterOf(input, condition core.Exp) core.Exp {
 	if filter, isFilter := input.(*core.Filter); isFilter {
-		return core.NewFilter(filter.Input,
+		return core.Named(core.NewFilter(filter.Input,
 			composeConjuncts(x.sys, []core.Exp{
 				filter.Condition, condition,
-			}))
+			})), filter.Name)
 	}
-	return core.NewFilter(input, condition)
+	return core.Named(core.NewFilter(input, condition),
+		core.ElementName(input))
 }
 
 // projectOf builds a projection as morel-java's relational builder
@@ -302,10 +303,11 @@ func (x *relExpander) projectOf(input, exp core.Exp) core.Exp {
 		return input
 	}
 	if project, isProject := input.(*core.Project); isProject {
-		return core.NewProject(x.sys, project.Input,
-			x.subst(exp, project.Exp, nil))
+		return core.Named(core.NewProject(x.sys, project.Input,
+			x.subst(exp, project.Exp, nil)), project.Name)
 	}
-	return core.NewProject(x.sys, input, exp)
+	return core.Named(core.NewProject(x.sys, input, exp),
+		core.ElementName(input))
 }
 
 // trueLiteral is the boolean literal true.
@@ -335,7 +337,8 @@ func (x *relExpander) expand(exp core.Exp,
 		if input == nil {
 			return nil
 		}
-		return core.NewGroup(x.sys, input, e.Keys, e.Aggs)
+		return core.Named(core.NewGroup(x.sys, input, e.Keys, e.Aggs),
+			e.Name)
 	case *core.Join:
 		return x.expandJoinTree(e, conditions)
 	case *core.Project:
@@ -362,7 +365,8 @@ func (x *relExpander) expand(exp core.Exp,
 		if input == nil {
 			return nil
 		}
-		return core.NewSort(x.sys, input, e.Exp, e.Span)
+		return core.Named(core.NewSort(x.sys, input, e.Exp, e.Span),
+			e.Name)
 	case *core.Take:
 		input := x.expand(e.Input, conditions)
 		if input == nil {
@@ -469,7 +473,14 @@ func (x *relExpander) expandProject(e *core.Project,
 		// are not at all.
 		return input
 	}
-	return x.projectOf(input, e.Exp)
+	// The projection is the query's own, and keeps its id's name
+	// whatever grounding put below it.
+	out := x.projectOf(input, e.Exp)
+	if project, isProject := out.(*core.Project); isProject &&
+		project.Input == input {
+		project.Name = e.Name
+	}
+	return out
 }
 
 // expandJoinTree grounds every extent leaf of a join tree at once,
@@ -591,8 +602,8 @@ func (x *relExpander) expandJoinTree2(join *core.Join,
 			return nil
 		}
 		x.leafNames = outerLeafNames
-		return core.NewJoin(x.sys, join.Kind, join.Binder, left, right,
-			join.Condition)
+		return namedJoin(core.NewJoin(x.sys, join.Kind, join.Binder,
+			left, right, join.Condition), join.LeftName, join.RightName)
 	}
 	ungrounded := map[*core.IDPat]bool{}
 	for _, extent := range extents {
@@ -839,8 +850,8 @@ func (x *relExpander) rebuild(node core.Exp, frame *relFrame,
 	if left == nil || right2 == nil {
 		return nil
 	}
-	return core.NewJoin(x.sys, join.Kind, join.Binder, left, right2,
-		join.Condition)
+	return namedJoin(core.NewJoin(x.sys, join.Kind, join.Binder, left,
+		right2, join.Condition), join.LeftName, join.RightName)
 }
 
 // rebuildFilter rebuilds a filter. Its conjuncts were grounded
@@ -921,6 +932,9 @@ func (x *relExpander) rebuildDependent(join *core.Join,
 	if left == nil {
 		return nil
 	}
+	// The join reads its left element through a binder it did not
+	// have, so it is a join of its own, and no binder names either
+	// side.
 	return core.NewJoin(x.sys, join.Kind, param, left, collection,
 		join.Condition)
 }
@@ -1148,8 +1162,16 @@ func (c *relChain) add(g *generator) {
 	if len(conditions) > 0 {
 		condition = composeConjuncts(x.sys, conditions)
 	}
-	c.exp = core.NewJoin(x.sys, core.InnerJoin, binder, c.exp, right,
-		condition)
+	// The left side is named after its one generator's pattern, until
+	// a second makes it a pair; the right after its own.
+	leftName := ""
+	if c.leaves == 1 {
+		for _, b := range c.bindings {
+			leftName = patName(b.pat)
+		}
+	}
+	c.exp = namedJoin(core.NewJoin(x.sys, core.InnerJoin, binder, c.exp,
+		right, condition), leftName, patName(g.pat))
 	for _, p := range core.PatIDs(g.pat) {
 		if _, bound := c.bindings[p]; !bound {
 			c.bindings[p] = chainBinding{k: c.leaves, pat: g.pat}
@@ -1281,9 +1303,16 @@ func (x *relExpander) dedupNamed(collection core.Exp,
 	pat *core.IDPat,
 ) core.Exp {
 	elem := types.ElemOf(collection.Type())
-	group := core.NewGroup(x.sys, collection, []core.RelGroupKey{{
-		Label: pat.Name, Exp: core.NewInput(elem, 0), Pat: pat,
-	}}, nil)
+	// A leaf is named after the pattern that scans it; a tree's
+	// element is named, if at all, by the tree.
+	name := patName(pat)
+	if _, isRel := collection.(core.Rel); isRel {
+		name = core.ElementName(collection)
+	}
+	group := core.Named(core.NewGroup(x.sys, collection,
+		[]core.RelGroupKey{{
+			Label: pat.Name, Exp: core.NewInput(elem, 0), Pat: pat,
+		}}, nil), name)
 	project := x.projectOf(group,
 		fieldAt(x.sys, core.NewInput(types.ElemOf(group.Type()), 0), 0))
 	return core.NewSort(x.sys, project, core.NewInput(elem, 0), token.Span{})
@@ -1568,8 +1597,15 @@ func (x *relExpander) bounded(pat core.Pat, cache *relCache,
 			product = component
 			continue
 		}
-		product = core.NewJoin(x.sys, core.InnerJoin, nil, product, component,
-			trueLiteral(x.sys))
+		// Each component is named after its name, and a pair after
+		// nothing.
+		leftName := ""
+		if _, isJoin := product.(*core.Join); !isJoin && name != names[0] {
+			leftName = patName(names[0])
+		}
+		product = namedJoin(core.NewJoin(x.sys, core.InnerJoin, nil,
+			product, component, trueLiteral(x.sys)), leftName,
+			patName(name))
 	}
 	return product
 }
@@ -2326,4 +2362,10 @@ func relDebugExp(sys *types.System, e core.Exp) string {
 	u := &unparser{sys: sys, seen: map[string][]*core.IDPat{}}
 	u.exp(e, 0, 0)
 	return u.render()
+}
+
+// namedJoin names a join's two ids, and returns it.
+func namedJoin(join *core.Join, leftName, rightName string) *core.Join {
+	join.LeftName, join.RightName = leftName, rightName
+	return join
 }

@@ -235,7 +235,7 @@ func (c *compiler) compileExp(exp core.Exp) (eval.Code, error) {
 	case *core.ID:
 		if slot, ok := c.resolveSlot(e.Pat); ok {
 			return eval.GetSlot(slot, c.layout.offset(e.Pat),
-				e.Pat.Name), nil
+				planName(e.Pat.Name)), nil
 		}
 		if sumType, ok := sumRef(e); ok {
 			// A bare "sum", as in "group i compute sum", is a
@@ -1147,11 +1147,12 @@ func (c *compiler) rowCode(pats []core.Pat, elem types.Type) eval.Code {
 	ids := sortedVarIDs(pats)
 	if len(ids) == 1 && !singletonRecord(elem, ids[0].Name) {
 		return eval.GetSlot(c.slots[ids[0]], c.layout.offset(ids[0]),
-			ids[0].Name)
+			planName(ids[0].Name))
 	}
 	args := make([]eval.Code, len(ids))
 	for i, id := range ids {
-		args[i] = eval.GetSlot(c.slots[id], c.layout.offset(id), id.Name)
+		args[i] = eval.GetSlot(c.slots[id], c.layout.offset(id),
+			planName(id.Name))
 	}
 	return eval.Tuple(args)
 }
@@ -1400,6 +1401,17 @@ func (c *compiler) scanName(p core.Pat) string {
 	return corePatDesc(p)
 }
 
+// planName is the name a variable prints under in a plan: the id's
+// name for the scan a lowering named after a node's id, "r1" for
+// "$r1$", and otherwise the variable's own.
+func planName(name string) string {
+	if len(name) > 2 && strings.HasPrefix(name, "$") &&
+		strings.HasSuffix(name, "$") {
+		return name[1 : len(name)-1]
+	}
+	return name
+}
+
 // corePatDesc renders a core pattern as the compiled plan shows it,
 // keeping the variable names the compiled pattern discards.
 func corePatDesc(p core.Pat) string {
@@ -1414,7 +1426,7 @@ func corePatDesc(p core.Pat) string {
 	case *core.ConsPat:
 		return corePatDesc(p.Head) + " :: " + corePatDesc(p.Tail)
 	case *core.IDPat:
-		return p.Name
+		return planName(p.Name)
 	case *core.ListPat:
 		return "[" + joinPatDesc(p.Args) + "]"
 	case *core.LiteralPat:
