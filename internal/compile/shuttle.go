@@ -134,7 +134,7 @@ func (r *rewriter) rewriteRel(rel core.Rel) core.Exp {
 		if input == e.Input && cond == e.Condition {
 			return e
 		}
-		return core.NewFilter(input, cond)
+		return core.Named(core.NewFilter(input, cond), e.Name)
 	case *core.Group:
 		return r.rewriteGroupRel(e)
 	case *core.Join:
@@ -144,13 +144,15 @@ func (r *rewriter) rewriteRel(rel core.Rel) core.Exp {
 			cond == e.Condition {
 			return e
 		}
-		return core.NewJoin(sys, e.Kind, e.Binder, left, right, cond)
+		join := core.NewJoin(sys, e.Kind, e.Binder, left, right, cond)
+		join.LeftName, join.RightName = e.LeftName, e.RightName
+		return join
 	case *core.Project:
 		input, exp := r.rewriteExp(e.Input), r.rewriteExp(e.Exp)
 		if input == e.Input && exp == e.Exp {
 			return e
 		}
-		return core.NewProject(sys, input, exp)
+		return core.Named(core.NewProject(sys, input, exp), e.Name)
 	case *core.SetRel:
 		if args, changed := r.rewriteExps(e.Args); changed {
 			return core.NewSetRel(sys, e.Kind, e.Distinct, args)
@@ -167,7 +169,7 @@ func (r *rewriter) rewriteRel(rel core.Rel) core.Exp {
 		if input == e.Input && exp == e.Exp {
 			return e
 		}
-		return core.NewSort(sys, input, exp, e.Span)
+		return core.Named(core.NewSort(sys, input, exp, e.Span), e.Name)
 	case *core.Take:
 		input, count := r.rewriteExp(e.Input), r.rewriteExp(e.Count)
 		if input == e.Input && count == e.Count {
@@ -283,7 +285,7 @@ func (r *rewriter) rewriteGroupRel(e *core.Group) core.Exp {
 	if !changed {
 		return e
 	}
-	return core.NewGroup(r.sys, input, keys, aggs)
+	return core.Named(core.NewGroup(r.sys, input, keys, aggs), e.Name)
 }
 
 // rewriteRangeList rewrites the bounds of a range list.

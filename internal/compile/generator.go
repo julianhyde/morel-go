@@ -360,9 +360,40 @@ func existsQueryOf(sys *types.System, c core.Exp) *core.From {
 		relUnbindRow(sys, exists)).(*core.From); isFrom {
 		exists = unbound
 	}
+	exists = renamedExists(exists)
 	loweredRels[rel] = exists
 	return exists
 }
+
+// renamedExists is an "exists" query read back from a tree, with each
+// variable its scans bind given a generated name, "w$0", as
+// morel-java's derivation names the scans it reads off the body's
+// tree (FlatQuery): the variables are the body's, and what the
+// derivation builds from them is not the query's to name.
+func renamedExists(from *core.From) *core.From {
+	if renamed, done := renamedFroms[from]; done {
+		return renamed
+	}
+	fresh := map[*core.IDPat]*core.IDPat{}
+	renamed, isFrom := cloneExp(from, fresh).(*core.From)
+	if !isFrom {
+		return from
+	}
+	for _, step := range renamed.Steps {
+		if scan, isScan := step.(*core.Scan); isScan {
+			for _, id := range core.PatIDs(scan.Pat) {
+				id.Name = "w$" + itoa(nestedNext)
+				nestedNext++
+			}
+		}
+	}
+	renamedFroms[from] = renamed
+	return renamed
+}
+
+// renamedFroms is each "exists" query as renamedExists renamed it, by
+// the query.
+var renamedFroms = map[*core.From]*core.From{}
 
 // loweredRels is each tree read back as a query, by the tree. The
 // lowering names the query's scans afresh, and a tree that two

@@ -1939,7 +1939,7 @@ func (r *resolver) toScanStep(cur *coreEnv,
 			// sourceless scan, which has no "on".
 			scan.On = on
 		} else {
-			steps = append(steps, &core.Where{Exp: on})
+			steps = append(steps, &core.Where{Exp: on, On: true})
 		}
 	}
 	// An outer join's nullable variables are option-typed

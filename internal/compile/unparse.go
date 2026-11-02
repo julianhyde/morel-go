@@ -138,8 +138,10 @@ type unparser struct {
 	frames  []frame
 	width   int
 
-	// gen and genCount renumber generated binders; see name.
+	// gen, genNames and genCount renumber generated binders; see
+	// name.
 	gen      map[*core.IDPat]string
+	genNames map[string]string
 	genCount map[string]int
 	// treeMode is whether a relational node breaks out onto lines
 	// of its own, which is what plan text prints; see relTree.
@@ -156,6 +158,18 @@ type unparser struct {
 	// boundInPlan is every variable the plan binds, which is what
 	// distinguishes a fragment's parameter from a global it names.
 	boundInPlan map[*core.IDPat]bool
+	// visibleIDs are the names of the ids in scope where the writer
+	// is: the enclosing nodes' while a node's line is written, and a
+	// join's left id while its right input is. A node's id is named
+	// so as not to be one of them; see bindIDs.
+	visibleIDs []string
+	// inputNames are the names of the current node's ids, which its
+	// expressions read as "$0" and "$1"; nil outside a node.
+	inputNames []string
+	// binderNames is the id a dependent join's binder prints as: the
+	// join's left id, which its right input reads through the
+	// binder.
+	binderNames map[*core.IDPat]string
 	// inlined is whether the expression has been through the
 	// inliner. morel-java's inliner replaces "elem" and "notelem"
 	// with calls that its printer writes as "op elem (a, b)", where
@@ -259,20 +273,26 @@ func (u *unparser) render() string {
 // two nested trees may each allocate "v$0", and a printer sees
 // the whole text and numbers what it finds.
 func (u *unparser) name(pat *core.IDPat) {
+	if id, isID := u.binderNames[pat]; isID {
+		u.put(id)
+		return
+	}
 	if prefix, isGen := genPrefix(pat.Name); isGen &&
 		os.Getenv("MOREL_REL_RAW") == "" {
 		u.put(u.genName(pat, prefix))
 		return
 	}
-	list := u.seen[pat.Name]
+	// A scan the lowering named after a node's id prints as the id.
+	name := planName(pat.Name)
+	list := u.seen[name]
 	for i, p := range list {
 		if p == pat {
-			u.put(suffixed(pat.Name, i))
+			u.put(suffixed(name, i))
 			return
 		}
 	}
-	u.seen[pat.Name] = append(list, pat)
-	u.put(suffixed(pat.Name, len(list)))
+	u.seen[name] = append(list, pat)
+	u.put(suffixed(name, len(list)))
 }
 
 // genPrefix splits a generated name into its prefix and reports
@@ -305,13 +325,29 @@ func (u *unparser) genName(pat *core.IDPat, prefix string) string {
 	if name, ok := u.gen[pat]; ok {
 		return name
 	}
+	name := u.genNameOf(pat.Name, prefix)
+	u.gen[pat] = name
+	return name
+}
+
+// genNameOf is the name a generated name prints as, its position in
+// its prefix's sequence. A generated name belongs to one binder, so the
+// name is as good a key as the binder; an id named after a generated
+// binder, which has no pattern of its own, prints the binder's number.
+func (u *unparser) genNameOf(name, prefix string) string {
+	if u.genNames == nil {
+		u.genNames = map[string]string{}
+	}
+	if printed, ok := u.genNames[name]; ok {
+		return printed
+	}
 	if u.genCount == nil {
 		u.genCount = map[string]int{}
 	}
-	name := prefix + "$" + strconv.Itoa(u.genCount[prefix])
+	printed := prefix + "$" + strconv.Itoa(u.genCount[prefix])
 	u.genCount[prefix]++
-	u.gen[pat] = name
-	return name
+	u.genNames[name] = printed
+	return printed
 }
 
 // realLiteralText renders a real literal as morel-java writes one:
@@ -396,7 +432,12 @@ func (u *unparser) exp(e core.Exp, left, right int) {
 		// "$0" is the element of the node's input, and "$1", for a
 		// join, the element of its right input. They are never
 		// record labels and never appear in an element type:
-		// fields are addressed by label, inputs by position.
+		// fields are addressed by label, inputs by position. A plan
+		// prints each under the name of the node's id for it.
+		if e.Ordinal < len(u.inputNames) {
+			u.put(u.inputNames[e.Ordinal])
+			return
+		}
 		u.put(e.Name())
 	case *core.Let:
 		u.wrap(left, right, 1, 1, func() { u.letExp(e) })
@@ -440,6 +481,10 @@ func (u *unparser) exp(e core.Exp, left, right int) {
 			u.exp(lowered, left, right)
 			return
 		}
+		// A node's "$0" is its own, not the enclosing node's.
+		saved := u.inputNames
+		u.inputNames = nil
+		defer func() { u.inputNames = saved }()
 		u.put(e.OpName())
 		u.relArgs(e)
 		for _, input := range e.Inputs() {

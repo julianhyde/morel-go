@@ -266,7 +266,7 @@ func distinctScan(sys *types.System, pat core.Pat,
 	return &core.From{
 		T: sys.List(pat.Type()),
 		Steps: []core.FromStep{
-			&core.Scan{Pat: elem, Exp: exp},
+			&core.Scan{Pat: elem, Exp: exp, Derived: true},
 			&core.Distinct{},
 			&core.Order{Exp: &core.ID{Pat: elem}},
 		},

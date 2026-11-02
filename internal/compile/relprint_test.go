@@ -117,19 +117,18 @@ func TestRelPlan(t *testing.T) {
 		rel  core.Exp
 		want string
 	}{{
-		// A leaf is a bare expression and holds no name: the
-		// binder "i" is gone, and the filter reads the element as
-		// "$0".
+		// A leaf is a bare expression and holds no name, and a
+		// node built without one prints its id as "r".
 		name: "from i in [1, 2, 3] where i > 1",
 		rel: core.NewFilter(ints,
 			f.binop("op >", core.NewInput(sys.Int, 0), f.i(1),
 				sys.Bool)),
 		want: "" +
-			"filter [$0 > 1] : int list\n" +
+			"filter r [r > 1] : int list\n" +
 			"  [1, 2, 3] : int list\n",
 	}, {
 		// The element type is read off the expression, so a field
-		// access prints as "#deptno $0". The type is 41
+		// access prints as "#deptno r". The type is 41
 		// characters, so it prints as a reference and once in the
 		// legend.
 		name: "a leaf whose element is a record",
@@ -139,8 +138,8 @@ func TestRelPlan(t *testing.T) {
 					sys.Bool)),
 			f.field(dept0, "dname")),
 		want: "" +
-			"project [#dname $0] : string bag\n" +
-			"  filter [#deptno $0 > 20] : t$0\n" +
+			"project r [#dname r] : string bag\n" +
+			"  filter r [#deptno r > 20] : t$0\n" +
 			"    depts : t$0\n" +
 			"\n" +
 			"t$0 {deptno:int, dname:string, loc:string} bag\n",
@@ -151,7 +150,7 @@ func TestRelPlan(t *testing.T) {
 		rel: core.NewProject(sys, ints,
 			core.NewInput(sys.Int, 0)),
 		want: "" +
-			"project : int list\n" +
+			"project r : int list\n" +
 			"  [1, 2, 3] : int list\n",
 	}, {
 		// An inner join's kind and a true condition are omitted;
@@ -162,7 +161,7 @@ func TestRelPlan(t *testing.T) {
 				T: sys.Bool, Kind: ast.BoolLiteralOp, Value: true,
 			}),
 		want: "" +
-			"join : (int * int) list\n" +
+			"join r r_1 : (int * int) list\n" +
 			"  [1, 2, 3] : int list\n" +
 			"  [1, 2, 3] : int list\n",
 	}, {
@@ -172,7 +171,7 @@ func TestRelPlan(t *testing.T) {
 			f.binop("op =", core.NewInput(sys.Int, 0),
 				core.NewInput(sys.Int, 1), sys.Bool)),
 		want: "" +
-			"join [left] [$0 = $1] : (int * int option) list\n" +
+			"join r r_1 [left] [r = r_1] : (int * int option) list\n" +
 			"  [1, 2, 3] : int list\n" +
 			"  [1, 2, 3] : int list\n",
 	}, {
@@ -190,7 +189,7 @@ func TestRelPlan(t *testing.T) {
 				T: sys.Int,
 			}}),
 		want: "" +
-			"group [loc = #loc $0] [c = count over ()] : " +
+			"group r [loc = #loc r] [c = count over ()] : " +
 			"{c:int, loc:string} bag\n" +
 			"  depts : t$0\n" +
 			"\n" +
@@ -227,9 +226,9 @@ func TestRelPlanWraps(t *testing.T) {
 	rel := core.NewProject(sys, core.NewFilter(depts, cond),
 		f.field(dept0, "dname"))
 	want := "" +
-		"project [#dname $0] : string bag\n" +
-		"  filter [#dname $0 = \"SALES\"\n" +
-		"      andalso #loc $0 = \"CHICAGO\"] : t$0\n" +
+		"project r [#dname r] : string bag\n" +
+		"  filter r [#dname r = \"SALES\"\n" +
+		"      andalso #loc r = \"CHICAGO\"] : t$0\n" +
 		"    depts : t$0\n" +
 		"\n" +
 		"t$0 {deptno:int, dname:string, loc:string} bag\n"
@@ -240,9 +239,9 @@ func TestRelPlanWraps(t *testing.T) {
 	// on its line: layout is not a function of the width for the
 	// tree, only for a node's own line.
 	wide := "" +
-		"project [#dname $0] : string bag\n" +
-		"  filter [#dname $0 = \"SALES\" andalso " +
-		"#loc $0 = \"CHICAGO\"] : t$0\n" +
+		"project r [#dname r] : string bag\n" +
+		"  filter r [#dname r = \"SALES\" andalso " +
+		"#loc r = \"CHICAGO\"] : t$0\n" +
 		"    depts : t$0\n" +
 		"\n" +
 		"t$0 {deptno:int, dname:string, loc:string} bag\n"
@@ -272,7 +271,7 @@ func TestRelPlanDecl(t *testing.T) {
 	}
 	// A tree's every line ends in a newline, as morel-java's does.
 	want := "val it =\n" +
-		"  filter [$0 < 5] : int list\n" +
+		"  filter r [r < 5] : int list\n" +
 		"    [1, 2] : int list\n"
 	if got := RelPlanDecl(sys, decl, 79, false); got != want {
 		t.Errorf("planEx:\n got:\n%s\nwant:\n%s", got, want)

@@ -87,6 +87,11 @@ type Scan struct {
 	Exp  Exp
 	Join ast.Op
 	On   Exp
+	// Derived is whether the scan is one the derivation of a
+	// generator made rather than one the query wrote. Its binder
+	// names no id in a plan: what it scans is a tree of the
+	// derivation's, whose element the tree names, if at all.
+	Derived bool
 }
 
 // Op implements FromStep.
@@ -98,6 +103,10 @@ func (*Scan) fromStep() {}
 // exp holds.
 type Where struct {
 	Exp Exp
+	// On is whether the condition is an inner join's "on", which the
+	// step list evaluates after the scan it belongs to, and which a
+	// tree, as morel-java's does, makes the join's condition.
+	On bool
 }
 
 // Op implements FromStep.

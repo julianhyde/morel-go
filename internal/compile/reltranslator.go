@@ -108,6 +108,11 @@ type relTranslator struct {
 	rowIsRecord bool
 	// exp is the tree built so far, nil before the first step.
 	exp core.Exp
+	// name is the binder the tree's element is the value of, "e"
+	// after "from e in emps", which names the id of the node built
+	// over it; empty where no binder names the element -- a join's
+	// pair, what a projection or a group builds.
+	name string
 	// nextName numbers the binders this translation generates.
 	// Per tree, so that a query's plan text does not depend on how
 	// many names were generated before it. A "$" cannot occur in
@@ -333,7 +338,21 @@ func (t *relTranslator) from(from *core.From) core.Exp {
 		// unit.
 		return t.unitCollection()
 	}
-	for _, step := range from.Steps {
+	for i := 0; i < len(from.Steps); i++ {
+		step := from.Steps[i]
+		// An inner join's "on" is the where after its scan in the
+		// step list, and the join's condition in the tree.
+		if scan, isScan := step.(*core.Scan); isScan && t.exp != nil &&
+			scan.On == nil && joinKindOf(scan.Join) == core.InnerJoin &&
+			i+1 < len(from.Steps) {
+			if where, isWhere := from.Steps[i+1].(*core.Where); isWhere &&
+				where.On {
+				joined := *scan
+				joined.On = where.Exp
+				step = &joined
+				i++
+			}
+		}
 		if !t.step(step) {
 			return nil
 		}
@@ -412,6 +431,17 @@ func (t *relTranslator) setOp(s *core.SetOp) bool {
 		if aligned == nil {
 			return t.decline("set operator branch alignment")
 		}
+		if aligned != input {
+			// A branch is converted by a projection over its own
+			// element, which the branch's name names; the first is
+			// the tree so far.
+			name := core.ElementName(input)
+			if i == 0 {
+				name = t.name
+				t.name = ""
+			}
+			core.Named(aligned, name)
+		}
 		inputs[i] = aligned
 	}
 	var kind core.SetKind
@@ -437,6 +467,7 @@ func (t *relTranslator) through(s *core.Through) bool {
 		return t.decline("through with a non-function")
 	}
 	t.exp = nil
+	t.name = ""
 	t.rowPats = nil
 	t.access.clear()
 	t.rowIsRecord = false
@@ -466,6 +497,19 @@ func (t *relTranslator) applied(fn core.Exp) core.Exp {
 	return &core.Apply{T: fnT.Result, Fn: fn, Arg: t.exp}
 }
 
+// named gives a node built over the tree's element the name of the
+// binder that element is the value of. A node over the same element
+// keeps the name for the node above it; a projection or a group builds
+// an element of its own, which no binder names.
+func (t *relTranslator) named(exp core.Exp) core.Exp {
+	core.Named(exp, t.name)
+	switch exp.(type) {
+	case *core.Group, *core.Project:
+		t.name = ""
+	}
+	return exp
+}
+
 // step translates one step, returning false where it cannot.
 func (t *relTranslator) step(step core.FromStep) bool {
 	t.patternAccess = false
@@ -487,8 +531,8 @@ func (t *relTranslator) step(step core.FromStep) bool {
 	case *core.Into:
 		return t.into(s)
 	case *core.Order:
-		t.exp = core.NewSort(t.sys, t.exp, t.rewrite(s.Exp),
-			s.Span)
+		t.exp = t.named(core.NewSort(t.sys, t.exp, t.rewrite(s.Exp),
+			s.Span))
 		return true
 	case *core.Scan:
 		return t.scan(s)
@@ -507,7 +551,7 @@ func (t *relTranslator) step(step core.FromStep) bool {
 	case *core.Through:
 		return t.through(s)
 	case *core.Where:
-		t.exp = core.NewFilter(t.exp, t.rewrite(s.Exp))
+		t.exp = t.named(core.NewFilter(t.exp, t.rewrite(s.Exp)))
 		return true
 	case *core.Yield:
 		return t.yield(s)
@@ -515,6 +559,19 @@ func (t *relTranslator) step(step core.FromStep) bool {
 		// "into", "through" and "require" are not nodes.
 		return t.decline("step " + step.Op().String())
 	}
+}
+
+// patName is the binder a scan's pattern names its element, where the
+// pattern is a bare name; a pattern that destructures the element
+// leaves it unnamed, as does a binder called "ordinal", whose id would
+// read as a position, and one whose name starts with "$", which is a
+// node's own and no query's.
+func patName(pat core.Pat) string {
+	if id, isID := pat.(*core.IDPat); isID && id.Name != ordinalName &&
+		!strings.HasPrefix(id.Name, "$") {
+		return id.Name
+	}
+	return ""
 }
 
 // mentionsInput reports whether an expression reads "$0" or "$1".
@@ -573,7 +630,7 @@ func (t *relTranslator) project(exp core.Exp) core.Exp {
 	if isInput0(exp) {
 		return t.exp
 	}
-	return core.NewProject(t.sys, t.exp, exp)
+	return t.named(core.NewProject(t.sys, t.exp, exp))
 }
 
 // distinct is a group whose key is the whole element and which has
@@ -592,7 +649,8 @@ func (t *relTranslator) distinct() bool {
 		if len(t.rowPats) == 1 {
 			pat = t.rowPats[0]
 		}
-		t.exp = relDistinct(t.sys, t.exp, pat)
+		t.exp = relDistinct(t.sys, t.exp, pat, t.name)
+		t.name = ""
 		return true
 	}
 	// One row of each distinct value, by grouping on every binder,
@@ -606,7 +664,7 @@ func (t *relTranslator) distinct() bool {
 			Label: p.Name, Exp: t.access.get(p), Pat: p,
 		}
 	}
-	t.exp = core.NewGroup(t.sys, t.exp, keys, nil)
+	t.exp = t.named(core.NewGroup(t.sys, t.exp, keys, nil))
 	t.rowIsRecord = true
 	return true
 }
@@ -619,8 +677,11 @@ func (t *relTranslator) distinct() bool {
 // Pat is the binder the key is known by. Without one the lowering
 // names the key after the label, and the label of a key that is
 // the whole element is "$0" -- a name no query wrote.
+//
+// Name is the binder the input's element comes from, which names the
+// group's id.
 func relDistinct(sys *types.System, input core.Exp,
-	pat *core.IDPat,
+	pat *core.IDPat, name string,
 ) core.Exp {
 	elem := types.ElemOf(input.Type())
 	// The key is named after the binder where there is one, "group
@@ -630,9 +691,9 @@ func relDistinct(sys *types.System, input core.Exp,
 	if pat != nil {
 		label = pat.Name
 	}
-	group := core.NewGroup(sys, input, []core.RelGroupKey{{
+	group := core.Named(core.NewGroup(sys, input, []core.RelGroupKey{{
 		Label: label, Exp: core.NewInput(elem, 0), Pat: pat,
-	}}, nil)
+	}}, nil), name)
 	return core.NewProject(sys, group,
 		fieldAt(sys, core.NewInput(types.ElemOf(group.Type()), 0), 0))
 }
@@ -661,7 +722,7 @@ func (t *relTranslator) group(g *core.GroupStep) bool {
 		}
 		pats = append(pats, a.Pat)
 	}
-	t.exp = core.NewGroup(t.sys, t.exp, keys, aggs)
+	t.exp = t.named(core.NewGroup(t.sys, t.exp, keys, aggs))
 	t.rowPats = pats
 	t.rowIsRecord = true
 	return true
@@ -770,6 +831,10 @@ func (t *relTranslator) firstScan(s *core.Scan,
 	rightElem types.Type,
 ) bool {
 	t.exp = s.Exp
+	t.name = patName(s.Pat)
+	if s.Derived {
+		t.name = ""
+	}
 	t.patternAccess = true
 	element := core.NewInput(rightElem, 0)
 	if !t.scanPattern(s.Pat, element, t.access) {
@@ -778,7 +843,7 @@ func (t *relTranslator) firstScan(s *core.Scan,
 	t.rowPats = append(t.rowPats, core.PatIDs(s.Pat)...)
 	t.rowIsRecord = false
 	if s.On != nil {
-		t.exp = core.NewFilter(t.exp, t.rewrite(s.On))
+		t.exp = t.named(core.NewFilter(t.exp, t.rewrite(s.On)))
 	}
 	// The element is the collection's, which is not the record the
 	// query's bindings describe where the pattern destructures. The
@@ -802,7 +867,7 @@ func (t *relTranslator) scanPattern(pat core.Pat, element core.Exp,
 		return false
 	}
 	if test := relTest(t.sys, pat, element); test != nil {
-		t.exp = core.NewFilter(t.exp, test)
+		t.exp = t.named(core.NewFilter(t.exp, test))
 	}
 	return true
 }
@@ -845,6 +910,9 @@ func (t *relTranslator) joinScan(s *core.Scan,
 			both(t.access, rightAccess))
 	}
 	join := core.NewJoin(t.sys, kind, binder, left, right, cond)
+	join.LeftName, join.RightName = t.name, patName(s.Pat)
+	// No binder names a pair.
+	t.name = ""
 
 	// The element is the inputs' components in order, so each
 	// binder's access is rebased onto that: left components keep
@@ -1001,15 +1069,20 @@ func (t *relTranslator) normalize() {
 		// whether a lone value is wrapped in a record; a scan
 		// differs in more, and its access map says how.
 		if aligned := t.align(t.exp, wanted); aligned != nil {
+			if aligned != t.exp {
+				aligned = t.named(aligned)
+			}
 			t.exp = aligned
 		} else {
-			t.exp = core.NewProject(t.sys, t.exp, t.element(wanted))
+			t.exp = t.named(core.NewProject(t.sys, t.exp,
+				t.element(wanted)))
 		}
 	case t.patternAccess && !t.isUniform(wanted):
 		// The element has the right type but the binders read the
 		// wrong fields of it, which a pattern that permutes them
 		// does: "from {b = a, a = b} in rs" binds a to field b.
-		t.exp = core.NewProject(t.sys, t.exp, t.element(wanted))
+		t.exp = t.named(core.NewProject(t.sys, t.exp,
+			t.element(wanted)))
 	}
 	t.setUniformAccess()
 }

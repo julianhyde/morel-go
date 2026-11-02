@@ -18,6 +18,7 @@
 package compile
 
 import (
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -47,6 +48,14 @@ import (
 // continuation is indented four from the node, so that a reader --
 // and a parser -- tells a continuation from a grandchild by
 // position.
+//
+// After the operator come the ids the node binds, which are in scope
+// in its arguments, and which its "$0" and "$1" print as: one for a
+// filter, a projection, a group or a sort, two for a join, none for a
+// set operator, and "$ordinal" where the node counts its elements. An
+// id is named after the binder whose collection it ranges over --
+// "filter e [#deptno e > 20]" for "from e in emps where e.deptno > 20"
+// -- and an id no binder names is "r"; see bindIDs.
 
 // planOfName is the built-in whose argument is a plan rather than
 // a value.
@@ -125,6 +134,9 @@ func (u *unparser) relHeader(i int) string {
 // printedName is the name a binder prints as, which for a
 // generated one is its position in its prefix's sequence.
 func (u *unparser) printedName(pat *core.IDPat) string {
+	if id, isID := u.binderNames[pat]; isID {
+		return id
+	}
 	if prefix, isGen := genPrefix(pat.Name); isGen {
 		return u.genName(pat, prefix)
 	}
@@ -422,13 +434,148 @@ func (u *unparser) relTree(exp core.Exp, indent int,
 		})
 		return
 	}
+	mark := len(u.visibleIDs)
+	names := u.bindIDs(rel)
 	u.relLine(indent, withTypes, rel.Type(), func() {
 		u.put(rel.OpName())
+		// The ids the node binds, which are in scope in its
+		// arguments.
+		for _, name := range names {
+			u.put(" " + name)
+		}
+		saved := u.inputNames
+		u.inputNames = inputNamesOf(names)
+		u.visibleIDs = append(u.visibleIDs, names...)
 		u.relArgs(rel)
+		u.inputNames = saved
+		u.visibleIDs = u.visibleIDs[:mark]
 	})
-	for _, input := range rel.Inputs() {
+	for i, input := range rel.Inputs() {
+		if join, isJoin := rel.(*core.Join); isJoin && i == 1 {
+			// The right input is evaluated once per left element,
+			// and may read it, through the binder where it does.
+			u.visibleIDs = append(u.visibleIDs, names[0])
+			if join.Binder != nil {
+				if u.binderNames == nil {
+					u.binderNames = map[*core.IDPat]string{}
+				}
+				u.binderNames[join.Binder] = names[0]
+			}
+		}
 		u.relTree(input, indent+relIndent, withTypes)
+		u.visibleIDs = u.visibleIDs[:mark]
 	}
+}
+
+// bindIDs gives each id a node binds the name it prints under, and
+// returns the names.
+//
+// A filter, a projection, a group or a sort binds one id, and a join
+// two; a set operator, a skip, a take and an unorder bind none. A
+// node that reads its element's position binds "$ordinal" as well.
+// An id named after a binder prints as the binder, "e" for "from e in
+// emps"; any other prints as "r". A name is numbered -- "e_1" -- only
+// if an id of that name is in scope, the node binds two, or a variable
+// of that name occurs where the id is in scope, as "r" does in "yield
+// x + y + r". So the names are a function of the tree.
+func (u *unparser) bindIDs(rel core.Rel) []string {
+	var bases []string
+	var own []core.Exp
+	// lint: sort until '^\t}' where '^\tcase '
+	switch r := rel.(type) {
+	case *core.Filter:
+		bases, own = []string{r.Name}, []core.Exp{r.Condition}
+	case *core.Group:
+		bases = []string{r.Name}
+		for _, k := range r.Keys {
+			own = append(own, k.Exp)
+		}
+		for _, a := range r.Aggs {
+			own = append(own, a.Fn)
+			if a.Arg != nil {
+				own = append(own, a.Arg)
+			}
+		}
+	case *core.Join:
+		bases = []string{r.LeftName, r.RightName}
+		own = []core.Exp{r.Condition}
+	case *core.Project:
+		bases, own = []string{r.Name}, []core.Exp{r.Exp}
+	case *core.Sort:
+		bases, own = []string{r.Name}, []core.Exp{r.Exp}
+	default:
+		return nil
+	}
+	vars := map[string]bool{}
+	scope := own
+	if join, isJoin := rel.(*core.Join); isJoin {
+		scope = append(scope, join.Right)
+	}
+	for _, e := range scope {
+		relVarNames(e, vars)
+	}
+	names := make([]string, 0, len(bases)+1)
+	for _, base := range bases {
+		if base == "" {
+			base = "r"
+		} else if prefix, isGen := genPrefix(base); isGen {
+			// Named after a generated binder, which prints numbered
+			// by first appearance.
+			base = u.genNameOf(base, prefix)
+		}
+		candidate := base
+		for i := 1; slices.Contains(u.visibleIDs, candidate) ||
+			slices.Contains(names, candidate) || vars[candidate]; i++ {
+			candidate = base + "_" + strconv.Itoa(i)
+		}
+		names = append(names, candidate)
+	}
+	if slices.ContainsFunc(own, readsOrdinal) {
+		names = append(names, ordinalKeyword)
+	}
+	return names
+}
+
+// inputNamesOf is the names "$0" and "$1" print as in a node's
+// expressions: the node's ids, less the position.
+func inputNamesOf(names []string) []string {
+	if len(names) > 0 && names[len(names)-1] == ordinalKeyword {
+		return names[:len(names)-1]
+	}
+	return names
+}
+
+// relVarNames adds the name of every variable an expression reads,
+// nested trees included, to vars.
+func relVarNames(exp core.Exp, vars map[string]bool) {
+	r := &rewriter{}
+	r.exp = func(e core.Exp) (core.Exp, bool) {
+		if id, isID := e.(*core.ID); isID &&
+			!strings.HasPrefix(id.Pat.Name, "$") {
+			vars[id.Pat.Name] = true
+		}
+		return nil, false
+	}
+	r.rewriteExp(exp)
+}
+
+// readsOrdinal reports whether an expression reads the position of
+// its node's element, other than inside a node of its own.
+func readsOrdinal(exp core.Exp) bool {
+	found := false
+	r := &rewriter{}
+	r.exp = func(e core.Exp) (core.Exp, bool) {
+		// lint: sort until '^\t\t}' where '^\t\tcase '
+		switch e.(type) {
+		case *core.Ordinal:
+			found = true
+		case core.Rel:
+			return e, true
+		}
+		return nil, false
+	}
+	r.rewriteExp(exp)
+	return found
 }
 
 // relLine writes one line of a plan: the indent, then whatever the
@@ -468,9 +615,6 @@ func (u *unparser) relArgs(rel core.Rel) {
 	case *core.Join:
 		if name := r.Kind.OpName(); name != "" {
 			u.relArg(func() { u.put(name) })
-		}
-		if r.Binder != nil {
-			u.relArg(func() { u.name(r.Binder) })
 		}
 		if !isBoolLiteral(r.Condition, true) {
 			u.relArg(func() { u.exp(r.Condition, 0, 0) })
