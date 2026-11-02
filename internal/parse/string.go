@@ -17,7 +17,10 @@
 
 package parse
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // Unquote returns the value of a string or char literal token:
 // the text without its quotes (and "#" for a char), with escape
@@ -177,4 +180,83 @@ var reservedWords = map[string]bool{
 	"where":     true,
 	"yield":     true,
 	"yieldAll":  true,
+}
+
+// ShouldWriteRaw reports whether a string should be written as a
+// raw literal, "{|...|}".
+//
+// It should if it contains at least minNewlines newlines, and is
+// safe to write raw: every character is a newline or printable
+// ASCII (no tab, carriage return, control character or non-ASCII
+// character, which would be invisible or fragile), and no newline
+// follows a space (which would be invisible, and easily lost by
+// editors). A space at the very end is fine, because the closing
+// fence follows it.
+//
+// If minNewlines is 0, a string with no newlines may be written
+// raw; if it is negative, no string is.
+func ShouldWriteRaw(s string, minNewlines int) bool {
+	if minNewlines < 0 {
+		return false
+	}
+	newlines := 0
+	for i := range len(s) {
+		c := s[i]
+		if c == '\n' {
+			if i > 0 && s[i-1] == ' ' {
+				return false
+			}
+			newlines++
+		} else if c < ' ' || c > '~' {
+			return false
+		}
+	}
+	return newlines >= minNewlines
+}
+
+// RawLiteral writes a string as a raw literal whose fences do not
+// occur in it.
+//
+// If the content's second line starts with a space, the content
+// starts on the line after the opening fence, so that its lines
+// line up; the tag then starts with "_", which tells the reader to
+// discard the newline after the fence: the literal reads "{_|", a
+// newline, the content, "|_}". Otherwise the content starts right
+// after the opening fence, "{|", and every newline in the literal
+// is content.
+func RawLiteral(content string) string {
+	nextLine := startsOnNextLine(content)
+	prefix := ""
+	if nextLine {
+		prefix = "_"
+	}
+	tag := prefix
+	for i := 1; strings.Contains(content, "|"+tag+"}"); i++ {
+		tag = prefix + rawTag(i)
+	}
+	open := "{" + tag + "|"
+	if nextLine {
+		open += "\n"
+	}
+	return open + content + "|" + tag + "}"
+}
+
+// startsOnNextLine reports whether a raw literal's content starts
+// on the line after the opening fence: when its second line starts
+// with a space, so that the lines line up.
+func startsOnNextLine(content string) bool {
+	i := strings.IndexByte(content, '\n')
+	return i > 0 && i+1 < len(content) && content[i+1] == ' '
+}
+
+// rawTag is the i-th raw literal tag in the sequence a, b, ..., z,
+// aa, ab, ...
+func rawTag(i int) string {
+	const letters = 26
+	var b []byte
+	for ; i > 0; i = (i - 1) / letters {
+		b = append(b, byte('a'+(i-1)%letters))
+	}
+	slices.Reverse(b)
+	return string(b)
 }

@@ -143,6 +143,7 @@ const (
 	lineWidthProp   = "lineWidth"
 	printDepthProp  = "printDepth"
 	printLengthProp = "printLength"
+	rawStringsProp  = "rawStrings"
 	stringDepthProp = "stringDepth"
 	stringFoldProp  = "stringFold"
 )
@@ -189,6 +190,7 @@ var sysProps = map[string]sysProp{
 	rangeMaxLengthProp: {
 		text(rangeMaxLengthDefault), bigIntProp, tPosIntInf,
 	},
+	rawStringsProp:       {nil, intProp, tNonNegIntOpt},
 	"relationalize":      {text("false"), boolProp, tBool},
 	"scriptDirectory":    {nil, fileProp, tFile},
 	stringDepthProp:      {nil, intProp, tNonNegIntOpt},
@@ -249,6 +251,8 @@ func (c *Config) intPropField(name string) *int {
 		return &c.PrintDepth
 	case printLengthProp:
 		return &c.PrintLength
+	case rawStringsProp:
+		return &c.RawStrings
 	case stringDepthProp:
 		return &c.StringDepth
 	case stringFoldProp:
@@ -271,6 +275,8 @@ func intPropDefault(name string) int {
 		return defaultPrintDepth
 	case printLengthProp:
 		return defaultPrintLength
+	case rawStringsProp:
+		return defaultRawStrings
 	case stringDepthProp:
 		return defaultStringDepth
 	default:
