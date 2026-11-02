@@ -36,7 +36,10 @@ func equivalentOutput(sys *types.System, actual, expected string) bool {
 	if ruleLine(strings.Split(expected, "\n")) >= 0 {
 		return tablesEquivalent(sys, actual, expected)
 	}
-	a := splitOutput(actual)
+	// A raw literal may be on either side: the printer writes one,
+	// under "rawStrings", and a script's expected output may hold
+	// one where the printer would not.
+	a := splitOutput(unraw(actual))
 	e := splitOutput(unraw(expected))
 	if a.val == "" || e.val == "" {
 		return false
@@ -65,8 +68,8 @@ func equivalentOutput(sys *types.System, actual, expected string) bool {
 // letters and underscores. It starts with "_" exactly when the
 // content starts on the line after the opening fence, and that
 // newline is then not content. Raw literals are a feature of the
-// script format and not of the language -- morel never prints one
-// -- so only an expected output holds one.
+// script format and not of the language; the printer writes them,
+// as the "rawStrings" property asks.
 func unraw(s string) string {
 	var b strings.Builder
 	for i := 0; i < len(s); {

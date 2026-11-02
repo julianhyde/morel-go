@@ -31,6 +31,7 @@ func defaultConfig() shell.Config {
 		LineWidth:   79,
 		PrintLength: 12,
 		PrintDepth:  5,
+		RawStrings:  2,
 		StringDepth: 70,
 	}
 }

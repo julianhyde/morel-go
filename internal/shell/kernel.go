@@ -45,6 +45,7 @@ const (
 	defaultLineWidth   = 79
 	defaultPrintLength = 12
 	defaultPrintDepth  = 5
+	defaultRawStrings  = 2
 	defaultStringDepth = 70
 )
 
@@ -54,6 +55,7 @@ func DefaultConfig() Config {
 		LineWidth:   defaultLineWidth,
 		PrintLength: defaultPrintLength,
 		PrintDepth:  defaultPrintDepth,
+		RawStrings:  defaultRawStrings,
 		StringDepth: defaultStringDepth,
 		MaxUseDepth: maxUseDepthDefault,
 		props:       map[string]string{},
@@ -68,6 +70,10 @@ type Config struct {
 	LineWidth   int
 	PrintLength int
 	PrintDepth  int
+	// RawStrings is the number of newlines at which a top-level
+	// string prints as a raw literal, "{|...|}"; negative means
+	// never.
+	RawStrings  int
 	StringDepth int
 	// StringFold is the column width at which a long string folded
 	// across lines in tabular mode; zero disables folding.

@@ -56,6 +56,13 @@ func (c *Config) prettyBinding(name string, v eval.Val,
 	if displayT == nil {
 		displayT = t
 	}
+	// A string with enough newlines prints as a raw literal, in full
+	// (whatever "stringDepth" says) -- unless "printDepth" is 0, when
+	// the whole value prints as "#".
+	if s, isString := v.(string); isString && t.String() == stringType &&
+		c.PrintDepth != 0 && parse.ShouldWriteRaw(s, c.RawStrings) {
+		return c.prettyRaw(name, s)
+	}
 	if c.props["output"] == outputTabular {
 		if s, ok := c.tabularBinding(name, v, t, displayT); ok {
 			return s
@@ -78,6 +85,23 @@ func (c *Config) prettyBinding(name string, v eval.Val,
 	doc := pp.Concat(pp.Text("val "+parse.QuoteIdent(name)+" ="), valuePart,
 		typePart)
 	return pp.Render(c.width(), doc)
+}
+
+// prettyRaw renders a string binding as a raw string literal.
+//
+// The literal goes where prettyBinding would put the escaped
+// literal: after "val name =" if the escaped literal fits there
+// (the type may wrap onto the next line, so it does not affect the
+// decision), otherwise on the next line, indented by 2. The literal
+// spans lines, so the type follows the closing fence.
+func (c *Config) prettyRaw(name, s string) string {
+	prefix := "val " + parse.QuoteIdent(name) + " ="
+	escapedLength := len(escapeString(s)) + len(`""`)
+	sep := " "
+	if len(prefix)+len(sep)+escapedLength > c.width() {
+		sep = "\n  "
+	}
+	return prefix + sep + parse.RawLiteral(s) + " : string"
 }
 
 // width is the page width passed to the renderer. Rendering at
