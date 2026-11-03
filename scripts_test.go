@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -72,8 +73,15 @@ func checkScript(t *testing.T, f, rel string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkRequires(t, rel, string(src))
+	conditions := checkRequires(t, rel, string(src))
 	kernel := shell.NewKernel(rel)
+	if slices.Contains(conditions, "spark") {
+		// The script assumes that "spark" is bound to a live
+		// connection, as Spark.connect would return it; bind it, and
+		// close it afterwards.
+		closeSpark := bindSpark(t, kernel)
+		defer closeSpark()
+	}
 	// Scripts resolve data files (Datalog .input) against the
 	// "directory" property; testdata is the analog of java's
 	// src/test/resources. "use" resolves against the script's own
@@ -104,9 +112,11 @@ const requiresLines = 40
 // checkRequires skips the test if the script's header has a
 // directive "(*) requires: <conditions>" with a condition that does
 // not hold. Several conditions, separated by spaces, must all hold.
-func checkRequires(t *testing.T, rel, src string) {
+// It returns the conditions.
+func checkRequires(t *testing.T, rel, src string) []string {
 	t.Helper()
 	lines := strings.Split(src, "\n")
+	var conditions []string
 	for _, line := range lines[:min(len(lines), requiresLines)] {
 		m := requiresPattern.FindStringSubmatch(line)
 		if m == nil {
@@ -116,14 +126,67 @@ func checkRequires(t *testing.T, rel, src string) {
 			if !holds(t, condition) {
 				t.Skipf("%s requires %s", rel, condition)
 			}
+			conditions = append(conditions, condition)
 		}
 	}
+	return conditions
+}
+
+// sparkHolds reports whether a live Spark Connect server is
+// available: the environment variable MOREL_SPARK is set, the analog
+// of morel-java's system property "morel.spark", and SPARK_REMOTE
+// names the server.
+func sparkHolds() bool {
+	return os.Getenv("MOREL_SPARK") != "" && os.Getenv("SPARK_REMOTE") != ""
+}
+
+// bindSpark binds "spark" to a connection to the server that
+// SPARK_REMOTE names, and returns the function that closes it.
+//
+// Nothing is added to the URI: each table of the test container
+// says which of its columns hold nulls, in its own "morel.nullable"
+// property, because Spark reports every column of a stored table as
+// nullable whatever the schema said.
+func bindSpark(t *testing.T, kernel *shell.Kernel) func() {
+	t.Helper()
+	closeSpark, err := kernel.BindSpark("spark", os.Getenv("SPARK_REMOTE"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return closeSpark
+}
+
+// TestScriptTripleSpark runs triple.smli a third time, with every
+// query pushed down to Spark: the same queries, the same expected
+// answers, and a third way of computing them. A query that Spark
+// cannot do, or answers differently, fails here. A query that stops
+// being pushed down is a regression, so it fails rather than
+// answering locally with a warning, which is what a session would
+// rather have.
+func TestScriptTripleSpark(t *testing.T) {
+	if !sparkHolds() {
+		t.Skip("requires spark")
+	}
+	const f = "testdata/script/triple.smli"
+	src, err := os.ReadFile(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kernel := shell.NewKernel("triple.smli")
+	kernel.Config().Directory = "testdata"
+	kernel.Config().ScriptDirectory = filepath.Dir(f)
+	closeSpark := bindSpark(t, kernel)
+	defer closeSpark()
+	kernel.Config().SetProp("sparkPushDown", "true")
+	kernel.Config().SetProp("sparkFallback", "false")
+	checkIdempotent(t, kernel, "triple.smli", string(src))
 }
 
 // holds reports whether a "requires:" condition holds. This port
 // has the Spark adapter, so "spark-adapter" holds, and
 // "spark-prepare", which says that the "Spark" structure has
-// "prepare"; "no-spark-adapter" does not.
+// "prepare"; "no-spark-adapter" does not. "spark" holds if a server
+// is available; see sparkHolds.
 func holds(t *testing.T, condition string) bool {
 	t.Helper()
 	// lint: sort until '^\t}' where '^\tcase '
@@ -131,7 +194,7 @@ func holds(t *testing.T, condition string) bool {
 	case "no-spark-adapter":
 		return false
 	case "spark":
-		return false
+		return sparkHolds()
 	case "spark-adapter":
 		return true
 	case "spark-prepare":

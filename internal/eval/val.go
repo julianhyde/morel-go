@@ -70,6 +70,11 @@ type MorelError struct {
 	// message is made when it is raised rather than fixed by its
 	// name, as a failed check's is.
 	Desc string
+	// Unplaced says that the exception is raised nowhere in the
+	// program, and keeps the position of zeros it has: a Spark
+	// catalog that is browsed raises so, wherever the browsing was
+	// asked for, as morel-java's does.
+	Unplaced bool
 }
 
 func (e *MorelError) Error() string {
@@ -139,7 +144,7 @@ func (e *MorelError) Describe() string {
 // given one; the innermost location that knows where it is wins.
 func stampSpan(err error, span token.Span) error {
 	var morelErr *MorelError
-	if errors.As(err, &morelErr) &&
+	if errors.As(err, &morelErr) && !morelErr.Unplaced &&
 		morelErr.Span == (token.Span{}) {
 		morelErr.Span = span
 	}
@@ -153,7 +158,7 @@ func stampSpan(err error, span token.Span) error {
 // application, not at the partial.
 func restampSpan(err error, span token.Span) error {
 	var morelErr *MorelError
-	if errors.As(err, &morelErr) {
+	if errors.As(err, &morelErr) && !morelErr.Unplaced {
 		morelErr.Span = span
 	}
 	return err

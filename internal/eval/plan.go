@@ -28,7 +28,7 @@ import (
 // PlanString renders a value as the compiled-plan output shows it,
 // inside a "constant(...)". This is the value's raw textual form —
 // integers and reals with a leading "-" (not "~"), strings and
-// characters without quotes, unit as the empty string, lists and
+// characters without quotes, unit as "[]", lists and
 // tuples as "[a, b, c]", and a datatype value as "[Name]" or
 // "[Name, arg]" — matching the runtime's own value rendering.
 func PlanString(v Val) string {
@@ -52,7 +52,9 @@ func PlanString(v Val) string {
 	case bool:
 		return strconv.FormatBool(v)
 	case core.Unit:
-		return ""
+		// Unit is the empty tuple, and prints as one, as in
+		// morel-java.
+		return "[]"
 	case float32:
 		return planReal(float64(v))
 	case float64:

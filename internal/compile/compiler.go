@@ -277,6 +277,11 @@ func (c *compiler) compileExp(exp core.Exp) (eval.Code, error) {
 	case *core.RangeList:
 		return c.compileRangeList(e)
 	case *core.Selector:
+		if e.Index < 0 {
+			// A field of a progressive record, which only the
+			// record knows whether it has.
+			return eval.Constant(eval.NthNamed(e.Name)), nil
+		}
 		return eval.Constant(eval.Nth(e.Index)), nil
 	case *core.Tuple:
 		args := make([]eval.Code, len(e.Args))
@@ -359,6 +364,13 @@ func (c *compiler) builtinFnInfo(fnExp core.Exp,
 		}
 		return planFnName(fn.Pat.Name, fn.Pat.T),
 			builtinArity(fn.Pat.T), curriedArity(fn.Pat.T)
+	case *core.Literal:
+		// A function the statement was compiled with, such as the
+		// one "Spark.remote" makes, which says what it is.
+		if d, isDescribed := fn.Value.(eval.Described); isDescribed {
+			return d.PlanDescription(), 1, 1
+		}
+		return "", 0, 0
 	case *core.Selector:
 		// A field/tuple selector applied to a record renders as
 		// "nth:N", where N is the field's canonical position.

@@ -353,7 +353,9 @@ func (r *typeResolver) checkFieldRefs(m *TypeMap) error {
 			// "Sys.file" is declared as "{...}" however much has
 			// been browsed. The entry itself decides.
 			if f := r.fileOf(call.apply.Arg); f != nil &&
-				f.Entry(call.sel.Name) != nil {
+				(f.Entry(call.sel.Name) != nil || isSparkCatalog(f)) {
+				// A Spark catalog says for itself that it has no such
+				// database or table, when the field is selected.
 				continue
 			}
 			return &Error{

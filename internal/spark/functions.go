@@ -164,6 +164,7 @@ var builtinAliases = map[string]string{
 	// lint: sort until '^}' where '^\t"'
 	"concat":    "String.concat",
 	"count":     "Relational.count",
+	"empty":     "Relational.empty",
 	"explode":   "String.explode",
 	"getOpt":    "Option.getOpt",
 	"hd":        "List.hd",

@@ -2801,6 +2801,7 @@ func (r *resolver) toSelector(sel *ast.RecordSelector,
 		}
 	}
 	index := -1
+	progressive := false
 	// A record reached through a type alias is still a record.
 	switch param := types.Unalias(fnType.Param).(type) {
 	case *types.Record:
@@ -2809,13 +2810,16 @@ func (r *resolver) toSelector(sel *ast.RecordSelector,
 				index = i
 			}
 		}
+		progressive = param.Progressive
 	case *types.Tuple:
 		i, err := strconv.Atoi(sel.Name)
 		if err == nil && i >= 1 && i <= len(param.Args) {
 			index = i - 1
 		}
 	}
-	if index < 0 {
+	if index < 0 && !progressive {
+		// A progressive record -- a Spark catalog -- may have the
+		// field after all, and says so when it is selected.
 		return nil, &Error{
 			Span: sel.Span(),
 			Msg:  "no field " + sel.Name,

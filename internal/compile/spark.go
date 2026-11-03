@@ -108,6 +108,18 @@ func StatementSpan(resolved *Resolved, n ast.Node) token.Span {
 	return e.Span()
 }
 
+// isSparkCatalog reports whether a browsable value is a Spark
+// catalog or one of its databases, which raise "Spark" for a field
+// they do not have, as Spark itself would, rather than leaving the
+// field to be a type error.
+func isSparkCatalog(b eval.Browsable) bool {
+	switch b.(type) {
+	case *eval.SparkCatalog, *eval.SparkDatabase:
+		return true
+	}
+	return false
+}
+
 // sparkQuery returns the query that a function computes: its first
 // query, as a tree; or, if it has none, its body, if that is a
 // collection. A query and nothing else has a plan; a function whose

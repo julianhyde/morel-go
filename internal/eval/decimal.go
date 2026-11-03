@@ -125,6 +125,25 @@ func (d Decimal) ToString(negation byte) string {
 	return b.String()
 }
 
+// Unscaled returns the decimal as an integer number of units of
+// 10^-scale, and false if it has more digits after the point than
+// that.
+func (d Decimal) Unscaled(scale int) (*big.Int, bool) {
+	if d.isZero() {
+		return new(big.Int), true
+	}
+	shift := int(d.exp) + scale
+	if shift < 0 {
+		return nil, false
+	}
+	n, _ := new(big.Int).SetString(d.digits, decBase)
+	n.Mul(n, decPow10(shift))
+	if d.neg {
+		n.Neg(n)
+	}
+	return n, true
+}
+
 // isZero reports whether a decimal is zero.
 func (d Decimal) isZero() bool { return d.digits == "" }
 
@@ -203,6 +222,13 @@ func decCanonical(unscaled *big.Int, exp int) (Decimal, bool) {
 	}
 	//nolint:gosec // the checks above bound exp to [-6176, 6144].
 	return Decimal{neg: neg, digits: digits, exp: int32(exp)}, true
+}
+
+// DecimalOf returns the decimal unscaled * 10^exp, rounded half-even
+// to DecPrecision significant digits, and false if it is too large
+// to be a decimal.
+func DecimalOf(unscaled *big.Int, exp int) (Decimal, bool) {
+	return decCanonical(unscaled, exp)
 }
 
 // decStrip removes trailing zeros from a digit string, raising the

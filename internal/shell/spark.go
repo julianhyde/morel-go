@@ -19,13 +19,13 @@ package shell
 
 import (
 	"errors"
-	"os"
 	"strconv"
 
 	"github.com/hydromatic/morel-go/internal/ast"
 	"github.com/hydromatic/morel-go/internal/compile"
 	"github.com/hydromatic/morel-go/internal/eval"
 	"github.com/hydromatic/morel-go/internal/spark"
+	"github.com/hydromatic/morel-go/internal/token"
 	"github.com/hydromatic/morel-go/internal/types"
 )
 
@@ -35,10 +35,6 @@ import (
 //
 // "Spark.prepare" and "Spark.remote" are expanded by the resolver,
 // which translates the function they are given; see package spark.
-
-// sparkRemoteEnv is the environment variable that names the default
-// server.
-const sparkRemoteEnv = "SPARK_REMOTE"
 
 // sparkName is the name that "sparkPushDown" sends queries to.
 const sparkName = "spark"
@@ -109,26 +105,46 @@ func sparkConnection(v eval.Val) *eval.SparkConnection {
 }
 
 // sparkOpen opens a connection and returns the record
-// "{catalog, connection}" that "Spark.connect" returns.
+// "{catalog, connection}" that "Spark.connect" returns: the offline
+// connection for "mock:", and otherwise a connection to the Spark
+// Connect server that the URI names.
 func (k *Kernel) sparkOpen(uri string) (eval.Val, error) {
-	if uri != eval.MockSparkURI {
-		return nil, eval.SparkError("CONNECTION",
-			eval.SparkAdapterMessage)
+	var c *eval.SparkConnection
+	if uri == eval.MockSparkURI {
+		c = eval.NewMockSparkConnection(k.dataSets)
+	} else {
+		var err error
+		c, err = spark.Connect(k.sys, uri)
+		if err != nil {
+			return nil, spark.Raise(err, token.Span{})
+		}
 	}
-	c := eval.NewMockSparkConnection(k.dataSets)
 	return &eval.SparkConnectionRecord{
 		Connection: c, Catalog: c.Catalog(),
 	}, nil
 }
 
+// BindSpark binds a name to a connection to a Spark Connect server,
+// as "Spark.connect" would return it, so that a script can assume
+// one; and returns the function that closes it.
+func (k *Kernel) BindSpark(name, uri string) (func(), error) {
+	v, err := k.sparkOpen(uri)
+	if err != nil {
+		return nil, err
+	}
+	record, _ := v.(*eval.SparkConnectionRecord)
+	k.bind(name, record.Type(k.sys))
+	k.values[name] = record
+	k.recordFileBinding(name, record)
+	return record.Connection.Close, nil
+}
+
 // sparkOpenDefault opens a connection to the server that
 // SPARK_REMOTE names.
 func (k *Kernel) sparkOpenDefault() (eval.Val, error) {
-	uri := os.Getenv(sparkRemoteEnv)
-	if uri == "" {
-		return nil, eval.SparkError("CONNECTION",
-			"No default Spark Connect server: "+sparkRemoteEnv+
-				" is not set")
+	uri, err := spark.DefaultURI()
+	if err != nil {
+		return nil, spark.Raise(err, token.Span{})
 	}
 	return k.sparkOpen(uri)
 }

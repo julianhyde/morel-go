@@ -95,7 +95,7 @@ c.close ();
 c.close ();
 > val it = () : unit
 catalog.foodmart.sales_fact_1997;
-> stdIn:1.9-1.17 Error: no field 'foodmart' in type '{scott:{bonuses:{...} bag, depts:{deptno:int, dname:string, loc:string} bag, emps:{comm:decimal option, deptno:int, empno:int, ename:string, hiredate:string, job:string, mgr:int option, sal:decimal} bag, salgrades:{grade:int, hisal:decimal, losal:decimal} bag, ...}, ...}'
->   raised at: stdIn:1.9-1.17
+> uncaught exception Spark [Spark: CLOSED: Connection to mock: is closed]
+>   raised at: 0.0-0.0
 
 (*) End spark.smli

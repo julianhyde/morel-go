@@ -181,6 +181,18 @@ func Nth(i int) Fn {
 	}
 }
 
+// NthNamed returns the function that selects a field by name from a
+// value whose type does not list the field: a Spark catalog, or one
+// of its databases, which says for itself whether it has it.
+func NthNamed(name string) Fn {
+	return func(arg Val) (Val, error) {
+		if s, isNamed := arg.(NamedFieldSelector); isNamed {
+			return s.SelectNamed(name)
+		}
+		return nil, &MorelError{Exn: "Subscript"}
+	}
+}
+
 // equalFn is "op =" (or its negation, "op <>"): structural
 // equality. Scalars compare directly; lists, tuples, and records
 // compare element-wise; constructor values compare by datatype,

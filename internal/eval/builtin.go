@@ -764,16 +764,20 @@ func checkIntRange(i int64) (Val, error) {
 	return int32(i), nil
 }
 
+// Integer addition, subtraction and multiplication wrap, as
+// morel-java's do: an int is 32 bits, and a result that does not fit
+// keeps its low 32 bits.
+
 func addInt(a, b int32) (Val, error) {
-	return checkIntRange(int64(a) + int64(b))
+	return a + b, nil
 }
 
 func subInt(a, b int32) (Val, error) {
-	return checkIntRange(int64(a) - int64(b))
+	return a - b, nil
 }
 
 func mulInt(a, b int32) (Val, error) {
-	return checkIntRange(int64(a) * int64(b))
+	return a * b, nil
 }
 
 // divInt is SML's "div": floor division, rounding toward

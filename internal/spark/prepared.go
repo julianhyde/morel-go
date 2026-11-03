@@ -88,11 +88,11 @@ func (*PreparedPlan) String() string { return "<plan>" }
 // Opaque implements eval.Opaque.
 func (p *PreparedPlan) Opaque() string { return p.String() }
 
-// Describe describes the plan where a plan description shows it, as
-// "Sys.plan" does. A plan with a parameter has no text until it is
-// executed, so what it can say is which parameters it is waiting
-// for.
-func (p *PreparedPlan) Describe() string {
+// PlanDescription implements eval.Described: it describes the plan
+// where a plan description shows it, as "Sys.plan" does. A plan with
+// a parameter has no text until it is executed, so what it can say
+// is which parameters it is waiting for.
+func (p *PreparedPlan) PlanDescription() string {
 	if p.plan != nil {
 		return "spark(plan " + p.plan.Text() + ")"
 	}
@@ -191,13 +191,30 @@ func ValueLiteral(t types.Type, v eval.Val) *core.Literal {
 // the same type as f, whose work is done on the connection. A
 // failure on Spark raises where the call to "remote" is.
 func Remote(p *PreparedPlan, span token.Span) eval.Val {
-	return eval.Fn(func(arg eval.Val) (eval.Val, error) {
-		v, err := p.Execute(arg)
-		if err != nil {
-			return nil, Raise(err, span)
-		}
-		return v, nil
-	})
+	return &remote{plan: p, span: span}
+}
+
+// remote is the function that "Spark.remote" makes.
+type remote struct {
+	plan *PreparedPlan
+	span token.Span
+}
+
+// ApplyTo implements eval.Applier.
+func (r *remote) ApplyTo(arg eval.Val) (eval.Val, error) {
+	v, err := r.plan.Execute(arg)
+	if err != nil {
+		return nil, Raise(err, r.span)
+	}
+	return v, nil
+}
+
+// PlanDescription implements eval.Described. The plan a query was
+// pushed down to is what a reader of a plan description wants to
+// see, as the plan a query was pushed down to Calcite is; so this
+// says "spark(plan ...)" where that says "calcite(plan ...)".
+func (r *remote) PlanDescription() string {
+	return r.plan.PlanDescription()
 }
 
 // Raise converts a Spark failure to the Morel exception it raises,

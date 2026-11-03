@@ -18,9 +18,12 @@
 package spark_test
 
 import (
+	"reflect"
 	"testing"
 
+	"github.com/hydromatic/morel-go/internal/eval"
 	"github.com/hydromatic/morel-go/internal/spark"
+	"github.com/hydromatic/morel-go/internal/types"
 )
 
 func TestJavaReal(t *testing.T) {
@@ -85,6 +88,35 @@ func TestFunctions(t *testing.T) {
 		if e == nil || e.Morel != want {
 			t.Errorf("Lookup(%q) = %v, want %s", name, e, want)
 		}
+	}
+}
+
+func TestArrowRoundTrip(t *testing.T) {
+	sys := types.NewSystem()
+	dec := sys.Named("decimal")
+	rowType := sys.Record([]types.Field{
+		{Label: "a", Type: sys.Int},
+		{Label: "b", Type: sys.Named("option", sys.String)},
+		{Label: "c", Type: dec},
+		{Label: "d", Type: sys.Real},
+		{Label: "e", Type: sys.Bool},
+	})
+	d1, _ := eval.DecParseExact("12.5")
+	d2, _ := eval.DecParseExact("~3")
+	rows := []eval.Val{
+		[]eval.Val{int32(1), eval.SomeVal("x"), d1, float32(1.5), true},
+		[]eval.Val{int32(-7), eval.NoneVal, d2, float32(-2), false},
+	}
+	data, err := spark.EncodeArrow(rows, rowType)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := spark.DecodeArrow([][]byte{data}, rowType)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, rows) {
+		t.Errorf("round trip: got %v, want %v", got, rows)
 	}
 }
 

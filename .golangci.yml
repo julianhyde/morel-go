@@ -87,6 +87,15 @@ linters:
     presets:
       - common-false-positives
       - std-error-handling
+    rules:
+      # The Arrow IPC format and flatbuffers are byte layouts: field
+      # numbers, widths and offsets are the format, not magic, and
+      # converting between signed and unsigned words of them is how
+      # they are read.
+      - path: internal/spark/(arrow|decode|flatbuffer)\.go
+        linters:
+          - mnd
+          - gosec
 
 formatters:
   enable:

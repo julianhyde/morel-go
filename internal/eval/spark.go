@@ -44,12 +44,6 @@ const catalogLabel = "catalog"
 // MockSparkURI is the URI that opens the offline connection.
 const MockSparkURI = "mock:"
 
-// SparkAdapterMessage is the message of the error raised by an
-// operation that needs a connection to a server, where there is no
-// client to make one.
-const SparkAdapterMessage = "The Spark adapter is not available; it " +
-	"needs JDK 17 or later and the 'spark' Maven profile"
-
 // SparkError returns the Morel exception "Spark {errorClass,
 // message}". It reports as "Spark [Spark: CLASS: message]".
 func SparkError(errorClass, message string) *MorelError {
@@ -150,6 +144,12 @@ type FieldSelector interface {
 	// FieldVals returns the values of the fields as a record value
 	// prints them, in label order.
 	FieldVals() []Val
+}
+
+// NamedFieldSelector is a value whose fields can be selected by
+// name, including a field its type does not list.
+type NamedFieldSelector interface {
+	SelectNamed(name string) (Val, error)
 }
 
 // Browse implements Browsable.
@@ -345,9 +345,15 @@ func (c *SparkConnection) rows(database, table string) ([]Val, error) {
 func raised(err error) error {
 	var e *SparkException
 	if errors.As(err, &e) {
-		return e.Morel()
+		return unplaced(e.Morel())
 	}
 	return err
+}
+
+// unplaced marks an exception as raised nowhere in the program.
+func unplaced(e *MorelError) *MorelError {
+	e.Unplaced = true
+	return e
 }
 
 // mockBackend is the offline connection's backend: its catalog is
@@ -519,7 +525,9 @@ func (c *SparkCatalog) Discover(name string) (bool, error) {
 	}
 	d := c.find(name)
 	if d == nil {
-		return widened, nil
+		// A name the catalog has not got: Spark would be asked, and
+		// a closed connection cannot ask.
+		return widened, c.connection.checkOpen()
 	}
 	fetched, err := d.browse()
 	return widened || fetched, err
@@ -544,6 +552,21 @@ func (c *SparkCatalog) SelectField(slot int) (Val, error) {
 		return []Val{}, nil
 	}
 	return databases[slot], nil
+}
+
+// SelectNamed implements NamedFieldSelector. Asking the catalog for a
+// database it does not have is the user's mistake, so it reads as
+// Spark's own error for it.
+func (c *SparkCatalog) SelectNamed(name string) (Val, error) {
+	_, err := c.browse()
+	if err != nil {
+		return nil, err
+	}
+	if d := c.find(name); d != nil {
+		return d, nil
+	}
+	return nil, unplaced(SparkError("SCHEMA_NOT_FOUND",
+		"Database "+name+" not found"))
 }
 
 // FieldVals implements FieldSelector.
@@ -627,7 +650,7 @@ func (d *SparkDatabase) Discover(name string) (bool, error) {
 	}
 	t := d.find(name)
 	if t == nil {
-		return widened, nil
+		return widened, d.connection.checkOpen()
 	}
 	fetched, err := t.browse()
 	return widened || fetched, err
@@ -659,6 +682,21 @@ func (d *SparkDatabase) SelectField(slot int) (Val, error) {
 		return []Val{}, nil
 	}
 	return tables[slot].Rows()
+}
+
+// SelectNamed implements NamedFieldSelector. Selecting a table reads
+// its rows; asking for a table the database does not have reads as
+// Spark's own error for it.
+func (d *SparkDatabase) SelectNamed(name string) (Val, error) {
+	t, err := d.Table(name)
+	if err != nil {
+		return nil, err
+	}
+	if t == nil {
+		return nil, unplaced(SparkError("TABLE_OR_VIEW_NOT_FOUND",
+			"Table "+d.name+"."+name+" not found"))
+	}
+	return t.Rows()
 }
 
 // FieldVals implements FieldSelector.

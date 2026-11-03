@@ -215,8 +215,14 @@ func (reg *MethodRegistry) desugarHead(apply *ast.Apply, name string,
 // postfixSpan is where a postfix call "receiver.f arg" is, as
 // morel-java's parser places it: at the call's last token, which
 // ends its argument -- the ")" of "x.f ()", or the name in "x.f y".
+//
+// A call in parentheses takes the position of its parentheses,
+// which is where its span already ends beyond its argument.
 func postfixSpan(apply *ast.Apply) token.Span {
 	arg := apply.Arg.Span()
+	if apply.Span().End != arg.End {
+		return apply.Span()
+	}
 	switch apply.Arg.(type) {
 	case *ast.ID, *ast.Literal:
 		if lit, isLit := apply.Arg.(*ast.Literal); !isLit ||

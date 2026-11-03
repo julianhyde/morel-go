@@ -49,6 +49,18 @@ func Constant(v Val) Code {
 	return &constantCode{v: v}
 }
 
+// Described is a value that says how a plan describes it, in place
+// of "constant(...)": a Spark plan says which plan it is.
+type Described interface {
+	PlanDescription() string
+}
+
+// Applier is a function value that is neither a built-in nor a
+// closure, such as the one "Spark.remote" makes.
+type Applier interface {
+	ApplyTo(arg Val) (Val, error)
+}
+
 // ConstantChar returns code that yields a fixed character. An
 // int and a char are the same at run time, so a plan cannot tell
 // them apart from the value; the compiler knows, and says so
@@ -67,6 +79,9 @@ func (c *constantCode) Eval(*Frame) (Val, error) {
 }
 
 func (c *constantCode) Describe() string {
+	if d, isDescribed := c.v.(Described); isDescribed {
+		return d.PlanDescription()
+	}
 	if c.isChar {
 		if r, ok := c.v.(rune); ok {
 			return "constant(" + string(r) + ")"
@@ -311,6 +326,8 @@ func ApplyVal(fn, arg Val) (Val, error) {
 		return fn.Apply(arg)
 	case *recCell:
 		return ApplyVal(fn.v, arg)
+	case Applier:
+		return fn.ApplyTo(arg)
 	case Fn:
 		return fn(arg)
 	case func(Val) (Val, error):

@@ -79,8 +79,9 @@ func normalizeProject(sys *types.System, p *core.Project) core.Exp {
 	}
 	if field, isField := fieldOfInput(p.Exp, 0); isField {
 		// Unwrap, and sort the values, rather than sorting records
-		// and then unwrapping them.
-		if sort, isSort := p.Input.(*core.Sort); isSort {
+		// of one field and then unwrapping them.
+		if sort, isSort := p.Input.(*core.Sort); isSort &&
+			isWholeOfInput(p) {
 			key, ok := unwrap(sort.Exp, field, types.ElemOf(p.Type()))
 			if !ok {
 				return p
