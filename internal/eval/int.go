@@ -76,13 +76,14 @@ func intCompareFn(arg Val) (Val, error) {
 }
 
 // intQuotFn is "Int.quot (a, b)": division truncating toward
-// zero (unlike "div", which floors).
+// zero (unlike "div", which floors). It wraps, as morel-java's
+// does: "Int.quot (minInt, ~1)" is minInt.
 func intQuotFn(arg Val) (Val, error) {
 	a, b := asPair(arg)
 	if asInt(b) == 0 {
 		return nil, &MorelError{Exn: ExnDiv}
 	}
-	return checkIntRange(int64(asInt(a)) / int64(asInt(b)))
+	return asInt(a) / asInt(b), nil
 }
 
 // intRemFn is "Int.rem (a, b)": the remainder of quot, with the

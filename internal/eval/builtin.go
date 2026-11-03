@@ -781,16 +781,17 @@ func mulInt(a, b int32) (Val, error) {
 }
 
 // divInt is SML's "div": floor division, rounding toward
-// negative infinity (unlike Go's, which rounds toward zero).
+// negative infinity (unlike Go's, which rounds toward zero). It
+// wraps, as morel-java's does: "minInt div ~1" is minInt.
 func divInt(a, b int32) (Val, error) {
 	if b == 0 {
 		return nil, &MorelError{Exn: ExnDiv}
 	}
-	q := int64(a) / int64(b)
+	q := a / b
 	if (a%b != 0) && ((a < 0) != (b < 0)) {
 		q--
 	}
-	return checkIntRange(q)
+	return q, nil
 }
 
 // modInt is SML's "mod": the remainder of floor division, with
@@ -835,9 +836,7 @@ func negFn(arg Val) (Val, error) {
 	case float32:
 		return -v, nil
 	case int32:
-		if v == math.MinInt32 {
-			return nil, &MorelError{Exn: ExnOverflow}
-		}
+		// Wraps, as morel-java's does: "~ minInt" is minInt.
 		return -v, nil
 	case uint64:
 		return -v, nil
