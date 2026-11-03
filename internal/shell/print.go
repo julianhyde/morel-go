@@ -152,6 +152,9 @@ func (c *Config) valueDoc(t types.Type, v eval.Val,
 	if conn, isConn := v.(*eval.SparkConnection); isConn {
 		return pp.Text(conn.String())
 	}
+	if o, isOpaque := v.(eval.Opaque); isOpaque {
+		return pp.Text(o.Opaque())
+	}
 	// lint: sort until '^\t}' where '^\tcase '
 	switch t := t.(type) {
 	case *types.Fn:

@@ -200,7 +200,7 @@ func (reg *MethodRegistry) desugarHead(apply *ast.Apply, name string,
 	if cand == nil {
 		return nil, false
 	}
-	span := apply.Span()
+	span := postfixSpan(apply)
 	var member ast.Expr = ast.NewApply(span,
 		ast.NewRecordSelector(span, name),
 		ast.NewID(span, cand.structure))
@@ -210,6 +210,24 @@ func (reg *MethodRegistry) desugarHead(apply *ast.Apply, name string,
 	}
 	return postfixCall(span, member, receiver, apply.Arg,
 		cand.paramIsTuple, cand.paramCount), true
+}
+
+// postfixSpan is where a postfix call "receiver.f arg" is, as
+// morel-java's parser places it: at the call's last token, which
+// ends its argument -- the ")" of "x.f ()", or the name in "x.f y".
+func postfixSpan(apply *ast.Apply) token.Span {
+	arg := apply.Arg.Span()
+	switch apply.Arg.(type) {
+	case *ast.ID, *ast.Literal:
+		if lit, isLit := apply.Arg.(*ast.Literal); !isLit ||
+			lit.Kind != ast.UnitLiteralOp {
+			return arg
+		}
+	}
+	end := arg.End
+	start := end
+	start.Col--
+	return token.Span{Start: start, End: end}
 }
 
 // postfixCall builds the call that "receiver.f arg" desugars to,
@@ -410,7 +428,7 @@ func (r *typeResolver) methodApply(env typeEnv, apply *ast.Apply,
 	// there is only ever one of them, so the receiver's type says
 	// nothing that its parameter does not.
 	if paramIsTuple, isUser := r.userMethods[name]; isUser {
-		span := apply.Span()
+		span := postfixSpan(apply)
 		return postfixCall(span, ast.NewID(span, name), receiver,
 			apply.Arg, paramIsTuple, -1), true, nil
 	}

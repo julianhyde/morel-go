@@ -161,6 +161,10 @@ const (
 	ProjectOp
 	JoinOp
 	SortOp
+	// ValueLiteralOp is a literal that holds a value of any type:
+	// what an expression stands for, where it was known when the
+	// statement was compiled.
+	ValueLiteralOp
 )
 
 var opNames = map[Op]string{
@@ -252,37 +256,38 @@ var opNames = map[Op]string{
 	AsOptOp:          "as_opt",
 	CheckExpOp:       "check_exp",
 
-	FromOp:       "from",
-	ExistsOp:     "exists",
-	ForallOp:     "forall",
-	ScanOp:       "scan",
-	LeftJoinOp:   "left_join",
-	RightJoinOp:  "right_join",
-	FullJoinOp:   "full_join",
-	WhereOp:      "where",
-	YieldOp:      "yield",
-	YieldAllOp:   "yieldAll",
-	GroupOp:      "group",
-	ComputeOp:    "compute",
-	OrderOp:      "order",
-	SkipOp:       "skip",
-	TakeOp:       "take",
-	IntoOp:       "into",
-	ThroughOp:    "through",
-	RequireOp:    "require",
-	InputOp:      "input",
-	FilterOp:     "filter",
-	ProjectOp:    "project",
-	JoinOp:       "join",
-	SortOp:       "sort",
-	DistinctOp:   "distinct",
-	UnorderOp:    "unorder",
-	UnionOp:      "union",
-	IntersectOp:  "intersect",
-	ExceptOp:     "except",
-	OverOp:       "over",
-	OrdinalOp:    "ordinal",
-	TypeStringOp: "type_string",
+	FromOp:         "from",
+	ExistsOp:       "exists",
+	ForallOp:       "forall",
+	ScanOp:         "scan",
+	LeftJoinOp:     "left_join",
+	RightJoinOp:    "right_join",
+	FullJoinOp:     "full_join",
+	WhereOp:        "where",
+	YieldOp:        "yield",
+	YieldAllOp:     "yieldAll",
+	GroupOp:        "group",
+	ComputeOp:      "compute",
+	OrderOp:        "order",
+	SkipOp:         "skip",
+	TakeOp:         "take",
+	IntoOp:         "into",
+	ThroughOp:      "through",
+	RequireOp:      "require",
+	InputOp:        "input",
+	FilterOp:       "filter",
+	ProjectOp:      "project",
+	JoinOp:         "join",
+	SortOp:         "sort",
+	ValueLiteralOp: "value_literal",
+	DistinctOp:     "distinct",
+	UnorderOp:      "unorder",
+	UnionOp:        "union",
+	IntersectOp:    "intersect",
+	ExceptOp:       "except",
+	OverOp:         "over",
+	OrdinalOp:      "ordinal",
+	TypeStringOp:   "type_string",
 }
 
 func (o Op) String() string {

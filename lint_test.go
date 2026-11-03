@@ -233,8 +233,10 @@ func languageOf(suffix string) language {
 // lintFile checks one file, appending a message to warn for each
 // violation.
 func lintFile(name string, warn func(string)) {
-	// Working notes are exempt from all checks.
-	if name == "plan.md" || name == "scratch.txt" {
+	// Working notes are exempt from all checks, and so is code that
+	// a tool generated, which says so in its name.
+	if name == "plan.md" || name == "scratch.txt" ||
+		strings.HasSuffix(name, ".pb.go") {
 		return
 	}
 	suffix := name[strings.LastIndex(name, ".")+1:]

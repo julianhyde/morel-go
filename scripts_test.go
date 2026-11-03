@@ -121,19 +121,19 @@ func checkRequires(t *testing.T, rel, src string) {
 }
 
 // holds reports whether a "requires:" condition holds. This port
-// has no Spark adapter, so it cannot connect to a server: of the
-// conditions, only "no-spark-adapter" holds, and "spark-prepare",
-// which says that the "Spark" structure has "prepare".
+// has the Spark adapter, so "spark-adapter" holds, and
+// "spark-prepare", which says that the "Spark" structure has
+// "prepare"; "no-spark-adapter" does not.
 func holds(t *testing.T, condition string) bool {
 	t.Helper()
 	// lint: sort until '^\t}' where '^\tcase '
 	switch condition {
 	case "no-spark-adapter":
-		return true
+		return false
 	case "spark":
 		return false
 	case "spark-adapter":
-		return false
+		return true
 	case "spark-prepare":
 		return true
 	}

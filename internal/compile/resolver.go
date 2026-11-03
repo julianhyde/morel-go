@@ -27,6 +27,7 @@ import (
 
 	"github.com/hydromatic/morel-go/internal/ast"
 	"github.com/hydromatic/morel-go/internal/core"
+	"github.com/hydromatic/morel-go/internal/eval"
 	"github.com/hydromatic/morel-go/internal/types"
 )
 
@@ -44,6 +45,7 @@ func Resolve(resolved *Resolved, overloads *OverloadEnv,
 		dictionaryParams: map[string]*core.IDPat{},
 		freePats:         map[freeKey]*core.IDPat{},
 		lineWidth:        lineWidth,
+		values:           resolved.Values,
 	}
 	decl, _, err := r.toDecl(nil, resolved.Decl)
 	return decl, err
@@ -101,6 +103,9 @@ func (r *resolver) freePat(name string, t types.Type) *core.IDPat {
 // the TypeResolver deduced.
 type resolver struct {
 	typeMap *TypeMap
+	// values are the values of the names that earlier statements
+	// bound; see Resolved.Values.
+	values map[string]eval.Val
 	// lineWidth is the width "Sys.planOf" lays a plan out within.
 	lineWidth int
 	// currentRow is the value that "current" rewrites to inside a
@@ -675,6 +680,10 @@ func (r *resolver) toApply(env *coreEnv, apply *ast.Apply,
 	}
 	if builtinName(fn) == planOfName {
 		return r.planOf(arg), nil
+	}
+	if name := builtinName(fn); name == sparkPrepareName ||
+		name == sparkRemoteName {
+		return r.sparkPrepare(name, apply, t, arg)
 	}
 	apply2 := &core.Apply{
 		T:    t,

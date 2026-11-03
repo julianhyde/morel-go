@@ -18,12 +18,14 @@
 package shell
 
 import (
+	"errors"
 	"os"
 	"strconv"
 
 	"github.com/hydromatic/morel-go/internal/ast"
 	"github.com/hydromatic/morel-go/internal/compile"
 	"github.com/hydromatic/morel-go/internal/eval"
+	"github.com/hydromatic/morel-go/internal/spark"
 	"github.com/hydromatic/morel-go/internal/types"
 )
 
@@ -31,10 +33,8 @@ import (
 // because the offline connection's catalog is the session's
 // foreign data sets.
 //
-// This port has no Spark adapter. So "mock:" is the only connection
-// that opens; any other URI, and preparing a plan, raise "Spark"
-// with error class CONNECTION, as morel-java does where its adapter
-// is absent.
+// "Spark.prepare" and "Spark.remote" are expanded by the resolver,
+// which translates the function they are given; see package spark.
 
 // sparkRemoteEnv is the environment variable that names the default
 // server.
@@ -46,9 +46,16 @@ const sparkName = "spark"
 // sparkBuiltins returns the Spark structure's implementations for
 // NewKernel to inject.
 func (k *Kernel) sparkBuiltins() map[string]eval.Val {
-	adapterAbsent := func(eval.Val) (eval.Val, error) {
-		return nil, eval.SparkError("CONNECTION",
-			eval.SparkAdapterMessage)
+	// The resolver replaces "prepare (c, f)" and "remote (c, f)"
+	// with what they make of f, so these run only where one is used
+	// as a value rather than applied to a function expression --
+	// passed to "map", say -- which they cannot serve, because by
+	// then the function is a closure and its tree is gone.
+	notApplied := func(name string) eval.Fn {
+		return func(eval.Val) (eval.Val, error) {
+			return nil, eval.NewSparkException("UNSUPPORTED",
+				"Spark."+name+" must be applied to a function expression")
+		}
 	}
 	return map[string]eval.Val{
 		// lint: sort until '^\t}' where '^\t\t"'
@@ -66,14 +73,33 @@ func (k *Kernel) sparkBuiltins() map[string]eval.Val {
 		"Spark.connectDefault": eval.Fn(func(eval.Val) (eval.Val, error) {
 			return k.sparkOpenDefault()
 		}),
-		// A plan can only be made by "prepare", which needs the
-		// adapter; so "execute" and "toString" are never given one.
-		"Spark.execute":  eval.Fn(adapterAbsent),
-		"Spark.prepare":  eval.Fn(adapterAbsent),
-		"Spark.remote":   eval.Fn(adapterAbsent),
-		"Spark.toString": eval.Fn(adapterAbsent),
-		"Spark.using":    eval.Fn(k.sparkUsing),
+		"Spark.execute": eval.Fn(sparkExecute),
+		"Spark.prepare": notApplied("prepare"),
+		"Spark.remote":  notApplied("remote"),
+		"Spark.toString": eval.Fn(func(arg eval.Val) (eval.Val, error) {
+			plan, _ := arg.(*spark.PreparedPlan)
+			// A plan that has no text says so as itself, not as a
+			// Morel exception, as morel-java's does.
+			return plan.Text()
+		}),
+		"Spark.using": eval.Fn(k.sparkUsing),
 	}
+}
+
+// sparkExecute is "Spark.execute (p, a)": runs plan p with argument
+// a.
+func sparkExecute(arg eval.Val) (eval.Val, error) {
+	args, _ := arg.([]eval.Val)
+	plan, _ := args[0].(*spark.PreparedPlan)
+	v, err := plan.Execute(args[1])
+	if err != nil {
+		var e *eval.SparkException
+		if errors.As(err, &e) {
+			return nil, e.Morel()
+		}
+		return nil, err
+	}
+	return v, nil
 }
 
 // sparkConnection returns the connection a value holds.
@@ -164,9 +190,8 @@ func adaptSpark(sys *types.System, b *compile.Binding) {
 // declaration is left alone, because the names a session binds are
 // its own, and so is anything but a query with at least one step.
 //
-// This port has no Spark adapter, so a query pushed down raises
-// "Spark" with error class CONNECTION. That is not a refusal to
-// translate, so "sparkFallback" does not evaluate it here instead.
+// A query Spark cannot do is refused where its plan is made, and
+// "sparkFallback" says what happens then; see runPushedDown.
 func (k *Kernel) sparkPushDown(n ast.Node) (ast.Node, error) {
 	pushDown, _ := strconv.ParseBool(k.config.props["sparkPushDown"])
 	if !pushDown {

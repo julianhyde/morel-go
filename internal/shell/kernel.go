@@ -191,6 +191,11 @@ type Kernel struct {
 	// dataSets are the session's foreign data sets, by name, which
 	// the offline Spark connection presents as its catalog.
 	dataSets map[string]eval.SparkDataSet
+	// catchRefusal says that a statement being run is a query pushed
+	// down to Spark, which is to be evaluated here instead if Spark
+	// refuses it; sparkRefusal is the refusal, if there was one.
+	catchRefusal bool
+	sparkRefusal *eval.SparkException
 }
 
 // NewKernel returns a kernel; name (e.g. "stdIn" or a file name)
@@ -664,7 +669,9 @@ func (k *Kernel) files() *compile.Files {
 	if _, shadowed := k.fileValues[compile.FileName]; !shadowed {
 		k.values[compile.FileName] = k.fileRoot
 	}
-	return &compile.Files{Root: k.fileRoot, Bound: k.fileValues}
+	return &compile.Files{
+		Root: k.fileRoot, Bound: k.fileValues, Values: k.values,
+	}
 }
 
 // setStructureField sets one member of a structure's record value,
@@ -911,9 +918,52 @@ func (k *Kernel) executeStatement(n ast.Node) string {
 			out = k.formatCompileError(err)
 			return
 		}
-		out = k.runStatement(n2)
+		if n2 == n {
+			out = k.runStatement(n)
+			return
+		}
+		out = k.runPushedDown(n, n2)
 	}()
 	return out
+}
+
+// runPushedDown runs a query that "sparkPushDown" rewrote to run on
+// Spark. A query Spark cannot do is refused where its plan is made,
+// and "sparkFallback" says what happens then: by default it is
+// evaluated here, with a warning that says so; otherwise the refusal
+// is the answer.
+func (k *Kernel) runPushedDown(n, n2 ast.Node) string {
+	fallback := true
+	if s, ok := k.config.props["sparkFallback"]; ok {
+		fallback, _ = strconv.ParseBool(s)
+	}
+	k.sparkRefusal = nil
+	k.catchRefusal = fallback
+	out := k.runStatement(n2)
+	k.catchRefusal = false
+	refusal := k.sparkRefusal
+	k.sparkRefusal = nil
+	if refusal == nil {
+		return out
+	}
+	pos := "stdIn:" + statementSpan(n).String()
+	warning := pos + " Warning: not pushed down to Spark, so " +
+		"evaluated here: " + refusal.Message + "\n  raised at: " + pos
+	out = k.runStatement(n)
+	if out == "" {
+		return warning
+	}
+	return warning + "\n" + out
+}
+
+// statementSpan is where a statement is, which is where an exception
+// raised while it was compiled is raised: the expression, or nowhere
+// for a declaration.
+func statementSpan(n ast.Node) token.Span {
+	if e, isExp := n.(ast.Expr); isExp {
+		return e.Span()
+	}
+	return token.Span{}
 }
 
 // qualifiedOrPlain returns the type a later use of the binding
@@ -1020,6 +1070,18 @@ func (k *Kernel) runStatement(n ast.Node) string {
 	}
 	coreDecl, err := compile.Resolve(resolved, k.overloads, k.config.LineWidth)
 	if err != nil {
+		var refusal *eval.SparkException
+		if errors.As(err, &refusal) {
+			// Preparing a plan failed: a Spark exception, raised where
+			// the statement is.
+			if k.catchRefusal && refusal.Refusal() {
+				k.sparkRefusal = refusal
+				return ""
+			}
+			m := refusal.Morel()
+			m.Span = compile.StatementSpan(resolved, n)
+			return m.Describe()
+		}
 		return k.formatCompileError(err)
 	}
 	if !isPlanCall(coreDecl) {

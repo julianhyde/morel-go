@@ -45,6 +45,9 @@ type Files struct {
 	// statement is bound to. It is empty in a session that has
 	// bound none.
 	Bound map[string]eval.Browsable
+	// Values are the values of the names that earlier statements
+	// bound, and of the built-ins.
+	Values map[string]eval.Val
 }
 
 // file returns the browsable value a name denotes, or nil if it

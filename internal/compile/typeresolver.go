@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/hydromatic/morel-go/internal/ast"
+	"github.com/hydromatic/morel-go/internal/eval"
 	"github.com/hydromatic/morel-go/internal/token"
 	"github.com/hydromatic/morel-go/internal/types"
 	"github.com/hydromatic/morel-go/internal/unify"
@@ -56,6 +57,12 @@ const (
 type Resolved struct {
 	Decl    ast.Decl
 	TypeMap *TypeMap
+	// Values are the values of the names bound by earlier
+	// statements, where the session supplied them; the resolver
+	// reads them where a statement's meaning depends on a value, as
+	// "Spark.prepare" depends on the connection and the collections
+	// it is given.
+	Values map[string]eval.Val
 }
 
 // Deduce infers a type for every node of a declaration, in an
@@ -96,14 +103,22 @@ func DeduceFiles(sys *types.System, bindings []Binding,
 		resolved, learned, err := deduceOnce(sys, bindings,
 			overloads, decl, files, fieldNames, methods, false)
 		if !learned {
-			return resolved, err
+			return withValues(resolved, files), err
 		}
 	}
 	// The bound was reached. Make a last pass, and report whatever
 	// it says rather than looping for ever.
 	resolved, _, err := deduceOnce(sys, bindings, overloads, decl,
 		files, fieldNames, methods, true)
-	return resolved, err
+	return withValues(resolved, files), err
+}
+
+// withValues gives a deduction the values of the session's names.
+func withValues(resolved *Resolved, files *Files) *Resolved {
+	if resolved != nil && files != nil {
+		resolved.Values = files.Values
+	}
+	return resolved
 }
 
 // deduceOnce makes one pass of type deduction. It reports whether
