@@ -63,6 +63,9 @@ type methodCandidate struct {
 	receiverHead string
 	target       string
 	paramIsTuple bool
+	// paramCount is how many parameters the method takes, counting
+	// the receiver, if its parameter is a tuple; otherwise -1.
+	paramCount int
 	// resultHead is the head type constructor of what the method
 	// returns, which is the receiver's head when the call is itself
 	// the receiver of another: "xs.drop(2).drop 1". It is "" for a
@@ -116,6 +119,7 @@ func NewMethodRegistry(sys *types.System,
 			receiverHead: typeHead(recv),
 			target:       mi.Target,
 			paramIsTuple: isTuple,
+			paramCount:   paramCount(t),
 			resultHead:   resultHead(t),
 		})
 	}
@@ -135,6 +139,17 @@ func receiverPart(t types.Type) (types.Type, bool) {
 		return tup.Args[0], true
 	}
 	return fn.Param, false
+}
+
+// paramCount returns how many parameters a method takes, counting
+// the receiver, or -1 if its parameter is not a tuple.
+func paramCount(t types.Type) int {
+	if fn, ok := t.(*types.Fn); ok {
+		if tup, ok := fn.Param.(*types.Tuple); ok {
+			return len(tup.Args)
+		}
+	}
+	return -1
 }
 
 // relationalStructure is the structure whose aggregates work on a
@@ -194,28 +209,42 @@ func (reg *MethodRegistry) desugarHead(apply *ast.Apply, name string,
 		member = ast.NewID(span, cand.target)
 	}
 	return postfixCall(span, member, receiver, apply.Arg,
-		cand.paramIsTuple), true
+		cand.paramIsTuple, cand.paramCount), true
 }
 
 // postfixCall builds the call that "receiver.f arg" desugars to,
-// given the function the method resolved to.
+// given the function the method resolved to, and how many
+// parameters it takes (-1 if that is not known, as for a user's
+// own method).
+//
+// For a function whose parameter is a tuple, a unit argument is an
+// argument, rather than the absence of one: such a function has a
+// place to put it, and nothing else would reach that place.
+//
+// "x.f (a, b)" could mean "f (x, a, b)" or "f (x, (a, b))", and the
+// number of parameters says which: a function of three takes the
+// receiver and both, as "String.substring" does; a function of two
+// takes the receiver and the tuple. Where the count is not known,
+// the tuple is spliced.
 func postfixCall(span token.Span, fn, receiver, arg ast.Expr,
-	paramIsTuple bool,
+	paramIsTuple bool, paramCount int,
 ) ast.Expr {
-	if lit, isLit := arg.(*ast.Literal); isLit &&
-		lit.Kind == ast.UnitLiteralOp {
-		// receiver.f () → f receiver
-		return ast.NewApply(span, fn, receiver)
-	}
 	if paramIsTuple {
-		// receiver.f arg → f (receiver, arg)
+		// receiver.f arg → f (receiver, arg), or
+		// receiver.f (a, b) → f (receiver, a, b)
 		elems := []ast.Expr{receiver}
-		if tup, isTuple := arg.(*ast.Tuple); isTuple {
+		if tup, isTuple := arg.(*ast.Tuple); isTuple &&
+			(paramCount < 0 || paramCount == len(tup.Args)+1) {
 			elems = append(elems, tup.Args...)
 		} else {
 			elems = append(elems, arg)
 		}
 		return ast.NewApply(span, fn, ast.NewTuple(span, elems))
+	}
+	if lit, isLit := arg.(*ast.Literal); isLit &&
+		lit.Kind == ast.UnitLiteralOp {
+		// receiver.f () → f receiver
+		return ast.NewApply(span, fn, receiver)
 	}
 	// receiver.f arg → f receiver arg
 	return ast.NewApply(span, ast.NewApply(span, fn, receiver), arg)
@@ -383,7 +412,7 @@ func (r *typeResolver) methodApply(env typeEnv, apply *ast.Apply,
 	if paramIsTuple, isUser := r.userMethods[name]; isUser {
 		span := apply.Span()
 		return postfixCall(span, ast.NewID(span, name), receiver,
-			apply.Arg, paramIsTuple), true, nil
+			apply.Arg, paramIsTuple, -1), true, nil
 	}
 	vReceiver := r.u.Variable()
 	err := r.deduceExp(env, receiver, vReceiver)

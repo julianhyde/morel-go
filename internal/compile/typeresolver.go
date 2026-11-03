@@ -154,7 +154,10 @@ func deduceOnce(sys *types.System, bindings []Binding,
 	// unified, so a discovery can be acted on by starting again,
 	// before any type has been reported. The last pass browses too,
 	// because the discovery widens the types it reports against.
-	widened := r.discoverFileFields()
+	widened, err := r.discoverFileFields()
+	if err != nil {
+		return nil, false, err
+	}
 	if !final && (widened || r.fieldsLearned) {
 		return nil, true, nil
 	}
@@ -335,7 +338,7 @@ func (r *typeResolver) checkFieldRefs(m *TypeMap) error {
 			// "Sys.file" is declared as "{...}" however much has
 			// been browsed. The entry itself decides.
 			if f := r.fileOf(call.apply.Arg); f != nil &&
-				f.Child(call.sel.Name) != nil {
+				f.Entry(call.sel.Name) != nil {
 				continue
 			}
 			return &Error{

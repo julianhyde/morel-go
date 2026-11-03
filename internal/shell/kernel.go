@@ -181,12 +181,16 @@ type Kernel struct {
 	// what browsing has discovered, so it must outlive a statement.
 	fileRoot *eval.File
 	fileDir  string
-	// fileValues records, per top-level name, the file it is bound
-	// to — so that "val s = file.scott" lets a later statement
-	// discover fields on "s". A name bound to something that is not
-	// a file maps to nil, marking it as shadowing any file of that
-	// name.
-	fileValues map[string]*eval.File
+	// fileValues records, per top-level name, the browsable value
+	// (a file, or a Spark connection's record or catalog) it is
+	// bound to — so that "val s = file.scott" lets a later
+	// statement discover fields on "s". A name bound to something
+	// that is not browsable maps to nil, marking it as shadowing
+	// any file of that name.
+	fileValues map[string]eval.Browsable
+	// dataSets are the session's foreign data sets, by name, which
+	// the offline Spark connection presents as its catalog.
+	dataSets map[string]eval.SparkDataSet
 }
 
 // NewKernel returns a kernel; name (e.g. "stdIn" or a file name)
@@ -203,6 +207,7 @@ func NewKernel(name string) *Kernel {
 	for i := range result.Bindings {
 		adaptRelationalAggregates(sys, &result.Bindings[i])
 		adaptSysFile(sys, &result.Bindings[i])
+		adaptSpark(sys, &result.Bindings[i])
 	}
 	bindings = append(bindings, result.Bindings...)
 	config := DefaultConfig()
@@ -221,7 +226,8 @@ func NewKernel(name string) *Kernel {
 		recFns:     map[string]*core.Fn{},
 		gapSample:  map[string]string{},
 		overloads:  compile.NewOverloadEnv(),
-		fileValues: map[string]*eval.File{},
+		fileValues: map[string]eval.Browsable{},
+		dataSets:   map[string]eval.SparkDataSet{},
 	}
 	// A message that quotes a value writes it as a result is
 	// written, but flat, and at the default print length and depth
@@ -263,6 +269,8 @@ func NewKernel(name string) *Kernel {
 	// The Datalog implementations compile and evaluate the
 	// translated programs, so the kernel supplies them too.
 	maps.Copy(values, k.datalogBuiltins())
+	// The Spark implementations read the session's data sets.
+	maps.Copy(values, k.sparkBuiltins())
 	// The use implementations execute files in this session.
 	maps.Copy(values, k.useBuiltins())
 	// The internal extent builtin backs sourceless query scans.
@@ -621,6 +629,15 @@ func (k *Kernel) loadScott() {
 		}
 		k.bind(b.name, b.typ)
 		k.values[b.name] = b.val
+		// A foreign data set is a database of the offline Spark
+		// connection.
+		if record, isRecord := b.typ.(*types.Record); isRecord {
+			if fields, ok := b.val.([]eval.Val); ok {
+				k.dataSets[b.name] = eval.SparkDataSet{
+					Type: record, Value: fields,
+				}
+			}
+		}
 	}
 }
 
@@ -684,7 +701,7 @@ func (k *Kernel) setStructureField(structure, member string,
 // could have denoted a file, so that ordinary bindings do not
 // accumulate.
 func (k *Kernel) recordFileBinding(name string, v eval.Val) {
-	if f, isFile := v.(*eval.File); isFile {
+	if f, isBrowsable := v.(eval.Browsable); isBrowsable {
 		k.fileValues[name] = f
 		return
 	}
@@ -889,7 +906,12 @@ func (k *Kernel) executeStatement(n ast.Node) string {
 				}
 			}
 		}()
-		out = k.runStatement(n)
+		n2, err := k.sparkPushDown(n)
+		if err != nil {
+			out = k.formatCompileError(err)
+			return
+		}
+		out = k.runStatement(n2)
 	}()
 	return out
 }
@@ -1241,6 +1263,13 @@ func notImplemented(name string) eval.Fn {
 // An error that means "not implemented yet" produces no output,
 // so unpulled corpus statements stay silent.
 func (k *Kernel) formatCompileError(err error) string {
+	var morelErr *eval.MorelError
+	if errors.As(err, &morelErr) {
+		// An exception raised while the statement was compiled, as
+		// browsing a Spark catalog whose connection is closed
+		// raises "Spark" during type resolution.
+		return morelErr.Describe()
+	}
 	var compileErr *compile.Error
 	if !errors.As(err, &compileErr) {
 		// Not a compile error, so not a feature that is missing but

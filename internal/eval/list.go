@@ -172,6 +172,11 @@ func Nth(i int) Fn {
 		if f, isFile := arg.(*File); isFile {
 			return f.Field(i), nil
 		}
+		// So are a Spark catalog's, which are fetched when they
+		// are first selected.
+		if s, isSelector := arg.(FieldSelector); isSelector {
+			return s.SelectField(i)
+		}
 		return asList(arg)[i], nil
 	}
 }

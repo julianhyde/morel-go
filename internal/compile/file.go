@@ -29,8 +29,9 @@ import (
 const FileName = "file"
 
 // Files is a session's view of the file system: the directory that
-// "file" denotes, and the files that names bound by earlier
-// statements hold, as in
+// "file" denotes, and the browsable values -- files, and the
+// records and catalogs of Spark connections -- that names bound by
+// earlier statements hold, as in
 //
 //	val s = file.scott;
 //	from d in s.depts;
@@ -40,24 +41,26 @@ const FileName = "file"
 type Files struct {
 	// Root is the file that the name "file" denotes.
 	Root *eval.File
-	// Bound gives the file that a name from an earlier statement is
-	// bound to. It is empty in a session that has bound none.
-	Bound map[string]*eval.File
+	// Bound gives the browsable value that a name from an earlier
+	// statement is bound to. It is empty in a session that has
+	// bound none.
+	Bound map[string]eval.Browsable
 }
 
-// file returns the file a name denotes, or nil if it denotes none.
+// file returns the browsable value a name denotes, or nil if it
+// denotes none.
 //
 // A name bound by an earlier statement is consulted first, and may
 // be bound to nothing (a nil entry), which is how a user's own
 // "val file = ..." shadows the file system.
-func (f *Files) file(name string) *eval.File {
+func (f *Files) file(name string) eval.Browsable {
 	if f == nil {
 		return nil
 	}
 	if bound, isBound := f.Bound[name]; isBound {
 		return bound
 	}
-	if name == FileName {
+	if name == FileName && f.Root != nil {
 		return f.Root
 	}
 	return nil
@@ -81,8 +84,11 @@ func (e *fileTypeEnv) get(r *typeResolver, name string) (
 		return e.parent.get(r, name)
 	}
 	// Expand the root, so that its type lists the entries a field
-	// selection can name. Entries stay unexpanded until named.
-	f.Expand()
+	// selection can name. Entries stay unexpanded until named. A
+	// value that cannot be browsed -- the catalog of a connection
+	// that has been closed -- keeps the type it has; the failure is
+	// reported where a field of it is discovered.
+	_ = f.Browse()
 	return r.typeTerm(f.Type(e.sys), map[int]*unify.Var{}), true
 }
 
@@ -102,7 +108,9 @@ func (e *fileTypeEnv) overloads(name string) []*unify.Var {
 
 // discoverFileFields browses the file system for the fields that
 // this declaration selects from it, and reports whether any of
-// them widened a file's type.
+// them widened a file's type. Browsing a Spark catalog can fail, as
+// when its connection is closed, and the failure is the exception
+// "Spark".
 //
 // It works from the syntax, not from deduced types: a selector's
 // receiver is followed back to the file it denotes, if any. That
@@ -112,9 +120,9 @@ func (e *fileTypeEnv) overloads(name string) []*unify.Var {
 // Selectors are visited in the order deduction met them, which is
 // innermost first, so that "file.scott.depts" discovers "scott"
 // before it looks for "depts" inside it.
-func (r *typeResolver) discoverFileFields() bool {
+func (r *typeResolver) discoverFileFields() (bool, error) {
 	if r.files == nil {
-		return false
+		return false, nil
 	}
 	widened := false
 	for _, call := range r.selectorCalls {
@@ -122,11 +130,15 @@ func (r *typeResolver) discoverFileFields() bool {
 		if f == nil {
 			continue
 		}
-		if f.DiscoverField(call.sel.Name) {
+		w, err := f.Discover(call.sel.Name)
+		if err != nil {
+			return false, err
+		}
+		if w {
 			widened = true
 		}
 	}
-	return widened
+	return widened, nil
 }
 
 // fileSelectorParam types a selector whose receiver is a
@@ -149,7 +161,7 @@ func (r *typeResolver) fileSelectorParam(apply *ast.Apply,
 	if parent == nil {
 		return param
 	}
-	child := parent.Child(sel.Name)
+	child := parent.Entry(sel.Name)
 	if child == nil {
 		return param
 	}
@@ -157,11 +169,11 @@ func (r *typeResolver) fileSelectorParam(apply *ast.Apply,
 	return r.typeTerm(parent.Type(r.sys), map[int]*unify.Var{})
 }
 
-// fileOf returns the file an expression denotes, or nil if it
-// denotes something other than a file. It follows a name, and a
-// chain of field selections from one: "file", "file.scott", and
-// "s.depts" where "s" is bound to a file.
-func (r *typeResolver) fileOf(e ast.Expr) *eval.File {
+// fileOf returns the browsable value an expression denotes, or nil
+// if it denotes something else. It follows a name, and a chain of
+// field selections from one: "file", "file.scott", and "s.depts"
+// where "s" is bound to a file.
+func (r *typeResolver) fileOf(e ast.Expr) eval.Browsable {
 	switch e := e.(type) {
 	case *ast.ID:
 		return r.files.file(e.Name)
@@ -179,7 +191,7 @@ func (r *typeResolver) fileOf(e ast.Expr) *eval.File {
 			}
 			return nil
 		}
-		return parent.Child(sel.Name)
+		return parent.Entry(sel.Name)
 	}
 	return nil
 }

@@ -122,6 +122,14 @@ ACCEPTED = {
         194,
         "the `foodmart` dataset, as in blog.smli.",
     ),
+    "built-in/spark.smli": (
+        16,
+        "the `foodmart` dataset, which the offline Spark connection "
+        "presents as a database of its catalog: the catalog has no "
+        "`foodmart` field, so the last statement, whose discovery of "
+        "`foodmart`'s tables raises `Spark` CLOSED in morel-java, is a "
+        "type error here.",
+    ),
 }
 
 

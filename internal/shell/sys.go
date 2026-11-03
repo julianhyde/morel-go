@@ -193,6 +193,8 @@ var sysProps = map[string]sysProp{
 	rawStringsProp:       {nil, intProp, tNonNegIntOpt},
 	"relationalize":      {text("false"), boolProp, tBool},
 	"scriptDirectory":    {nil, fileProp, tFile},
+	"sparkFallback":      {text("true"), boolProp, tBool},
+	"sparkPushDown":      {text("false"), boolProp, tBool},
 	stringDepthProp:      {nil, intProp, tNonNegIntOpt},
 	stringFoldProp:       {nil, intProp, tPosIntOpt},
 	"terminalBackground": {nil, stringProp, tStringOpt},

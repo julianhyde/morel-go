@@ -21,6 +21,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -71,6 +72,7 @@ func checkScript(t *testing.T, f, rel string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	checkRequires(t, rel, string(src))
 	kernel := shell.NewKernel(rel)
 	// Scripts resolve data files (Datalog .input) against the
 	// "directory" property; testdata is the analog of java's
@@ -89,6 +91,54 @@ func checkScript(t *testing.T, f, rel string) {
 	} else {
 		checkTranscript(t, kernel, f, rel, string(src))
 	}
+}
+
+// requiresPattern matches a script's "(*) requires: <conditions>"
+// directive.
+var requiresPattern = regexp.MustCompile(`^\(\*\) requires: (.*)`)
+
+// requiresLines is how far into a script the directive is looked
+// for: it belongs in the header.
+const requiresLines = 40
+
+// checkRequires skips the test if the script's header has a
+// directive "(*) requires: <conditions>" with a condition that does
+// not hold. Several conditions, separated by spaces, must all hold.
+func checkRequires(t *testing.T, rel, src string) {
+	t.Helper()
+	lines := strings.Split(src, "\n")
+	for _, line := range lines[:min(len(lines), requiresLines)] {
+		m := requiresPattern.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		for condition := range strings.FieldsSeq(m[1]) {
+			if !holds(t, condition) {
+				t.Skipf("%s requires %s", rel, condition)
+			}
+		}
+	}
+}
+
+// holds reports whether a "requires:" condition holds. This port
+// has no Spark adapter, so it cannot connect to a server: of the
+// conditions, only "no-spark-adapter" holds, and "spark-prepare",
+// which says that the "Spark" structure has "prepare".
+func holds(t *testing.T, condition string) bool {
+	t.Helper()
+	// lint: sort until '^\t}' where '^\tcase '
+	switch condition {
+	case "no-spark-adapter":
+		return true
+	case "spark":
+		return false
+	case "spark-adapter":
+		return false
+	case "spark-prepare":
+		return true
+	}
+	t.Fatalf("unknown condition '%s' in requires directive", condition)
+	return false
 }
 
 // checkIdempotent checks that a ".smli" script reproduces itself:

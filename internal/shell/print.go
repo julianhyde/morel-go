@@ -56,6 +56,14 @@ func (c *Config) prettyBinding(name string, v eval.Val,
 	if displayT == nil {
 		displayT = t
 	}
+	if r, isRecord := v.(*eval.SparkConnectionRecord); isRecord &&
+		c.sys != nil {
+		// The record a Spark connection returns has the type its
+		// value carries, a progressive record, rather than the one
+		// "Spark.connect" is declared with.
+		t = r.Type(c.sys)
+		displayT = t
+	}
 	// A string with enough newlines prints as a raw literal, in full
 	// (whatever "stringDepth" says) -- unless "printDepth" is 0, when
 	// the whole value prints as "#".
@@ -135,6 +143,14 @@ func (c *Config) valueDoc(t types.Type, v eval.Val,
 		// rows are read only when it is used as a collection, so
 		// printing a directory does not read every file in it.
 		return pp.Text("<relation>")
+	}
+	if _, isTable := v.(*eval.SparkTable); isTable {
+		// So does a table of a Spark catalog, whose rows are read
+		// only when it is selected.
+		return pp.Text("<relation>")
+	}
+	if conn, isConn := v.(*eval.SparkConnection); isConn {
+		return pp.Text(conn.String())
 	}
 	// lint: sort until '^\t}' where '^\tcase '
 	switch t := t.(type) {
@@ -314,6 +330,11 @@ func asVals(v eval.Val) []eval.Val {
 			vals[i] = child
 		}
 		return vals
+	}
+	if fs, isSelector := v.(eval.FieldSelector); isSelector {
+		// A Spark catalog's values are its databases, a
+		// database's its tables.
+		return fs.FieldVals()
 	}
 	vals, ok := v.([]eval.Val)
 	if !ok {
