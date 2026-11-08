@@ -982,31 +982,7 @@ func (r *typeResolver) typeTerm(t types.Type,
 		// site. The predicate's own variables are shared with the base
 		// type via subst.
 		for _, p := range t.Predicates {
-			fn, ok := p.Type.(*types.Fn)
-			if !ok {
-				continue
-			}
-			argVar := r.u.Variable()
-			resultVar := r.u.Variable()
-			r.equiv(argVar, r.typeTerm(fn.Param, subst))
-			r.equiv(resultVar, r.typeTerm(fn.Result, subst))
-			argResults := make([]unify.TermPair, len(p.Candidates))
-			for i, cand := range p.Candidates {
-				cfn, ok := cand.(*types.Fn)
-				if !ok {
-					continue
-				}
-				// Fresh variable scope per candidate.
-				cSub := map[int]*unify.Var{}
-				vP := r.u.Variable()
-				vR := r.u.Variable()
-				r.equiv(vP, r.typeTerm(cfn.Param, cSub))
-				r.equiv(vR, r.typeTerm(cfn.Result, cSub))
-				argResults[i] = unify.TermPair{Left: vP, Right: vR}
-			}
-			r.constraints = append(r.constraints,
-				unify.OverloadNamed(p.Name, argVar, resultVar,
-					argResults))
+			r.predicateConstraint(p, subst)
 		}
 		return r.typeTerm(t.Type, subst)
 	case *types.Record:
@@ -1043,6 +1019,39 @@ func (r *typeResolver) typeTerm(t types.Type,
 	default:
 		panic("cannot convert type " + t.String())
 	}
+}
+
+// predicateConstraint re-creates a qualified type's predicate as an
+// overload constraint, with fresh variables for each candidate
+// instance; the predicate's own variables are shared with the base
+// type through subst.
+func (r *typeResolver) predicateConstraint(p types.Predicate,
+	subst map[int]*unify.Var,
+) {
+	fn, ok := p.Type.(*types.Fn)
+	if !ok {
+		return
+	}
+	argVar := r.u.Variable()
+	resultVar := r.u.Variable()
+	r.equiv(argVar, r.typeTerm(fn.Param, subst))
+	r.equiv(resultVar, r.typeTerm(fn.Result, subst))
+	argResults := make([]unify.TermPair, len(p.Candidates))
+	for i, cand := range p.Candidates {
+		cfn, ok := cand.(*types.Fn)
+		if !ok {
+			continue
+		}
+		// Fresh variable scope per candidate.
+		cSub := map[int]*unify.Var{}
+		vP := r.u.Variable()
+		vR := r.u.Variable()
+		r.equiv(vP, r.typeTerm(cfn.Param, cSub))
+		r.equiv(vR, r.typeTerm(cfn.Result, cSub))
+		argResults[i] = unify.TermPair{Left: vP, Right: vR}
+	}
+	r.constraints = append(r.constraints,
+		unify.OverloadNamed(p.Name, argVar, resultVar, argResults))
 }
 
 // instantiateSchemePredicate re-creates, at a use of a let-generalized

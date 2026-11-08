@@ -200,15 +200,15 @@ func combineFieldGens(sys *types.System, pat *core.IDPat,
 		fresh := map[*core.IDPat]*core.IDPat{}
 		scanPat := clonePat(g.pat, fresh)
 		var joins []core.Exp
-		for orig, copy := range fresh {
+		for orig, dup := range fresh {
 			if prev, ok := mapped[orig]; ok {
 				// A variable an earlier scan bound: this copy
 				// renames and equates to it.
-				copy.Name += "$"
+				dup.Name += "$"
 				joins = append(joins, eqExp(sys,
-					&core.ID{Pat: copy}, &core.ID{Pat: prev}))
+					&core.ID{Pat: dup}, &core.ID{Pat: prev}))
 			} else {
-				mapped[orig] = copy
+				mapped[orig] = dup
 			}
 		}
 		steps = append(steps, &core.Scan{Pat: scanPat, Exp: g.exp})

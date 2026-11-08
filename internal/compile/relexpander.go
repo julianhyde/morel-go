@@ -1884,17 +1884,7 @@ func (x *relExpander) correlatedPats(node core.Exp, frame *relFrame,
 			return
 		}
 		for _, read := range relFreePats(node) {
-			correlated := false
-			if element, isBound := binders[read]; isBound {
-				for _, p := range relFreePats(element) {
-					if pats[p] {
-						correlated = true
-					}
-				}
-			} else {
-				correlated = pats[read]
-			}
-			if correlated {
+			if readsCorrelated(read, binders, pats) {
 				for _, id := range core.PatIDs(pat) {
 					pats[id] = true
 				}
@@ -1902,6 +1892,24 @@ func (x *relExpander) correlatedPats(node core.Exp, frame *relFrame,
 			}
 		}
 	}
+}
+
+// readsCorrelated reports whether a leaf's read of a variable makes it
+// correlated: the variable is one of pats, or is a join's binder whose
+// element reads one of them.
+func readsCorrelated(read *core.IDPat, binders map[*core.IDPat]core.Exp,
+	pats map[*core.IDPat]bool,
+) bool {
+	element, isBound := binders[read]
+	if !isBound {
+		return pats[read]
+	}
+	for _, p := range relFreePats(element) {
+		if pats[p] {
+			return true
+		}
+	}
+	return false
 }
 
 // recordSubsumed remembers the conditions that a sealed generator

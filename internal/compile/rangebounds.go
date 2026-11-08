@@ -280,8 +280,8 @@ func substituteFresh(e core.Exp,
 	fresh map[*core.IDPat]*core.IDPat,
 ) core.Exp {
 	binds := map[*core.IDPat]core.Exp{}
-	for orig, copy := range fresh {
-		binds[orig] = &core.ID{Pat: copy}
+	for orig, dup := range fresh {
+		binds[orig] = &core.ID{Pat: dup}
 	}
 	return substituteExp(e, binds)
 }

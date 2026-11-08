@@ -196,36 +196,7 @@ func (a *analyzer) exp(e core.Exp) {
 			a.exp(e.Matches[0].Exp)
 			return
 		}
-		// Only one branch of a multi-branch case runs, so a
-		// binding's uses across branches cost only the worst
-		// branch: add the maximum per-branch count. A binding
-		// that occurs on several branches is marked parallel —
-		// inlining it there duplicates code, though not work.
-		worst := map[*core.IDPat]int{}
-		branches := map[*core.IDPat]int{}
-		for _, m := range e.Matches {
-			a.declarePat(m.Pat)
-			branch := &analyzer{uses: map[*core.IDPat]*useInfo{}}
-			branch.exp(m.Exp)
-			for pat, info := range branch.uses {
-				if info.declared {
-					a.declare(pat)
-				}
-				if info.count == 0 {
-					a.info(pat)
-					continue
-				}
-				worst[pat] = max(worst[pat], info.count)
-				branches[pat]++
-			}
-		}
-		for pat, count := range worst {
-			info := a.info(pat)
-			info.count += count
-			if branches[pat] > 1 {
-				info.parallel = true
-			}
-		}
+		a.caseBranches(e.Matches)
 	case *core.Check:
 		a.exp(e.Value)
 		a.exp(e.Cond)
@@ -261,6 +232,39 @@ func (a *analyzer) exp(e core.Exp) {
 		}
 		a.exps(e.Inputs())
 		a.exps(relExps(e))
+	}
+}
+
+// caseBranches analyzes the branches of a case with more than one.
+// Only one branch runs, so a binding's uses across branches cost only
+// the worst branch: add the maximum per-branch count. A binding that
+// occurs on several branches is marked parallel -- inlining it there
+// duplicates code, though not work.
+func (a *analyzer) caseBranches(matches []core.Match) {
+	worst := map[*core.IDPat]int{}
+	branches := map[*core.IDPat]int{}
+	for _, m := range matches {
+		a.declarePat(m.Pat)
+		branch := &analyzer{uses: map[*core.IDPat]*useInfo{}}
+		branch.exp(m.Exp)
+		for pat, info := range branch.uses {
+			if info.declared {
+				a.declare(pat)
+			}
+			if info.count == 0 {
+				a.info(pat)
+				continue
+			}
+			worst[pat] = max(worst[pat], info.count)
+			branches[pat]++
+		}
+	}
+	for pat, count := range worst {
+		info := a.info(pat)
+		info.count += count
+		if branches[pat] > 1 {
+			info.parallel = true
+		}
 	}
 }
 
