@@ -20,6 +20,7 @@ package parse
 import (
 	"slices"
 	"strings"
+	"unicode"
 )
 
 // Unquote returns the value of a string or char literal token:
@@ -95,19 +96,59 @@ func unquoteIdent(text string) string {
 
 // QuoteIdent renders a name -- a binding's or a record label's --
 // as it appears in printed output: back-tick-quoted (doubling any
-// internal backtick) when the name is a reserved word or contains
-// a backtick or a space, and unchanged otherwise. So a binding
-// named "val" prints as "val `val` = ...", and a structure with a
-// member named "exists" as "{`exists`=fn, ...}"; each is quoted
-// exactly as it must be written to be read back.
+// internal backtick) when the name is a reserved word or is not an
+// alphanumeric identifier, a numeric label or a symbolic
+// identifier, and unchanged otherwise. So a binding named "val"
+// prints as "val `val` = ...", a structure with a member named
+// "exists" as "{`exists`=fn, ...}", and a label "sum(x)" as
+// "`sum(x)`"; each is quoted exactly as it must be written to be
+// read back.
 func QuoteIdent(id string) string {
-	if strings.Contains(id, "`") {
+	if reservedWords[id] || !isPlainID(id) {
 		return "`" + strings.ReplaceAll(id, "`", "``") + "`"
 	}
-	if reservedWords[id] || strings.Contains(id, " ") {
-		return "`" + id + "`"
-	}
 	return id
+}
+
+// symbolicChars are the characters that may make up a symbolic
+// identifier, such as "<=".
+const symbolicChars = "!%&$#+-/:<=>?@\\~^|*"
+
+// isPlainID reports whether a name can be written without
+// back-ticks: an alphanumeric identifier such as "x1'", a numeric
+// label such as "2", or a symbolic identifier such as "<=". It
+// allows "$" in an alphanumeric identifier, for names that Morel
+// generates, such as "v$0" and "$r".
+func isPlainID(id string) bool {
+	if id == "" {
+		return false
+	}
+	runes := []rune(id)
+	c0 := runes[0]
+	if unicode.IsLetter(c0) ||
+		c0 == '$' && len(runes) > 1 && unicode.IsLetter(runes[1]) {
+		for _, c := range runes {
+			if !unicode.IsLetter(c) && !unicode.IsDigit(c) &&
+				c != '_' && c != '\'' && c != '$' {
+				return false
+			}
+		}
+		return true
+	}
+	if c0 >= '1' && c0 <= '9' {
+		for _, c := range runes {
+			if c < '0' || c > '9' {
+				return false
+			}
+		}
+		return true
+	}
+	for _, c := range runes {
+		if !strings.ContainsRune(symbolicChars, c) {
+			return false
+		}
+	}
+	return true
 }
 
 // reservedWords are morel's keywords, which may be used as an
