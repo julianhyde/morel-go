@@ -124,6 +124,25 @@ ACCEPTED = {
     ),
 }
 
+# Scripts that morel-go does not have yet because they test the Spark
+# adapter, whose propagation is held back until morel-java's Spark work
+# settles. While morel-go lacks such a file, the gate skips it, rather
+# than counting every morel-java change to it as divergence; once
+# morel-go has the file, it is measured like any other.
+DEFERRED = {
+    "built-in/spark.smli",
+    "spark.smli",
+    "spark-disabled.smli",
+    "spark-divergence.smli",
+    "spark-error.smli",
+    "spark-exec.smli",
+    "spark-live.smli",
+    "spark-plan.smli",
+    "spark-plan-generated.smli",
+    "triple.smli",
+    "tpcds-10m.smli",
+}
+
 
 def git(repo, *args):
     """Runs git in `repo`, returning stdout (None on failure)."""
@@ -353,7 +372,13 @@ def gate(go_repo, args):
     accepted = []
     net_before = net_after = 0
     rows = []
+    deferred = []
     for rel in sorted(rels):
+        if (rel in DEFERRED
+                and not file_at(go_repo, go, GO_PREFIX, rel)
+                and not file_at(go_repo, go_parent, GO_PREFIX, rel)):
+            deferred.append(rel)
+            continue
         before = diff_lines(
             file_at(go_repo, go_parent, GO_PREFIX, rel),
             file_at(args.java_repo, java_parent, JAVA_PREFIX,
@@ -398,6 +423,11 @@ def gate(go_repo, args):
     print(f"net divergence: {net_before} -> {net_after} "
           f"({net_after - net_before:+d} lines)")
     print()
+
+    if deferred:
+        print(f"deferred with Spark, not measured: {len(deferred)} "
+              f"file(s)")
+        print()
 
     for rel, after in accepted:
         limit, why = ACCEPTED[rel]
