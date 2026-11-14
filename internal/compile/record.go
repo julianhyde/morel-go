@@ -81,14 +81,16 @@ func contiguousIntegers(labels []string) bool {
 
 // recordLabel builds the term operator for a record type with
 // the given labels, e.g. "record:a:b". A label that contains ":"
-// is quoted with backticks.
+// or a backtick is quoted with backticks, and each backtick in
+// it is written twice.
 func recordLabel(labels []string) string {
 	var b strings.Builder
 	b.WriteString(recordTyCon)
 	for _, label := range labels {
 		b.WriteString(":")
-		if strings.Contains(label, ":") {
-			b.WriteString("`" + label + "`")
+		if strings.ContainsAny(label, ":`") {
+			b.WriteString("`" +
+				strings.ReplaceAll(label, "`", "``") + "`")
 		} else {
 			b.WriteString(label)
 		}
@@ -114,20 +116,24 @@ func fieldList(s *unify.Sequence) []string {
 }
 
 // splitQuoted splits on ":", except within backtick quotes,
-// which it strips.
+// which it strips. Within quotes, a doubled backtick stands for one.
 func splitQuoted(s string) []string {
 	var parts []string
 	var b strings.Builder
 	quoted := false
-	for _, r := range s {
+	for i := 0; i < len(s); i++ {
+		r := s[i]
 		switch {
+		case r == '`' && quoted && i+1 < len(s) && s[i+1] == '`':
+			b.WriteByte('`')
+			i++
 		case r == '`':
 			quoted = !quoted
 		case r == ':' && !quoted:
 			parts = append(parts, b.String())
 			b.Reset()
 		default:
-			b.WriteRune(r)
+			b.WriteByte(r)
 		}
 	}
 	return append(parts, b.String())
