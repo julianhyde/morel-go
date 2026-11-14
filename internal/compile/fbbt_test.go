@@ -117,7 +117,7 @@ func (f *fbbtFixture) strengthen(where core.Exp,
 
 // text renders an expression the way a plan does.
 func (f *fbbtFixture) text(e core.Exp) string {
-	u := &unparser{sys: f.sys, seen: map[string][]*core.IDPat{}}
+	u := &unparser{sys: f.sys}
 	u.exp(e, 0, 0)
 	return u.render()
 }

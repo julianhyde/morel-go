@@ -2367,7 +2367,7 @@ func relDebugf(format string, args ...any) {
 
 // relDebugExp renders an expression for relDebugf.
 func relDebugExp(sys *types.System, e core.Exp) string {
-	u := &unparser{sys: sys, seen: map[string][]*core.IDPat{}}
+	u := &unparser{sys: sys}
 	u.exp(e, 0, 0)
 	return u.render()
 }

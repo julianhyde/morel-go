@@ -35,7 +35,7 @@ func conjunction(f *fbbtFixture) core.Exp {
 // unparseWidth renders an expression laid out to fit a width.
 func unparseWidth(f *fbbtFixture, e core.Exp, width int) string {
 	u := &unparser{
-		sys: f.sys, seen: map[string][]*core.IDPat{}, width: width,
+		sys: f.sys, width: width,
 	}
 	u.exp(e, 0, 0)
 	return u.render()

@@ -73,10 +73,35 @@ func relPlanOf(sys *types.System, exp core.Exp,
 			return RelPlan(sys, tree, width, true)
 		}
 	}
-	// Not a query, so there is no tree; say what the expression
-	// is.
+	// Not a query, but the queries inside it, such as the body of
+	// a function, are trees, and print as relations broken out of
+	// the expression: "fn l => r$0[l]", then "r$0[l] =" and its
+	// tree.
+	if tree := translateNested(sys, exp); containsRel(tree) {
+		u := &unparser{
+			sys:         sys,
+			width:       width,
+			treeMode:    true,
+			boundInPlan: relBoundPats(tree),
+		}
+		u.exp(tree, 0, 0)
+		u.hardBreak()
+		for i := 0; ; i++ {
+			if i >= len(u.relDefs) {
+				break
+			}
+			rel := u.relDefs[i]
+			u.hardBreak()
+			u.put(u.relHeader(i) + " =")
+			u.hardBreak()
+			u.relTree(rel, relIndent, true)
+		}
+		return relPlanText(u)
+	}
+	// Not a query, and none inside it, so there is no tree; say
+	// what the expression is.
 	u := &unparser{
-		sys: sys, seen: map[string][]*core.IDPat{}, width: width,
+		sys: sys, width: width,
 	}
 	u.exp(exp, 0, 0)
 	return u.render()
@@ -272,7 +297,6 @@ func RelPlan(sys *types.System, exp core.Exp, width int,
 ) string {
 	u := &unparser{
 		sys:         sys,
-		seen:        map[string][]*core.IDPat{},
 		width:       width,
 		treeMode:    true,
 		boundInPlan: relBoundPats(exp),
@@ -334,7 +358,7 @@ func RelPlanDecl(sys *types.System, decl core.Decl,
 			// collection, and prints as the expression it is,
 			// laid out to the width.
 			u := &unparser{
-				sys: sys, seen: map[string][]*core.IDPat{},
+				sys:   sys,
 				width: width, inlined: inlined,
 			}
 			u.decl(&core.NonRecValDecl{Pat: d.Pat, Exp: tree})
@@ -345,7 +369,6 @@ func RelPlanDecl(sys *types.System, decl core.Decl,
 		// relations below it.
 		u := &unparser{
 			sys:         sys,
-			seen:        map[string][]*core.IDPat{},
 			width:       width,
 			treeMode:    true,
 			inlined:     inlined,
@@ -367,7 +390,6 @@ func RelPlanDecl(sys *types.System, decl core.Decl,
 	}
 	u := &unparser{
 		sys:         sys,
-		seen:        map[string][]*core.IDPat{},
 		width:       width,
 		treeMode:    true,
 		inlined:     inlined,

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -80,7 +81,7 @@ func UnparseDecl(sys *types.System, decl core.Decl) string {
 // UnparseDeclWidth is UnparseDecl laid out to fit a width; a width of
 // 0 is no width, and prints what UnparseDecl prints.
 func UnparseDeclWidth(sys *types.System, decl core.Decl, width int) string {
-	u := &unparser{sys: sys, seen: map[string][]*core.IDPat{}, width: width}
+	u := &unparser{sys: sys, width: width}
 	u.decl(decl)
 	return u.render()
 }
@@ -121,8 +122,11 @@ func binding(prec int, assoc rune) (int, int) {
 
 // unparser accumulates the rendering.
 type unparser struct {
-	sys  *types.System
-	seen map[string][]*core.IDPat
+	sys *types.System
+	// suffixes is the number each named binder prints with, "x_1"
+	// for 1, and nextSuffix the next number free for each name.
+	suffixes   map[*core.IDPat]int
+	nextSuffix map[string]int
 
 	// The text is built as a document, so that a layout can be chosen
 	// to fit a width. A run of characters with no break in it
@@ -284,15 +288,30 @@ func (u *unparser) name(pat *core.IDPat) {
 	}
 	// A scan the lowering named after a node's id prints as the id.
 	name := planName(pat.Name)
-	list := u.seen[name]
-	for i, p := range list {
-		if p == pat {
-			u.put(suffixed(name, i))
-			return
-		}
+	u.put(suffixed(name, u.suffix(name, pat)))
+}
+
+// suffix is the number a named binder prints with: 0, so no suffix,
+// for the first binder of its name, and 1, 2, ... for the others, in
+// the order they are met. A number whose name an id in scope already
+// prints under is skipped, so that a variable never prints as the id:
+// in "filter d_1 [... (fn d => ...) andalso (fn d_2 => ...) d_1]" the
+// second "d" is not "d_1".
+func (u *unparser) suffix(name string, pat *core.IDPat) int {
+	if i, ok := u.suffixes[pat]; ok {
+		return i
 	}
-	u.seen[name] = append(list, pat)
-	u.put(suffixed(name, len(list)))
+	if u.suffixes == nil {
+		u.suffixes = map[*core.IDPat]int{}
+		u.nextSuffix = map[string]int{}
+	}
+	i := u.nextSuffix[name]
+	for slices.Contains(u.visibleIDs, suffixed(name, i)) {
+		i++
+	}
+	u.nextSuffix[name] = i + 1
+	u.suffixes[pat] = i
+	return i
 }
 
 // genPrefix splits a generated name into its prefix and reports
@@ -420,6 +439,15 @@ func (u *unparser) exp(e core.Exp, left, right int) {
 	case *core.Fn:
 		u.wrap(left, right, 1, 1, func() {
 			u.put("fn ")
+			if pat, body, ok := fnNamedParam(e); ok {
+				// "fn (l : int list) => e" is, in Core, "fn v =>
+				// case v of l => e"; it prints as morel-java's Core,
+				// where the function binds "l" itself, does.
+				u.name(pat)
+				u.put(" => ")
+				u.exp(body, 0, 0)
+				return
+			}
 			u.name(e.IDPat)
 			u.put(" => ")
 			u.exp(e.Exp, 0, 0)
@@ -1189,4 +1217,25 @@ func (u *unparser) pat(p core.Pat) {
 	default:
 		u.put("?")
 	}
+}
+
+// fnNamedParam reports whether a function is "fn v => case v of l =>
+// body", where body does not read v, which the resolver makes of a
+// function whose parameter is a name with a type annotation, and if
+// so returns "l" and the body.
+func fnNamedParam(fn *core.Fn) (*core.IDPat, core.Exp, bool) {
+	c, isCase := fn.Exp.(*core.Case)
+	if !isCase || len(c.Matches) != 1 {
+		return nil, nil, false
+	}
+	id, isID := c.Exp.(*core.ID)
+	if !isID || id.Pat != fn.IDPat {
+		return nil, nil, false
+	}
+	pat, isIDPat := c.Matches[0].Pat.(*core.IDPat)
+	if !isIDPat ||
+		referencesAny(c.Matches[0].Exp, []*core.IDPat{fn.IDPat}) {
+		return nil, nil, false
+	}
+	return pat, c.Matches[0].Exp, true
 }
