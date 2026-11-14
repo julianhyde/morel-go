@@ -2084,6 +2084,15 @@ func (r *typeResolver) bindDeclGeneralized(env typeEnv,
 			envVars[v] = true
 		}
 	}
+	// As in Standard ML, a type variable of an overloaded built-in
+	// operator (such as the "num" of "-") is not generalized. Its type
+	// comes from how the binding is used, or, failing that, from the
+	// operator's default.
+	for _, p := range r.preferred {
+		for _, v := range termVars(subst.Resolve(p.v)) {
+			envVars[v] = true
+		}
+	}
 
 	env2 := env
 	for _, pt := range termMap {
