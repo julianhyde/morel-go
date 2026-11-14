@@ -276,6 +276,9 @@ func (r *typeResolver) overloadEnv(env typeEnv,
 type numericCall struct {
 	name  string
 	apply *ast.Apply
+	// section is whether the operator is applied as a value, as in
+	// "(op /) (6, 4)", rather than written infix or prefix.
+	section bool
 }
 
 // pendingSafeCall is a safe selector avaiting a post-unification
@@ -470,6 +473,15 @@ func (r *typeResolver) checkNumericOperators(m *TypeMap) error {
 			continue
 		}
 		span := call.apply.Span()
+		if call.section {
+			// As in morel-java, a section offers one candidate type
+			// for each type the operator is defined for, and none of
+			// them fits.
+			return &Error{
+				Span: span,
+				Msg:  "Cannot deduce type: no valid overloads",
+			}
+		}
 		if call.name == opNegate {
 			span = call.apply.Arg.Span()
 		}
@@ -525,15 +537,19 @@ const (
 // generates term equivalences from the structure of the tree,
 // and hands them to the unifier.
 type typeResolver struct {
-	sys           *types.System
-	u             *unify.Unifier
-	bindings      map[string]*Binding
-	pairs         []unify.TermPair
-	nodeTerm      map[ast.Node]unify.Term
-	actions       []unify.VarAction
-	constraints   []unify.Constraint
-	preferred     []preferredType
-	numericCalls  []numericCall
+	sys          *types.System
+	u            *unify.Unifier
+	bindings     map[string]*Binding
+	pairs        []unify.TermPair
+	nodeTerm     map[ast.Node]unify.Term
+	actions      []unify.VarAction
+	constraints  []unify.Constraint
+	preferred    []preferredType
+	numericCalls []numericCall
+	// opCallApply is the application that deduceOpCall built for the
+	// operator call it is deducing, so that deduceApply can tell it
+	// from an operator section.
+	opCallApply   *ast.Apply
 	selectorCalls []selectorCall
 	tyVarScopes   []map[string]*unify.Var
 
@@ -2689,7 +2705,11 @@ func (r *typeResolver) deduceApply(env typeEnv, apply *ast.Apply,
 		}
 		if _, isNumeric := numericOpDomain[id.Name]; isNumeric {
 			r.numericCalls = append(r.numericCalls,
-				numericCall{name: id.Name, apply: apply})
+				numericCall{
+					name: id.Name, apply: apply,
+					section: strings.HasPrefix(id.Name, "op ") &&
+						apply != r.opCallApply,
+				})
 		}
 	}
 	vFn := r.u.Variable()
@@ -3590,6 +3610,7 @@ func (r *typeResolver) deduceOpCall(env typeEnv, name string,
 		arg = ast.NewTuple(span, args)
 	}
 	apply := ast.NewApply(span, ast.NewID(span, name), arg)
+	r.opCallApply = apply
 	err := r.deduceApply(env, apply, v)
 	if err != nil {
 		return err

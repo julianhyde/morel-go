@@ -19,6 +19,7 @@ package shell
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/hydromatic/morel-go/internal/eval"
@@ -630,7 +631,29 @@ func (sc *valScanner) consumeNumber() string {
 	for sc.pos < len(sc.s) && !isValueDelim(sc.s[sc.pos]) {
 		sc.pos++
 	}
-	return sc.s[start:sc.pos]
+	return canonicalWord(sc.s[start:sc.pos])
+}
+
+// canonicalWord rewrites a word literal, "0w255" or "0wxFF", as "0w"
+// and its unsigned decimal value, so that different representations
+// of the same value match but different values do not. Any other
+// atom is returned unchanged.
+func canonicalWord(s string) string {
+	digits, ok := strings.CutPrefix(s, "0w")
+	if !ok {
+		return s
+	}
+	base := 10
+	if hex, ok := strings.CutPrefix(digits, "x"); ok {
+		digits, base = hex, 16
+	} else if hex, ok := strings.CutPrefix(digits, "X"); ok {
+		digits, base = hex, 16
+	}
+	w, err := strconv.ParseUint(digits, base, 64)
+	if err != nil {
+		return s
+	}
+	return "0w" + strconv.FormatUint(w, 10)
 }
 
 // isValueDelim reports whether c ends an atom in a value.
