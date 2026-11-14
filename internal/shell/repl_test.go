@@ -43,6 +43,51 @@ func TestReplPrompts(t *testing.T) {
 	}
 }
 
+// TestReplLineCommentInBlockComment checks that inside a block
+// comment "(*)" begins a line comment, as it does in the lexer, so a
+// "*)" later on that line does not end the block. Comments that hold
+// SQL, such as "count(*)", do this (hydromatic/morel#506). Once the
+// comment closes, the buffer is blank, so the next prompt is "- ".
+func TestReplLineCommentInBlockComment(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{
+			"(* x 'select count(*)' y *)\n1;\n*)\n2;\n",
+			"- = = - val it = 2 : int\n- \n",
+		},
+		{
+			// A quote inside the comment does not open a literal.
+			"(* x \"select count(*)\" y *)\n1;\n*)\n3;\n",
+			"- = = - val it = 3 : int\n- \n",
+		},
+		{
+			// The block continues on the next line, and ends there.
+			"(* x count(*)\n *)\n4;\n",
+			"- = - val it = 4 : int\n- \n",
+		},
+		{
+			// A quote on a line that continues a comment does not
+			// open a literal.
+			"(* a\n * b \" c *)\n5;\n",
+			"- = - val it = 5 : int\n- \n",
+		},
+	}
+	for _, tt := range tests {
+		var out strings.Builder
+		err := shell.ParseArgs([]string{"--banner=false"}).
+			Repl(strings.NewReader(tt.in), &out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.String() != tt.want {
+			t.Errorf("input %q: got %q, want %q", tt.in, out.String(),
+				tt.want)
+		}
+	}
+}
+
 func TestReplBanner(t *testing.T) {
 	var out strings.Builder
 	err := shell.ParseArgs(nil).

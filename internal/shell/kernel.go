@@ -1450,7 +1450,7 @@ scan:
 			}
 			i += j + 1
 		case strings.HasPrefix(stmt[i:], "(*"):
-			i = skipBlockComment(stmt, i+len("(*"))
+			i = scanComment(stmt, i)
 		default:
 			break scan
 		}
@@ -1494,7 +1494,7 @@ func rewriteTypeOnly(stmt string) (string, bool) {
 			}
 			i += j + 1
 		case strings.HasPrefix(stmt[i:], "(*"):
-			i = skipBlockComment(stmt, i+len("(*"))
+			i = scanComment(stmt, i)
 		default:
 			if !strings.HasPrefix(stmt[i:], ":t") {
 				return stmt, false
@@ -1513,27 +1513,6 @@ func rewriteTypeOnly(stmt string) (string, bool) {
 		}
 	}
 	return stmt, false
-}
-
-// skipBlockComment returns the position after the "*)" that
-// closes a block comment, accounting for nested comments; "(*)"
-// within a block comment is not a nested comment. pos is the
-// position after the opening "(*".
-func skipBlockComment(s string, pos int) int {
-	n := len(s)
-	for pos < n {
-		switch {
-		case strings.HasPrefix(s[pos:], "(*)"):
-			pos += len("(*)")
-		case strings.HasPrefix(s[pos:], "(*"):
-			pos = skipBlockComment(s, pos+len("(*"))
-		case strings.HasPrefix(s[pos:], "*)"):
-			return pos + len("*)")
-		default:
-			pos++
-		}
-	}
-	return n
 }
 
 // Blank reports whether src contains only whitespace and

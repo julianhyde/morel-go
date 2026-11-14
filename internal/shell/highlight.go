@@ -193,7 +193,9 @@ func scanSymbol(src string, i int) int {
 // i. "(*)" starts a line comment, which runs to the end of the
 // line; any other "(*" starts a block comment, which nests and runs
 // to the matching "*)", or to the end of the input if it is
-// unterminated.
+// unterminated. These are the lexer's rules: inside a block comment,
+// "(*)" starts a line comment too, so a "*)" later on that line does
+// not end the block (hydromatic/morel#506).
 func scanComment(src string, start int) int {
 	if strings.HasPrefix(src[start:], "(*)") {
 		if j := strings.IndexByte(src[start+3:], '\n'); j >= 0 {
@@ -204,6 +206,12 @@ func scanComment(src string, start int) int {
 	depth := 0
 	for i := start; i < len(src); {
 		switch {
+		case depth > 0 && strings.HasPrefix(src[i:], "(*)"):
+			j := strings.IndexByte(src[i:], '\n')
+			if j < 0 {
+				return len(src)
+			}
+			i += j
 		case strings.HasPrefix(src[i:], "(*"):
 			depth++
 			i += 2
