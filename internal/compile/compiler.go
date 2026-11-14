@@ -62,6 +62,7 @@ func Statement(decl core.Decl,
 		slots:     map[*core.IDPat]int{},
 		sys:       sys,
 		planNames: new(int),
+		patNames:  &patNamer{},
 	}
 	var code, plan eval.Code
 	var ids []*core.IDPat
@@ -134,6 +135,11 @@ type compiler struct {
 	// input, which the plan numbers in the order it prints them.
 	// One count serves a statement and every function inside it.
 	planNames *int
+	// patNames numbers the variables a plan's patterns bind, as
+	// they are met: three distinct "x"s print "x", "x_1", "x_2".
+	// One numbering serves a statement and every function inside
+	// it.
+	patNames *patNamer
 	// layout is where each variable would be on morel-java's
 	// stack, which the plan's offsets count; see stackLayout.
 	layout *stackLayout
@@ -1201,6 +1207,7 @@ func (c *compiler) compileFn(fn *core.Fn) (eval.Code, error) {
 		parent:    c,
 		sys:       c.sys,
 		planNames: c.planNames,
+		patNames:  c.patNames,
 		layout: c.layout.frame(&rewriter{sys: c.sys},
 			[]core.Exp{fn.Exp}, [][]*core.IDPat{{fn.IDPat}},
 			c.recPeers)[0],
@@ -1209,11 +1216,14 @@ func (c *compiler) compileFn(fn *core.Fn) (eval.Code, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Named before the body, whose patterns come after it in the
+	// plan.
+	paramName := c.patDesc(fn.IDPat)
 	body, err := inner.compileTail(fn.Exp)
 	if err != nil {
 		return nil, err
 	}
-	return eval.MakeClosure(param, fn.IDPat.Name, body,
+	return eval.MakeClosure(param, paramName, body,
 		inner.captures, inner.nSlots), nil
 }
 
@@ -1352,6 +1362,9 @@ func (c *compiler) compileCase(caseExp *core.Case, tail bool) (
 		if err != nil {
 			return nil, err
 		}
+		// Named before the body, whose patterns come after it in
+		// the plan.
+		patDesc := c.patDesc(m.Pat)
 		c.layout = frames[i]
 		if caseExp != c.letCase {
 			c.recPeers = nil
@@ -1361,7 +1374,7 @@ func (c *compiler) compileCase(caseExp *core.Case, tail bool) (
 			return nil, err
 		}
 		clauses[i] = eval.MatchClause{
-			Pat: pat, Body: body, PatDesc: corePatDesc(m.Pat),
+			Pat: pat, Body: body, PatDesc: patDesc,
 		}
 	}
 	return eval.Case(scrutinee, clauses, caseExp.Span, tail), nil
@@ -1398,7 +1411,7 @@ func (c *compiler) scanName(p core.Pat) string {
 		*c.planNames++
 		return "v$" + strconv.Itoa(n)
 	}
-	return corePatDesc(p)
+	return c.patDesc(p)
 }
 
 // planName is the name a variable prints under in a plan: the id's
@@ -1412,27 +1425,28 @@ func planName(name string) string {
 	return name
 }
 
-// corePatDesc renders a core pattern as the compiled plan shows it,
-// keeping the variable names the compiled pattern discards.
-func corePatDesc(p core.Pat) string {
+// patDesc renders a core pattern as the compiled plan shows it,
+// keeping the variable names the compiled pattern discards, each
+// numbered across the plan; see patNamer.
+func (c *compiler) patDesc(p core.Pat) string {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch p := p.(type) {
 	case *core.AsPat:
-		return p.Pat.Name + " as " + corePatDesc(p.Body)
+		return c.patNames.name(p.Pat) + " as " + c.patDesc(p.Body)
 	case *core.Con0Pat:
 		return p.Name
 	case *core.ConPat:
-		return p.Name + " " + corePatDesc(p.Arg)
+		return p.Name + " " + c.patDesc(p.Arg)
 	case *core.ConsPat:
-		return corePatDesc(p.Head) + " :: " + corePatDesc(p.Tail)
+		return c.patDesc(p.Head) + " :: " + c.patDesc(p.Tail)
 	case *core.IDPat:
-		return planName(p.Name)
+		return c.patNames.name(p)
 	case *core.ListPat:
-		return "[" + joinPatDesc(p.Args) + "]"
+		return "[" + c.joinPatDesc(p.Args) + "]"
 	case *core.LiteralPat:
 		return fmt.Sprintf("%v", p.Value)
 	case *core.TuplePat:
-		return "(" + joinPatDesc(p.Args) + ")"
+		return "(" + c.joinPatDesc(p.Args) + ")"
 	case *core.WildcardPat:
 		return "_"
 	default:
@@ -1441,12 +1455,45 @@ func corePatDesc(p core.Pat) string {
 }
 
 // joinPatDesc renders patterns, comma-separated.
-func joinPatDesc(pats []core.Pat) string {
+func (c *compiler) joinPatDesc(pats []core.Pat) string {
 	parts := make([]string, len(pats))
 	for i, p := range pats {
-		parts[i] = corePatDesc(p)
+		parts[i] = c.patDesc(p)
 	}
 	return strings.Join(parts, ", ")
+}
+
+// patNamer numbers the variables of a plan's patterns. The first
+// variable of a name prints as the name, and each distinct variable
+// of the same name met after it gets the next suffix, so "x_1",
+// "x_2"; a variable met again prints as it did before. A plan is
+// read as text, so distinct variables must not print alike there,
+// as they would if each were numbered only within its own scope.
+type patNamer struct {
+	suffix map[*core.IDPat]int
+	next   map[string]int
+}
+
+// name is the name a variable prints under in the plan.
+func (n *patNamer) name(p *core.IDPat) string {
+	base := planName(p.Name)
+	if n == nil {
+		return base
+	}
+	i, ok := n.suffix[p]
+	if !ok {
+		if n.suffix == nil {
+			n.suffix = map[*core.IDPat]int{}
+			n.next = map[string]int{}
+		}
+		i = n.next[base]
+		n.next[base] = i + 1
+		n.suffix[p] = i
+	}
+	if i == 0 {
+		return base
+	}
+	return base + "_" + strconv.Itoa(i)
 }
 
 // compilePat compiles a pattern, allocating a slot for each name
