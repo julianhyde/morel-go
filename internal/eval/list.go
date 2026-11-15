@@ -170,7 +170,7 @@ func Nth(i int) Fn {
 		// A directory's fields are its entries, so selecting one
 		// reads that entry rather than indexing a record's values.
 		if f, isFile := arg.(*File); isFile {
-			return f.Field(i), nil
+			return f.Field(i)
 		}
 		return asList(arg)[i], nil
 	}

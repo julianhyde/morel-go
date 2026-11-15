@@ -18,8 +18,10 @@
 package eval_test
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/hydromatic/morel-go/internal/eval"
 	"github.com/hydromatic/morel-go/internal/types"
@@ -64,7 +66,7 @@ func TestFileTypeProgresses(t *testing.T) {
 		t.Errorf("unexpanded root: got %q, want {...}", got)
 	}
 	root.Expand()
-	want := "{map:{...}, scott:{...}, wordle:{...}, ...}"
+	want := "{map:{...}, scott:{...}, types:{...}, wordle:{...}, ...}"
 	if got := root.Type(sys).String(); got != want {
 		t.Errorf("expanded root:\n got %q\nwant %q", got, want)
 	}
@@ -75,7 +77,7 @@ func TestFileTypeProgresses(t *testing.T) {
 	want = "{map:{...}, " +
 		"scott:{bonuses:{...} list, depts:{...} list, " +
 		"emps:{...} list, salgrades:{...} list, ...}, " +
-		"wordle:{...}, ...}"
+		"types:{...}, wordle:{...}, ...}"
 	if got := root.Type(sys).String(); got != want {
 		t.Errorf("after discovering scott:\n got %q\nwant %q", got,
 			want)
@@ -99,16 +101,16 @@ func TestFileRowType(t *testing.T) {
 	scott.Expand()
 	for _, c := range []struct{ name, want string }{
 		{"depts", "{deptno:int, dname:string, loc:string} list"},
-		{"salgrades", "{grade:int, hisal:real, losal:real} list"},
+		{"salgrades", "{grade:int, hisal:decimal, losal:decimal} list"},
 		{
 			"bonuses",
-			"{bonus:real, ename:string, job:string, sal:real} list",
+			"{bonus:decimal, ename:string, job:string, sal:decimal} list",
 		},
 		{
 			"emps",
-			"{comm:real, deptno:int, empno:int, ename:string, " +
-				"hiredate:string, job:string, mgrno:int, " +
-				"sal:real} list",
+			"{comm:decimal option, deptno:int, empno:int, " +
+				"ename:string, hiredate:date, job:string, " +
+				"mgrno:int option, sal:decimal} list",
 		},
 	} {
 		scott.DiscoverField(c.name)
@@ -123,12 +125,15 @@ func TestFileRowType(t *testing.T) {
 }
 
 // TestFileReadRows checks that a data file's rows parse, that
-// single quotes are stripped, that NULL reads as zero, and that a
-// gzipped file is decompressed.
+// single quotes are stripped, that NULL in an option column reads as
+// NONE, and that a gzipped file is decompressed.
 func TestFileReadRows(t *testing.T) {
 	depts := eval.NewFile(
 		filepath.Join(dataDir, "scott", "depts.csv"))
-	rows := depts.ReadRows()
+	rows, err := depts.ReadRows()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(rows) != 4 {
 		t.Fatalf("depts: got %d rows, want 4", len(rows))
 	}
@@ -141,10 +146,14 @@ func TestFileReadRows(t *testing.T) {
 		first[2] != "NEW YORK" {
 		t.Errorf("depts first row: got %v", first)
 	}
-	// A gzipped file decompresses, and its NULL comm reads as 0.0.
+	// A gzipped file decompresses, and its NULL comm, a decimal
+	// option, reads as NONE.
 	emps := eval.NewFile(
 		filepath.Join(dataDir, "scott", "emps.csv.gz"))
-	rows = emps.ReadRows()
+	rows, err = emps.ReadRows()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(rows) != 14 {
 		t.Fatalf("emps: got %d rows, want 14", len(rows))
 	}
@@ -153,22 +162,23 @@ func TestFileReadRows(t *testing.T) {
 		t.Fatalf("emps: row is %T, want []eval.Val", rows[0])
 	}
 	// comm, deptno, empno, ename, hiredate, job, mgrno, sal.
-	if first[0] != float32(0) {
-		t.Errorf("emps: NULL comm read as %v, want 0", first[0])
+	if c, isCon := first[0].(eval.Con); !isCon || c.Name != "NONE" {
+		t.Errorf("emps: NULL comm read as %v, want NONE", first[0])
 	}
 	if first[3] != "SMITH" {
 		t.Errorf("emps: ename %v, want SMITH", first[3])
 	}
-	if first[4] != "1980-12-17" {
+	want := time.Date(1980, 12, 17, 0, 0, 0, 0, time.UTC)
+	if d, isTime := first[4].(time.Time); !isTime || !d.Equal(want) {
 		t.Errorf("emps: hiredate %v, want 1980-12-17", first[4])
 	}
-	if first[7] != float32(800) {
+	if d, isDec := first[7].(eval.Decimal); !isDec || d.String() != "800" {
 		t.Errorf("emps: sal %v, want 800", first[7])
 	}
 	// A file holding only a header has no rows.
 	bonuses := eval.NewFile(
 		filepath.Join(dataDir, "scott", "bonuses.csv"))
-	if rows := bonuses.ReadRows(); len(rows) != 0 {
+	if rows, _ := bonuses.ReadRows(); len(rows) != 0 {
 		t.Errorf("bonuses: got %d rows, want 0", len(rows))
 	}
 }
@@ -190,7 +200,7 @@ func TestFileReadDoesNotExpand(t *testing.T) {
 	}
 	// Read both entries' rows, as printing the directory does.
 	for _, child := range wordle.Children() {
-		if rows := child.ReadRows(); len(rows) == 0 {
+		if rows, _ := child.ReadRows(); len(rows) == 0 {
 			t.Errorf("%s: no rows", child.BaseName)
 		}
 	}
@@ -217,8 +227,19 @@ func TestFileMissing(t *testing.T) {
 	if got := f.Type(sys).String(); got != "{...}" {
 		t.Errorf("missing file: got %q, want {...}", got)
 	}
-	if rows := f.ReadRows(); rows != nil {
+	if rows, _ := f.ReadRows(); rows != nil {
 		t.Errorf("missing file: got %v rows, want none", rows)
+	}
+}
+
+// TestFileNull checks that NULL in a column whose type is not an
+// option raises Fail when the file is read.
+func TestFileNull(t *testing.T) {
+	f := eval.NewFile(filepath.Join(dataDir, "types", "nulls.csv"))
+	_, err := f.ReadRows()
+	var e *eval.MorelError
+	if !errors.As(err, &e) || e.Exn != "Fail" {
+		t.Fatalf("got %v, want Fail", err)
 	}
 }
 

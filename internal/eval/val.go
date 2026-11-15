@@ -42,6 +42,7 @@ const (
 	ExnDiv        = "Div"
 	ExnDomain     = "Domain"
 	ExnEmpty      = "Empty"
+	ExnFail       = "Fail"
 	ExnOverflow   = "Overflow"
 	ExnSize       = "Size"
 	ExnSubscript  = "Subscript"
@@ -70,6 +71,11 @@ type MorelError struct {
 	// message is made when it is raised rather than fixed by its
 	// name, as a failed check's is.
 	Desc string
+	// NoPos is whether the error has no position, and is not to be
+	// given the position of the code that it surfaces through: an
+	// error that reading a file raises, which morel-java reports at
+	// "0.0-0.0".
+	NoPos bool
 }
 
 func (e *MorelError) Error() string {
@@ -139,7 +145,7 @@ func (e *MorelError) Describe() string {
 // given one; the innermost location that knows where it is wins.
 func stampSpan(err error, span token.Span) error {
 	var morelErr *MorelError
-	if errors.As(err, &morelErr) &&
+	if errors.As(err, &morelErr) && !morelErr.NoPos &&
 		morelErr.Span == (token.Span{}) {
 		morelErr.Span = span
 	}
@@ -153,7 +159,7 @@ func stampSpan(err error, span token.Span) error {
 // application, not at the partial.
 func restampSpan(err error, span token.Span) error {
 	var morelErr *MorelError
-	if errors.As(err, &morelErr) {
+	if errors.As(err, &morelErr) && !morelErr.NoPos {
 		morelErr.Span = span
 	}
 	return err

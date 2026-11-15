@@ -20,6 +20,7 @@ package eval
 import (
 	"bufio"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -27,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hydromatic/morel-go/internal/csv"
 	"github.com/hydromatic/morel-go/internal/types"
@@ -124,88 +126,235 @@ type column struct {
 	index int
 }
 
-// columnParser converts a cell of a data file to a value, as the
+// columnParser converts a field of a data file to a value, as the
 // column's declared type says.
-type columnParser int
+//
+// The header of a file declares each column as "name:type", where type
+// is "bool", "int", "real" (or its synonym "double"), "decimal",
+// "date" or "string", optionally followed by "option"; a missing or
+// unknown type is "string". In an option column, an empty field or
+// "NULL" is NONE; in any other column, it raises Fail when the file is
+// read, because the column's type has no room for it, except that in
+// a "string" column an empty field is the empty string. A field that
+// is not a value of its column's type (a bool other than "true" or
+// "false", a malformed number or date) raises Fail. A field may be
+// quoted, whatever its type. These are morel-java's rules
+// (hydromatic/morel#517).
+type columnParser struct {
+	base   baseType
+	option bool
+	// typeName is the type as the header declared it, without
+	// "option", for messages.
+	typeName string
+}
 
-// The column parsers. stringParser is the default: a column whose
-// header declares no type, or a type we do not recognize (such as
-// "date"), is read as a string.
+// baseType is the type of a column's values, or of its options'.
+type baseType int
+
 const (
-	stringParser columnParser = iota
-	intParser
-	realParser
-	boolParser
+	stringBase baseType = iota
+	boolBase
+	dateBase
+	decimalBase
+	intBase
+	realBase
 )
 
 // parserOf returns the parser for a type named in a header, e.g.
-// the "int" of "deptno:int".
+// the "int" of "deptno:int", or the "int option" of "mgr:int option".
 func parserOf(name string) columnParser {
-	// lint: sort until '^\t}' where '^\tcase '
-	switch name {
-	case "bool":
-		return boolParser
-	case "decimal", "double":
-		return realParser
-	case "int":
-		return intParser
-	default:
-		return stringParser
+	words := strings.Fields(name)
+	if len(words) == 2 && words[1] == "option" {
+		p := parserOf(words[0])
+		p.option = true
+		return p
 	}
+	typeName := ""
+	if len(words) > 0 {
+		typeName = words[0]
+	}
+	p := columnParser{typeName: typeName}
+	// lint: sort until '^\t}' where '^\tcase '
+	switch typeName {
+	case "bool":
+		p.base = boolBase
+	case "date":
+		p.base = dateBase
+	case "decimal":
+		p.base = decimalBase
+	case "double", "real":
+		p.base = realBase
+	case "int":
+		p.base = intBase
+	default:
+		p.typeName = "string"
+	}
+	return p
 }
 
 // typ is the Morel type of the values this parser produces.
 func (p columnParser) typ(sys *types.System) types.Type {
+	var t types.Type
 	// lint: sort until '^\t}' where '^\tcase '
-	switch p {
-	case boolParser:
-		return sys.Bool
-	case intParser:
-		return sys.Int
-	case realParser:
-		return sys.Real
-	case stringParser:
-		return sys.String
+	switch p.base {
+	case boolBase:
+		t = sys.Bool
+	case dateBase:
+		t = sys.Named("date")
+	case decimalBase:
+		t = sys.Named("decimal")
+	case intBase:
+		t = sys.Int
+	case realBase:
+		t = sys.Real
+	case stringBase:
+		t = sys.String
 	}
-	return sys.String
+	if p.option {
+		return sys.Named("option", t)
+	}
+	return t
 }
 
-// parse converts one cell. A cell that does not parse, and the
-// "NULL" that marks a missing value, give the type's zero. A data
-// file is browsed, not validated, so a bad cell is not an error;
-// Datalog's ".input", which loads a file the program named, is
-// stricter.
-func (p columnParser) parse(s string) Val {
-	// lint: sort until '^\t}' where '^\tcase '
-	switch p {
-	case boolParser:
-		switch strings.ToLower(s) {
-		case "true", "t", "1":
-			return true
+// parse converts one field of column name.
+func (p columnParser) parse(name, s string) (Val, error) {
+	isNull := s == "" || s == "NULL"
+	if p.option {
+		if isNull {
+			return noneVal, nil
 		}
-		return false
-	case intParser:
-		if s == "NULL" {
-			return int32(0)
-		}
-		n, err := strconv.ParseInt(s, 10, 32)
+		v, err := p.value(name, s)
 		if err != nil {
-			return int32(0)
+			return nil, err
 		}
-		return int32(n)
-	case realParser:
-		if s == "NULL" {
-			return float32(0)
-		}
-		f, err := strconv.ParseFloat(s, 32)
-		if err != nil {
-			return float32(0)
-		}
-		return float32(f)
-	case stringParser:
-		return csv.Unquote(s)
+		return someVal(v), nil
 	}
-	return csv.Unquote(s)
+	if p.base == stringBase && s != "NULL" ||
+		p.base != stringBase && !isNull {
+		return p.value(name, s)
+	}
+	return nil, fileFail(
+		"null in column %s, whose type %s has no room for it",
+		name, p.typeName)
+}
+
+// value converts a field that is not null.
+func (p columnParser) value(name, s string) (Val, error) {
+	u := csv.Unquote(s)
+	invalid := func() (Val, error) {
+		return nil, fileFail(
+			"value %s in column %s is not a valid %s",
+			s, name, p.typeName)
+	}
+	// lint: sort until '^\t}' where '^\tcase '
+	switch p.base {
+	case boolBase:
+		switch u {
+		case "true":
+			return true, nil
+		case "false":
+			return false, nil
+		}
+		return invalid()
+	case dateBase:
+		// Midnight UTC on that day; that is also how a Spark date is
+		// read.
+		t, err := time.Parse("2006-01-02", u)
+		if err != nil {
+			return invalid()
+		}
+		return t, nil
+	case decimalBase:
+		d, ok := DecParseExact(u)
+		if !ok {
+			return invalid()
+		}
+		return d, nil
+	case intBase:
+		n, err := strconv.ParseInt(u, 10, 32)
+		if err != nil {
+			return invalid()
+		}
+		return int32(n), nil
+	case realBase:
+		f, err := strconv.ParseFloat(u, 32)
+		if err != nil {
+			return invalid()
+		}
+		return float32(f), nil
+	case stringBase:
+		return u, nil
+	}
+	return u, nil
+}
+
+// fileFail is the Fail that reading a file raises, which has no
+// position.
+func fileFail(format string, args ...any) *MorelError {
+	return &MorelError{
+		Exn: ExnFail, NoPos: true,
+		ExnValue: Con{Name: ExnFail, Arg: fmt.Sprintf(format, args...)},
+	}
+}
+
+// splitFields splits a line of a data file into its fields, each as
+// written, quotes and all. A field that starts with a quote runs to
+// the closing quote, so it may contain a comma; a doubled quote within
+// it stands for one quote, and is made single. Anything between the
+// closing quote and the comma is part of the field.
+func splitFields(line string) []string {
+	var fields []string
+	n := len(line)
+	i := 0
+	for {
+		var field string
+		if i < n && line[i] == '\'' {
+			field, i = quotedField(line, i)
+		} else {
+			start := i
+			comma := strings.IndexByte(line[i:], ',')
+			if comma < 0 {
+				i = n
+			} else {
+				i += comma
+			}
+			field = line[start:i]
+		}
+		fields = append(fields, field)
+		if i >= n {
+			return fields
+		}
+		i++ // skip the comma
+	}
+}
+
+// quotedField reads the quoted field that starts at line[i], up to the
+// comma after it, and returns it, with each doubled quote made single,
+// and the position of that comma (or of the end of the line).
+func quotedField(line string, i int) (string, int) {
+	n := len(line)
+	var b strings.Builder
+	b.WriteByte('\'')
+	i++
+	for i < n {
+		c := line[i]
+		i++
+		if c != '\'' {
+			b.WriteByte(c)
+			continue
+		}
+		b.WriteByte('\'')
+		if i < n && line[i] == '\'' {
+			i++
+			continue
+		}
+		break
+	}
+	for i < n && line[i] != ',' {
+		b.WriteByte(line[i])
+		i++
+	}
+	return b.String(), i
 }
 
 // NewFile returns the File at a path, unexpanded. Its kind comes
@@ -318,15 +467,19 @@ func (f *File) Children() []*File {
 // selecting that field yields it: a data file gives its rows, and
 // a sub-directory gives itself, to be browsed further. A slot with
 // no entry gives the empty record, as an unbrowsed file does.
-func (f *File) Field(slot int) Val {
+func (f *File) Field(slot int) (Val, error) {
 	child := f.ChildAt(slot)
 	if child == nil {
-		return []Val{}
+		return []Val{}, nil
 	}
 	if child.Kind.IsData() {
-		return child.ReadRows()
+		rows, err := child.ReadRows()
+		if err != nil {
+			return nil, err
+		}
+		return rows, nil
 	}
-	return child
+	return child, nil
 }
 
 // ReadRows reads a data file and returns its rows, each a record
@@ -337,9 +490,9 @@ func (f *File) Field(slot int) Val {
 // just because its value was printed. The header is parsed afresh
 // here when the file has not been expanded, so that the rows line
 // up with whatever type the file is currently reported to have.
-func (f *File) ReadRows() []Val {
+func (f *File) ReadRows() ([]Val, error) {
 	if !f.Kind.IsData() {
-		return nil
+		return nil, nil
 	}
 	f.mu.Lock()
 	row, expanded := f.row, f.expanded
@@ -348,31 +501,35 @@ func (f *File) ReadRows() []Val {
 		var ok bool
 		row, ok = readHeader(f.Path, f.Kind)
 		if !ok {
-			return nil
+			return nil, nil
 		}
 	}
 	if len(row) == 0 {
-		return nil
+		return nil, nil
 	}
 	r, closer := open(f.Path, f.Kind)
 	if r == nil {
-		return nil
+		return nil, nil
 	}
 	defer closer.Close()
 	// Skip the header.
 	_, err := r.ReadString('\n')
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	var rows []Val
 	for {
 		line, err := r.ReadString('\n')
 		line = strings.TrimRight(line, "\r\n")
 		if line != "" {
-			rows = append(rows, parseRow(line, row))
+			v, perr := parseRow(line, row)
+			if perr != nil {
+				return nil, perr
+			}
+			rows = append(rows, v)
 		}
 		if err != nil {
-			return rows
+			return rows, nil
 		}
 	}
 }
@@ -531,17 +688,22 @@ func (cs closers) Close() error {
 // column, in label order, each cell taken from the position the
 // column's header had and put through its parser. A line too short
 // to supply a cell gives that field its type's zero.
-func parseRow(line string, row []column) Val {
-	cells := csv.Cells(line)
+func parseRow(line string, row []column) (Val, error) {
+	cells := splitFields(line)
 	fields := make([]Val, len(row))
 	for i, c := range row {
-		cell := ""
-		if c.index < len(cells) {
-			cell = cells[c.index]
+		if c.index >= len(cells) {
+			return nil, fileFail(
+				"line has %d fields, but the header has %d: %s",
+				len(cells), len(row), line)
 		}
-		fields[i] = c.parse.parse(cell)
+		v, err := c.parse.parse(c.label, cells[c.index])
+		if err != nil {
+			return nil, err
+		}
+		fields[i] = v
 	}
-	return fields
+	return fields, nil
 }
 
 // End file.go
