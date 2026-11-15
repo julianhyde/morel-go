@@ -468,7 +468,7 @@ func (k *Kernel) sysEnv(eval.Val) (eval.Val, error) {
 func (k *Kernel) envTypeString(name string, t types.Type) string {
 	t = userFacing(k.sys, t)
 	if rec, isRecord := t.(*types.Record); isRecord {
-		return k.envRecordString(rec)
+		return k.envRecordString(rec, name == "Relational")
 	}
 	n := 0
 	countTypeVars(t, &n)
@@ -489,7 +489,8 @@ func (k *Kernel) envTypeString(name string, t types.Type) string {
 // morel-java quantifies inside the record rather than outside it,
 // because each member is independently polymorphic: two members
 // that both mention "'a" do not thereby share a type.
-func (k *Kernel) envRecordString(rec *types.Record) string {
+func (k *Kernel) envRecordString(rec *types.Record, relational bool,
+) string {
 	var b strings.Builder
 	b.WriteString("{")
 	for i, f := range rec.Fields {
@@ -498,8 +499,14 @@ func (k *Kernel) envRecordString(rec *types.Record) string {
 		}
 		// A member whose name is a keyword is quoted, as it must
 		// be written and as the pretty-printer writes it.
-		b.WriteString(parse.QuoteIdent(f.Label) + ":" +
-			k.memberTypeString(f.Type))
+		b.WriteString(parse.QuoteIdent(f.Label) + ":")
+		if variants := compile.StatVariants(f.Label); relational &&
+			variants != nil {
+			// An overloaded member lists its variants.
+			b.WriteString("multi(" + strings.Join(variants, ",") + ")")
+			continue
+		}
+		b.WriteString(k.memberTypeString(f.Type))
 	}
 	if rec.Progressive {
 		if len(rec.Fields) > 0 {

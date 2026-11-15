@@ -2505,6 +2505,13 @@ func (r *typeResolver) deduceID(env typeEnv, id *ast.ID,
 		name = keywordName(id.Name)
 	}
 	term, ok := env.get(r, name)
+	if ok && !shadowsBasis(env, name) {
+		// A statistical aggregate, "avg" say, unless the program has
+		// bound the name; its use registers the overload constraint.
+		if t, isStat := r.statTerm(name); isStat {
+			term = t
+		}
+	}
 	if ok && id.Keyword && id.Name == ordinalName &&
 		r.stepOrd != nil {
 		// "ordinal" is positional, so it is only valid in an ordered
@@ -2730,20 +2737,7 @@ func (r *typeResolver) deduceApply(env typeEnv, apply *ast.Apply,
 		}
 	}
 	if sel, ok := apply.Fn.(*ast.RecordSelector); ok {
-		// "apply" is "#field arg": when vArg (the argument
-		// type) resolves to a record, we can deduce v. A safe
-		// selector ("arg?.field") instead tunnels through the
-		// receiver's functor layers.
-		param := unify.Term(vArg)
-		if sel.Safe {
-			r.safeSelectorAction(sel, vArg, v)
-		} else {
-			r.selectorAction(sel, vArg, v)
-			param = r.fileSelectorParam(apply, sel, v, param)
-		}
-		r.reg2(sel, r.fnTerm(param, v))
-		r.selectorCalls = append(r.selectorCalls,
-			selectorCall{sel: sel, apply: apply})
+		r.deduceSelectorApply(env, apply, sel, vArg, v)
 	} else {
 		err := r.deduceExp(env, apply.Fn, vFn)
 		if err != nil {
@@ -3779,4 +3773,83 @@ func (r *typeResolver) patTerm(pat ast.Pat,
 		return vPat
 	}
 	return term
+}
+
+// deduceSelectorApply types "#field arg": when vArg (the argument
+// type) resolves to a record, we can deduce v. A safe selector
+// ("arg?.field") instead tunnels through the receiver's functor
+// layers.
+func (r *typeResolver) deduceSelectorApply(env typeEnv, apply *ast.Apply,
+	sel *ast.RecordSelector, vArg, v *unify.Var,
+) {
+	param := unify.Term(vArg)
+	switch t, isStat := r.relationalStat(sel, apply.Arg, env); {
+	case isStat:
+		// "Relational.avg", whose type is overloaded.
+		r.equiv(v, t)
+	case sel.Safe:
+		r.safeSelectorAction(sel, vArg, v)
+	default:
+		r.selectorAction(sel, vArg, v)
+		param = r.fileSelectorParam(apply, sel, v, param)
+	}
+	r.reg2(sel, r.fnTerm(param, v))
+	r.selectorCalls = append(r.selectorCalls,
+		selectorCall{sel: sel, apply: apply})
+}
+
+// statTerm returns the type of a use of a statistical aggregate --
+// "avg", "stddevSamp", "varPop" and so on, and their "Opt" and "Some"
+// forms (hydromatic/morel#503) -- which is overloaded on its element
+// type: "'e collection -> 'r", constrained so that 'e is int, real or
+// decimal. The mean of int or real values is a real, and of decimal
+// values a decimal; every other statistic is a real. It returns false
+// for any other name.
+func (r *typeResolver) statTerm(name string) (unify.Term, bool) {
+	base, some := strings.CutSuffix(name, "Some")
+	opt := some
+	if !some {
+		base, opt = strings.CutSuffix(name, "Opt")
+	}
+	if !slices.Contains(statNames, base) {
+		return nil, false
+	}
+	vElem, vOrd, vResult := r.u.Variable(), r.u.Variable(), r.u.Variable()
+	elem := unify.Term(vElem)
+	if some {
+		elem = unify.Apply(typeOption, vElem)
+	}
+	result := unify.Term(vResult)
+	if opt {
+		result = unify.Apply(typeOption, vResult)
+	}
+	realTerm := r.primTerm(realName)
+	candidate := func(t, mean unify.Term) unify.Candidate {
+		if base != avgName {
+			mean = realTerm
+		}
+		return unify.Candidate{Term: t, Action: unify.Equiv(vResult, mean)}
+	}
+	decimal := unify.Apply(decimalName)
+	r.constraints = append(r.constraints, unify.Constraint{
+		Arg: vElem,
+		Candidates: []unify.Candidate{
+			candidate(r.primTerm(intName), realTerm),
+			candidate(realTerm, realTerm),
+			candidate(decimal, decimal),
+		},
+	})
+	return r.fnTerm(r.collectionTerm(elem, vOrd), result), true
+}
+
+// relationalStat returns the type of "Relational.avg" and the other
+// statistical aggregates of the Relational structure; see statTerm.
+func (r *typeResolver) relationalStat(sel *ast.RecordSelector,
+	arg ast.Expr, env typeEnv,
+) (unify.Term, bool) {
+	id, isID := arg.(*ast.ID)
+	if !isID || id.Name != "Relational" || shadowsBasis(env, id.Name) {
+		return nil, false
+	}
+	return r.statTerm(sel.Name)
 }

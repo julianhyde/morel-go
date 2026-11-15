@@ -622,6 +622,18 @@ func planFnName(name string, t types.Type) string {
 		}
 		return name
 	}
+	if name == "Relational.sumOpt" {
+		// As for "sum", the instance, named by the element type.
+		if fn, isFn := t.(*types.Fn); isFn {
+			if elem := types.ElemOf(fn.Param); elem != nil {
+				switch s := elem.String(); s {
+				case decimalName, intName, realName:
+					return name + "$" + s
+				}
+			}
+		}
+		return name
+	}
 	if strings.Contains(name, ".") {
 		return name
 	}

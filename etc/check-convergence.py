@@ -116,7 +116,7 @@ ACCEPTED = {
         "in `globalMarshal`.",
     ),
     "hybrid.smli": (
-        292,
+        296,
         "the Calcite plans that `Sys.plan` prints. morel-go has no "
         "Calcite, so it omits every one of this file's plan assertions, "
         "and the tests of what a `decimal` literal or aggregate pushes "

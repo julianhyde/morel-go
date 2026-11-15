@@ -18,7 +18,9 @@
 package compile
 
 import (
+	"slices"
 	"sort"
+	"strings"
 
 	"github.com/hydromatic/morel-go/internal/ast"
 	"github.com/hydromatic/morel-go/internal/types"
@@ -252,7 +254,7 @@ func collectionBindings(sys *types.System) []Binding {
 	// compared as a value of that type, as max and min compare
 	// elements.
 	byType := sys.Fn(sys.Fn(a, sys.Var(1)), sys.Fn(coll, a))
-	return []Binding{
+	return append([]Binding{
 		{Name: "iterate", Type: iterateType},
 		{Name: maxByName, Type: byType},
 		{Name: minByName, Type: byType},
@@ -265,15 +267,66 @@ func collectionBindings(sys *types.System) []Binding {
 		{Name: "min", Type: collToElem},
 		{Name: sumName, Type: collToElem},
 		{Name: onlyName, Type: collToElem},
-	}
+	}, optAggregateBindings(sys, a, coll)...)
 }
+
+// optAggregateBindings returns the "Opt" and "Some" forms of the
+// collection aggregates, and the statistical aggregates
+// (hydromatic/morel#503).
+//
+// A statistical aggregate -- "avg", "stddevSamp" and so on -- is
+// overloaded on its element type, int, real or decimal; the type here
+// is its first variant, which is what the environment reports, and
+// the type resolver gives each use the overloaded type (see
+// statTerm).
+func optAggregateBindings(sys *types.System, a, coll types.Type,
+) []Binding {
+	optA := sys.Named("option", a)
+	collOpt := sys.Collection(optA)
+	bindings := []Binding{
+		{Name: "countSome", Type: sys.Fn(collOpt, sys.Int)},
+		{Name: "maxOpt", Type: sys.Fn(coll, optA)},
+		{Name: "maxSome", Type: sys.Fn(collOpt, optA)},
+		{Name: "minOpt", Type: sys.Fn(coll, optA)},
+		{Name: "minSome", Type: sys.Fn(collOpt, optA)},
+		{Name: "sumOpt", Type: sys.Fn(coll, optA)},
+		{Name: "sumSome", Type: sys.Fn(collOpt, optA)},
+	}
+	bindings = slices.Grow(bindings, len(statNames)*len(statForms))
+	intBag := sys.Bag(sys.Int)
+	intOptBag := sys.Bag(sys.Named("option", sys.Int))
+	realOpt := sys.Named("option", sys.Real)
+	for _, stat := range statNames {
+		bindings = append(bindings,
+			Binding{Name: stat, Type: sys.Fn(intBag, sys.Real)},
+			Binding{Name: stat + "Opt", Type: sys.Fn(intBag, realOpt)},
+			Binding{Name: stat + "Some", Type: sys.Fn(intOptBag, realOpt)})
+	}
+	return bindings
+}
+
+// statNames are the statistical aggregates, each of which has an
+// "Opt" and a "Some" form.
+var statNames = []string{
+	avgName, "stddevPop", "stddevSamp", "varPop", "varSamp",
+}
+
+// statForms are the forms of a statistical aggregate: plain, "Opt"
+// and "Some".
+var statForms = []string{"", "Opt", "Some"}
+
+// avgName is the mean, the one statistical aggregate whose result's
+// type follows its elements'.
+const avgName = "avg"
 
 // IsCollectionAggregate reports whether a member of Bag or
 // Relational is one of the aggregates declared over "'a bag" that
 // adapt to a list: count, empty, max, min, nonEmpty, only and sum.
 func IsCollectionAggregate(member string) bool {
 	switch member {
-	case countName, emptyName, "max", "min", nonEmptyName, onlyName, sumName:
+	case countName, emptyName, "max", "min", nonEmptyName, onlyName, sumName,
+		"countSome", "maxOpt", "maxSome", "minOpt", "minSome", "sumOpt",
+		"sumSome":
 		return true
 	default:
 		return false
@@ -418,4 +471,37 @@ func bagsToCollections(sys *types.System, t types.Type) types.Type {
 	default:
 		return t
 	}
+}
+
+// StatVariants returns the types of the variants of a statistical
+// aggregate (see statTerm), as "Sys.env" lists them, one for each
+// element type and each kind of collection: "int bag -> real", "int
+// list -> real", ... It returns nil for any other name.
+func StatVariants(name string) []string {
+	base, some := strings.CutSuffix(name, "Some")
+	opt := some
+	if !some {
+		base, opt = strings.CutSuffix(name, "Opt")
+	}
+	if !slices.Contains(statNames, base) {
+		return nil
+	}
+	var variants []string
+	for _, elem := range []string{intName, realName, decimalName} {
+		result := realName
+		if base == avgName && elem == decimalName {
+			result = decimalName
+		}
+		arg := elem
+		if some {
+			arg += " option"
+		}
+		if opt {
+			result += " option"
+		}
+		for _, coll := range []string{"bag", "list"} {
+			variants = append(variants, arg+" "+coll+" -> "+result)
+		}
+	}
+	return variants
 }

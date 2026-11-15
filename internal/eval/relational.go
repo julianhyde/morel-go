@@ -17,6 +17,12 @@
 
 package eval
 
+import (
+	"maps"
+	"math"
+	"strconv"
+)
+
 // The Relational structure's aggregate functions, used with
 // "compute" and "into": count, sum, min, max, empty, and nonEmpty.
 // Each takes a collection (a bag or a list, both []Val) and reduces
@@ -26,7 +32,7 @@ package eval
 // their bare names; the kernel binds each both at top level and as
 // a "Relational" member.
 func RelationalAggregates() map[string]Fn {
-	return map[string]Fn{
+	m := map[string]Fn{
 		"count":    relCountFn,
 		"empty":    relEmptyFn,
 		"max":      relMaxFn,
@@ -36,6 +42,8 @@ func RelationalAggregates() map[string]Fn {
 		"nonEmpty": relNonEmptyFn,
 		"sum":      SumFn(int32(0)),
 	}
+	maps.Copy(m, statAggregates())
+	return m
 }
 
 // RelationalFunctions returns the non-aggregate Relational
@@ -229,4 +237,191 @@ func relExtreme(arg Val, sign int) (Val, error) {
 		}
 	}
 	return best, nil
+}
+
+// The aggregates that hydromatic/morel#503 added: the mean, standard
+// deviation and variance, and an "Opt" and a "Some" form of each
+// aggregate. An "Opt" form returns NONE where the plain form raises,
+// and SOME of its result otherwise. A "Some" form takes options,
+// ignores NONE, and returns NONE if there are too few SOMEs: it is
+// SQL's aggregate of the same name, which ignores nulls.
+func statAggregates() map[string]Fn {
+	m := map[string]Fn{
+		"avg":       meanFn(false, false),
+		"avgOpt":    meanFn(true, false),
+		"avgSome":   meanFn(true, true),
+		"countSome": countSomeFn,
+		"maxOpt":    optFn(relMaxFn, false),
+		"maxSome":   optFn(relMaxFn, true),
+		"minOpt":    optFn(relMinFn, false),
+		"minSome":   optFn(relMinFn, true),
+		"sumOpt":    optFn(SumFn(int32(0)), false),
+		"sumSome":   optFn(SumFn(int32(0)), true),
+	}
+	for _, d := range []struct {
+		name           string
+		sample, stddev bool
+	}{
+		{"stddevPop", false, true},
+		{"stddevSamp", true, true},
+		{"varPop", false, false},
+		{"varSamp", true, false},
+	} {
+		m[d.name] = deviationFn(d.sample, d.stddev, false, false)
+		m[d.name+"Opt"] = deviationFn(d.sample, d.stddev, true, false)
+		m[d.name+"Some"] = deviationFn(d.sample, d.stddev, true, true)
+	}
+	return m
+}
+
+// someValues returns the values of the SOME elements of a collection
+// of options.
+func someValues(list []Val) []Val {
+	values := make([]Val, 0, len(list))
+	for _, o := range list {
+		if c, isCon := o.(Con); isCon && c.Arg != nil {
+			values = append(values, c.Arg)
+		}
+	}
+	return values
+}
+
+// countSomeFn is "countSome": the number of SOME elements, SQL's
+// COUNT(x).
+func countSomeFn(arg Val) (Val, error) {
+	//nolint:gosec // a collection never has more than 2^31 elements
+	return int32(len(someValues(asList(arg)))), nil
+}
+
+// optFn is the "Opt" form of an aggregate (or, if some, its "Some"
+// form): NONE for an empty collection (of SOMEs), and otherwise SOME
+// of the aggregate.
+func optFn(f Fn, some bool) Fn {
+	return func(arg Val) (Val, error) {
+		list := asList(arg)
+		if some {
+			list = someValues(list)
+		}
+		if len(list) == 0 {
+			return noneVal, nil
+		}
+		v, err := f(list)
+		if err != nil {
+			return nil, err
+		}
+		return someVal(v), nil
+	}
+}
+
+// meanFn is "avg", or its "Opt" or "Some" form. The mean of int
+// values is a real, computed in double and rounded to real at the
+// end; of real values, a real; of decimal values, a decimal, the
+// exact sum divided by the count and rounded, as "/" is. The plain
+// form raises Empty on an empty collection.
+func meanFn(opt, some bool) Fn {
+	return func(arg Val) (Val, error) {
+		list := asList(arg)
+		if some {
+			list = someValues(list)
+		}
+		if len(list) == 0 {
+			if opt {
+				return noneVal, nil
+			}
+			return nil, &MorelError{Exn: ExnEmpty}
+		}
+		v, err := mean(list)
+		if err != nil || !opt {
+			return v, err
+		}
+		return someVal(v), nil
+	}
+}
+
+func mean(list []Val) (Val, error) {
+	n := len(list)
+	// lint: sort until '^\t}' where '^\tcase '
+	switch list[0].(type) {
+	case Decimal:
+		s, err := decSum(list)
+		if err != nil {
+			return nil, err
+		}
+		count, _ := decFromIntFn(int32(n)) //nolint:gosec // see count
+		return decDivFn([]Val{s, count})
+	case float32:
+		var s float64
+		for _, v := range list {
+			s += float64(asReal(v))
+		}
+		return float32(s / float64(n)), nil
+	default:
+		var s int64
+		for _, v := range list {
+			s += int64(asInt(v))
+		}
+		return float32(float64(s) / float64(n)), nil
+	}
+}
+
+// deviationFn is a standard deviation or variance, sample or
+// population, or its "Opt" or "Some" form. The elements may be int,
+// real or decimal, and the result is a real, computed in double. A
+// sample statistic needs at least two elements, and a population
+// statistic one; with fewer, the plain form raises Empty.
+func deviationFn(sample, stddev, opt, some bool) Fn {
+	return func(arg Val) (Val, error) {
+		list := asList(arg)
+		if some {
+			list = someValues(list)
+		}
+		n := len(list)
+		least := 1
+		if sample {
+			least = 2
+		}
+		if n < least {
+			if opt {
+				return noneVal, nil
+			}
+			return nil, &MorelError{Exn: ExnEmpty}
+		}
+		var s float64
+		for _, v := range list {
+			s += toDouble(v)
+		}
+		m := s / float64(n)
+		var squares float64
+		for _, v := range list {
+			d := toDouble(v) - m
+			squares += d * d
+		}
+		divisor := n
+		if sample {
+			divisor = n - 1
+		}
+		variance := squares / float64(divisor)
+		result := variance
+		if stddev {
+			result = math.Sqrt(variance)
+		}
+		if opt {
+			return someVal(float32(result)), nil
+		}
+		return float32(result), nil
+	}
+}
+
+// toDouble is a number as a double.
+func toDouble(v Val) float64 {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch v := v.(type) {
+	case Decimal:
+		f, _ := strconv.ParseFloat(v.ToString('-'), 64)
+		return f
+	case float32:
+		return float64(v)
+	default:
+		return float64(asInt(v))
+	}
 }

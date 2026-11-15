@@ -307,3 +307,47 @@ func (e *bindingTypeEnv) peek(name string) (unify.Term, bool) {
 func (e *bindingTypeEnv) overloads(name string) []*unify.Var {
 	return e.parent.overloads(name)
 }
+
+// shadowsBasis reports whether a name in scope is not the standard
+// basis's: a declaration of the program binds it, at top level or in
+// a local scope.
+func shadowsBasis(env typeEnv, name string) bool {
+	for env != nil {
+		// lint: sort until '^\t\t}' where '^\t\tcase '
+		switch e := env.(type) {
+		case *bindTypeEnv:
+			if e.name == name {
+				return true
+			}
+			env = e.parent
+		case *bindingTypeEnv:
+			if b, ok := e.bindings[name]; ok {
+				return !b.Basis
+			}
+			env = e.parent
+		case *closedTypeEnv:
+			env = e.parent
+		case *fileTypeEnv:
+			// It binds only "file", which is the basis's.
+			env = e.parent
+		case *instTypeEnv:
+			if e.name == name {
+				return true
+			}
+			env = e.parent
+		case *overTypeEnv:
+			if e.name == name {
+				return true
+			}
+			env = e.parent
+		case *schemeTypeEnv:
+			if e.name == name {
+				return true
+			}
+			env = e.parent
+		default:
+			return false
+		}
+	}
+	return false
+}
