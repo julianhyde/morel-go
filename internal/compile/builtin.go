@@ -62,6 +62,7 @@ const (
 	boolName    = "bool"
 	intName     = "int"
 	sumName     = "sum"
+	countName   = "count"
 	onlyName    = "only"
 	maxByName   = "maxBy"
 	minByName   = "minBy"
@@ -254,7 +255,7 @@ func collectionBindings(sys *types.System) []Binding {
 		{Name: minByName, Type: byType},
 		{Name: opElem, Type: elemType},
 		{Name: opNotElem, Type: elemType},
-		{Name: "count", Type: collToInt},
+		{Name: countName, Type: collToInt},
 		{Name: emptyName, Type: collToBool},
 		{Name: nonEmptyName, Type: collToBool},
 		{Name: "max", Type: collToElem},
@@ -269,7 +270,7 @@ func collectionBindings(sys *types.System) []Binding {
 // adapt to a list: count, empty, max, min, nonEmpty, only and sum.
 func IsCollectionAggregate(member string) bool {
 	switch member {
-	case "count", emptyName, "max", "min", nonEmptyName, onlyName, sumName:
+	case countName, emptyName, "max", "min", nonEmptyName, onlyName, sumName:
 		return true
 	default:
 		return false

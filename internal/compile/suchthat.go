@@ -92,6 +92,7 @@ func Replan(decl core.Decl, env *InlineEnv, sys *types.System,
 	// so what remains is the final form: grounded, as morel-java's
 	// replan grounds once the passes are done, with no phase of
 	// its own.
+	inlined := cur
 	for i := range passCount {
 		if i > 0 && !ContainsUnbounded(cur) {
 			break
@@ -101,6 +102,12 @@ func Replan(decl core.Decl, env *InlineEnv, sys *types.System,
 			break
 		}
 		cur = next
+	}
+	if cur != inlined {
+		// Grounding can move a use of a binding out of a query's
+		// per-row expressions, so that the binding, used once, may
+		// now be inlined; as the kernel does after grounding.
+		cur = Inline(sys, cur, env, passCount)
 	}
 	return resolveBuiltins(sys, cur)
 }

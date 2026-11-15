@@ -50,6 +50,7 @@ import (
 // substitution happens here instead, on the tree a plan is
 // rendered from and never on the tree that is evaluated.
 func resolveBuiltins(sys *types.System, d core.Decl) core.Decl {
+	aggFns := aggregateFns(d)
 	r := &rewriter{sys: sys}
 	r.exp = func(e core.Exp) (core.Exp, bool) {
 		id, ok := e.(*core.ID)
@@ -57,6 +58,13 @@ func resolveBuiltins(sys *types.System, d core.Decl) core.Decl {
 			return nil, false
 		}
 		qualified := planFnName(id.Pat.Name, id.Pat.T)
+		if id.Pat.Name == countName && !aggFns[id] {
+			// "count" applied to a collection is the structure's
+			// member, "#count Relational ys"; as a group's aggregate
+			// function, "count over x", it keeps its name, as
+			// morel-java prints them.
+			qualified = "Relational.count"
+		}
 		structName, member, ok := strings.Cut(qualified, ".")
 		if !ok {
 			return nil, false
@@ -68,6 +76,43 @@ func resolveBuiltins(sys *types.System, d core.Decl) core.Decl {
 		}, true
 	}
 	return r.rewriteDecl(d)
+}
+
+// aggregateFns returns the identifiers that are the aggregate
+// functions of a group, directly or inside the converter that adapts
+// one to a list ("fn col$0 => count (#fromList Bag col$0)").
+func aggregateFns(d core.Decl) map[*core.ID]bool {
+	fns := map[*core.ID]bool{}
+	add := func(fn core.Exp) {
+		if f, isFn := fn.(*core.Fn); isFn {
+			if apply, isApply := f.Exp.(*core.Apply); isApply {
+				fn = apply.Fn
+			}
+		}
+		if id, isID := fn.(*core.ID); isID {
+			fns[id] = true
+		}
+	}
+	r := &rewriter{}
+	r.exp = func(e core.Exp) (core.Exp, bool) {
+		switch e := e.(type) {
+		case *core.Group:
+			for _, a := range e.Aggs {
+				add(a.Fn)
+			}
+		case *core.From:
+			for _, s := range e.Steps {
+				if g, isGroup := s.(*core.GroupStep); isGroup {
+					for _, a := range g.Aggs {
+						add(a.Fn)
+					}
+				}
+			}
+		}
+		return nil, false
+	}
+	r.rewriteDecl(d)
+	return fns
 }
 
 // UnparseDecl renders a Core declaration as one line of source
@@ -396,6 +441,17 @@ func suffixed(name string, i int) string {
 func (u *unparser) decl(d core.Decl) {
 	switch d := d.(type) {
 	case *core.NonRecValDecl:
+		if rel, isRel := d.Exp.(core.Rel); isRel && u.treeMode {
+			// A relation is printed in place, as a tree on the lines
+			// below, indented two, as morel-java prints it. Its last
+			// line ends in a break at the enclosing indentation.
+			u.put("val ")
+			u.pat(d.Pat)
+			u.put(" =")
+			u.hardBreak()
+			u.relTree(rel, letIndent, true)
+			return
+		}
 		if u.treeMode || u.width > 0 {
 			// The value may start on the next line, indented two,
 			// which is what a "let" wants: "let" belongs at the

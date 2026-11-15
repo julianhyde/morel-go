@@ -135,6 +135,15 @@ func (inl *inliner) visit(e core.Exp) (core.Exp, bool) {
 		return &core.Apply{T: e.T, Fn: fn, Arg: arg, Span: e.Span}, true
 	case *core.Case:
 		return inl.visitCase(e), true
+	case *core.Fn:
+		// "fn (ys : int bag) => e" resolves to "fn v => case v of ys
+		// => e". The function binds "ys" itself, as morel-java's
+		// does, so that its plan says "fn ys".
+		if pat, body, ok := fnNamedParam(e); ok &&
+			!referencesAny(body, []*core.IDPat{e.IDPat}) {
+			return inl.rewriteExp(&core.Fn{T: e.T, IDPat: pat, Exp: body}), true
+		}
+		return nil, false
 	case *core.ID:
 		if exp, ok := inl.subst[e.Pat]; ok {
 			return inl.rewriteExp(exp), true

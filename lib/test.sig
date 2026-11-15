@@ -34,6 +34,28 @@ sig
    * Useful for testing the syntax highlighter from a script.
    *)
   val highlight : string -> string [@@prototype "highlight s"]
+
+  (**
+   * returns `x`, and adds one to the counter that `ticks` reads. It is a
+   * function call like any other, which the optimizer must neither
+   * repeat nor drop; so a test can count how many times an expression
+   * is evaluated. Raises `Fail` if `zeroTicks` has not been called in
+   * this session.
+   *)
+  val tick : 'a -> 'a [@@prototype "tick x"]
+
+  (**
+   * returns how many times `tick` has been called since `zeroTicks` was
+   * last called, in this session. Raises `Fail` if `zeroTicks` has not
+   * been called.
+   *)
+  val ticks : unit -> int [@@prototype "ticks ()"]
+
+  (**
+   * sets to zero the counter that `tick` increments and `ticks` reads.
+   * A test calls it before it counts.
+   *)
+  val zeroTicks : unit -> unit [@@prototype "zeroTicks ()"]
 end
 [@@description "Functions for testing the implementation."]
 [@@specified "morel"]

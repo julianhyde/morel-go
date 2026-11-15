@@ -18,6 +18,8 @@
 package compile
 
 import (
+	"maps"
+
 	"github.com/hydromatic/morel-go/internal/core"
 )
 
@@ -42,6 +44,11 @@ const (
 	// safe.
 	onceSafe
 
+	// onceUnsafe: occurs exactly once, but inside a lambda or a
+	// query's per-row expression that its declaration is not in, so
+	// inlining it would evaluate it each time that is evaluated.
+	onceUnsafe
+
 	// multiSafe: occurs at most once on each of several case
 	// branches; inlining duplicates code but not work. Recognized
 	// but not yet acted on.
@@ -54,7 +61,17 @@ type useInfo struct {
 	top      bool // a top-level binding: never removed
 	atomic   bool // bound expression is a variable or literal
 	parallel bool // used on more than one branch of a case
-	count    int  // number of uses (max per branch across cases)
+	// value: the bound expression is a lambda, or is simple (see
+	// isSimple); inlining it into a loop repeats no work worth
+	// avoiding.
+	value bool
+	// repeated: a use is inside a lambda or a query's per-row
+	// expression that the declaration is not.
+	repeated bool
+	// depth is the depth of the declaration (see analyzer.depth), or
+	// -1 if it has not been seen.
+	depth int
+	count int // number of uses (max per branch across cases)
 }
 
 // fix converts the accumulated counts to a use class.
@@ -67,10 +84,16 @@ func (u *useInfo) fix() use {
 	case u.atomic:
 		return atomic
 	case u.count == 1:
-		if u.parallel {
+		switch {
+		case u.repeated && !u.value:
+			// Inlining would evaluate it each time the lambda or the
+			// query's row expression is evaluated.
+			return onceUnsafe
+		case u.parallel:
 			return multiSafe
+		default:
+			return onceSafe
 		}
-		return onceSafe
 	default:
 		return multiUnsafe
 	}
@@ -86,6 +109,21 @@ type analysis map[*core.IDPat]use
 // analyzer walks a Core tree counting declarations and uses.
 type analyzer struct {
 	uses map[*core.IDPat]*useInfo
+	// depth is how many lambdas and per-row expressions of a query
+	// enclose the node being visited. A binding read at a greater
+	// depth than it was declared may be read many times.
+	depth int
+	// outer holds the uses in the enclosing expression, if this
+	// analyzer counts the uses in one branch of a case; nil
+	// otherwise. A binding declared outside the branch has its
+	// declaration's depth there.
+	outer map[*core.IDPat]*useInfo
+}
+
+// deeper returns an analyzer for a node that may be evaluated many
+// times, sharing this one's counts.
+func (a *analyzer) deeper() *analyzer {
+	return &analyzer{uses: a.uses, depth: a.depth + 1, outer: a.outer}
 }
 
 // analyze computes the use class of every binding declared in the
@@ -120,7 +158,10 @@ func analyze(decl core.Decl) analysis {
 func (a *analyzer) info(pat *core.IDPat) *useInfo {
 	info := a.uses[pat]
 	if info == nil {
-		info = &useInfo{}
+		info = &useInfo{depth: -1}
+		if outer := a.outer[pat]; outer != nil {
+			info.depth = outer.depth
+		}
 		a.uses[pat] = info
 	}
 	return info
@@ -128,7 +169,20 @@ func (a *analyzer) info(pat *core.IDPat) *useInfo {
 
 // declare records the declaration site of a variable.
 func (a *analyzer) declare(pat *core.IDPat) {
-	a.info(pat).declared = true
+	info := a.info(pat)
+	info.declared = true
+	if info.depth < 0 {
+		info.depth = a.depth
+	}
+}
+
+// use records a use of a variable.
+func (a *analyzer) use(pat *core.IDPat) {
+	info := a.info(pat)
+	info.count++
+	if info.depth >= 0 && a.depth > info.depth {
+		info.repeated = true
+	}
 }
 
 // declarePat records the declaration of every variable in a
@@ -145,8 +199,13 @@ func (a *analyzer) decl(d core.Decl) {
 	case *core.NonRecValDecl:
 		a.declarePat(d.Pat)
 		a.exp(d.Exp)
-		if id, ok := d.Pat.(*core.IDPat); ok && isAtom(d.Exp) {
-			a.info(id).atomic = true
+		if id, ok := d.Pat.(*core.IDPat); ok {
+			if isAtom(d.Exp) {
+				a.info(id).atomic = true
+			}
+			if _, isFn := d.Exp.(*core.Fn); isFn || isSimple(d.Exp) {
+				a.info(id).value = true
+			}
 		}
 	case *core.RecValDecl:
 		for _, b := range d.Binds {
@@ -163,6 +222,34 @@ func (a *analyzer) decl(d core.Decl) {
 func isAtom(e core.Exp) bool {
 	switch e.(type) {
 	case *core.ID, *core.Literal:
+		return true
+	default:
+		return false
+	}
+}
+
+// isSimple reports whether an expression is simple: an atom, or a
+// constructor, or a tuple or field selection of simple expressions,
+// or a constructor applied to one. Evaluating it can neither raise
+// nor have an effect, and repeats no work worth avoiding.
+func isSimple(e core.Exp) bool {
+	// lint: sort until '^\t}' where '^\tcase '
+	switch e := e.(type) {
+	case *core.Apply:
+		switch e.Fn.(type) {
+		case *core.Con, *core.Selector:
+			return isSimple(e.Arg)
+		default:
+			return false
+		}
+	case *core.Con, *core.ID, *core.Input, *core.Literal:
+		return true
+	case *core.Tuple:
+		for _, arg := range e.Args {
+			if !isSimple(arg) {
+				return false
+			}
+		}
 		return true
 	default:
 		return false
@@ -201,14 +288,15 @@ func (a *analyzer) exp(e core.Exp) {
 		a.exp(e.Value)
 		a.exp(e.Cond)
 	case *core.Fn:
+		// A lambda's body may be evaluated many times.
 		a.declare(e.IDPat)
-		a.exp(e.Exp)
+		a.deeper().exp(e.Exp)
 	case *core.From:
-		for _, s := range e.Steps {
-			a.step(s)
+		for i, s := range e.Steps {
+			a.step(s, i == 0)
 		}
 	case *core.ID:
-		a.info(e.Pat).count++
+		a.use(e.Pat)
 	case *core.Let:
 		a.decl(e.Decl)
 		a.exp(e.Exp)
@@ -227,11 +315,21 @@ func (a *analyzer) exp(e core.Exp) {
 		// A node declares before it reads: a join's binder is in
 		// scope in its right input, and a group's key in the
 		// aggregates beside it.
+		//
+		// A node's own expressions are evaluated for each row, and a
+		// join's right input for each row of its left.
+		row := a.deeper()
 		for _, pat := range relBinders(e) {
-			a.declare(pat)
+			row.declare(pat)
 		}
-		a.exps(e.Inputs())
-		a.exps(relExps(e))
+		for i, input := range e.Inputs() {
+			if _, isJoin := e.(*core.Join); isJoin && i == 1 {
+				row.exp(input)
+				continue
+			}
+			a.exp(input)
+		}
+		row.exps(relExps(e))
 	}
 }
 
@@ -243,13 +341,25 @@ func (a *analyzer) exp(e core.Exp) {
 func (a *analyzer) caseBranches(matches []core.Match) {
 	worst := map[*core.IDPat]int{}
 	branches := map[*core.IDPat]int{}
+	outer := a.uses
+	if a.outer != nil {
+		outer = merged(a.outer, a.uses)
+	}
 	for _, m := range matches {
 		a.declarePat(m.Pat)
-		branch := &analyzer{uses: map[*core.IDPat]*useInfo{}}
+		branch := &analyzer{
+			uses: map[*core.IDPat]*useInfo{}, depth: a.depth,
+			outer: outer,
+		}
 		branch.exp(m.Exp)
 		for pat, info := range branch.uses {
 			if info.declared {
-				a.declare(pat)
+				// Declared in the branch: it is the branch's.
+				*a.info(pat) = *info
+				continue
+			}
+			if info.repeated {
+				a.info(pat).repeated = true
 			}
 			if info.count == 0 {
 				a.info(pat)
@@ -268,6 +378,17 @@ func (a *analyzer) caseBranches(matches []core.Match) {
 	}
 }
 
+// merged returns a map with the entries of uses and, for the keys
+// it lacks, of outer: for the uses of a case inside a branch of
+// another case.
+func merged(outer, uses map[*core.IDPat]*useInfo,
+) map[*core.IDPat]*useInfo {
+	m := make(map[*core.IDPat]*useInfo, len(outer)+len(uses))
+	maps.Copy(m, outer)
+	maps.Copy(m, uses)
+	return m
+}
+
 // exps analyzes each expression of a slice.
 func (a *analyzer) exps(exps []core.Exp) {
 	for _, e := range exps {
@@ -275,28 +396,37 @@ func (a *analyzer) exps(exps []core.Exp) {
 	}
 }
 
-// step analyzes the expressions and bindings of a query step.
-func (a *analyzer) step(s core.FromStep) {
+// step analyzes the expressions and bindings of a query step. The
+// first step's source is evaluated once; every other expression of
+// a query is evaluated for each row, or, for an aggregate's
+// function, for each group. "skip", "take", "into" and "through"
+// are evaluated once.
+func (a *analyzer) step(s core.FromStep, first bool) {
+	row := a.deeper()
 	// lint: sort until '^\t}' where '^\tcase '
 	switch s := s.(type) {
 	case *core.GroupStep:
 		for _, k := range s.Keys {
-			a.exp(k.Exp)
+			row.exp(k.Exp)
 			a.declare(k.Pat)
 		}
 		for _, agg := range s.Aggs {
-			a.exp(agg.Fn)
+			row.exp(agg.Fn)
 			if agg.Arg != nil {
-				a.exp(agg.Arg)
+				row.exp(agg.Arg)
 			}
 			a.declare(agg.Pat)
 		}
 	case *core.Into:
 		a.exp(s.Fn)
 	case *core.Order:
-		a.exp(s.Exp)
+		row.exp(s.Exp)
 	case *core.Scan:
-		a.exp(s.Exp)
+		if first {
+			a.exp(s.Exp)
+		} else {
+			row.exp(s.Exp)
+		}
 		a.declarePat(s.Pat)
 	case *core.SetOp:
 		a.exps(s.Args)
@@ -308,13 +438,13 @@ func (a *analyzer) step(s core.FromStep) {
 		a.exp(s.Fn)
 		a.declarePat(s.Pat)
 	case *core.Where:
-		a.exp(s.Exp)
+		row.exp(s.Exp)
 	case *core.Yield:
 		if s.Exp != nil {
-			a.exp(s.Exp)
+			row.exp(s.Exp)
 		}
 		for _, f := range s.Fields {
-			a.exp(f.Exp)
+			row.exp(f.Exp)
 			a.declare(f.Pat)
 		}
 	}

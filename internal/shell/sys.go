@@ -310,6 +310,23 @@ func (k *Kernel) sysBuiltins() map[string]eval.Val {
 			s, _ := arg.(string)
 			return Highlight(s), nil
 		}),
+		"Test.tick": eval.Fn(func(arg eval.Val) (eval.Val, error) {
+			if k.ticks == nil {
+				return nil, failf("call Test.zeroTicks first")
+			}
+			*k.ticks++
+			return arg, nil
+		}),
+		"Test.ticks": eval.Fn(func(eval.Val) (eval.Val, error) {
+			if k.ticks == nil {
+				return nil, failf("call Test.zeroTicks first")
+			}
+			return *k.ticks, nil
+		}),
+		"Test.zeroTicks": eval.Fn(func(eval.Val) (eval.Val, error) {
+			k.ticks = new(int32)
+			return core.Unit{}, nil
+		}),
 		"Time.now": eval.Fn(k.timeNow),
 		"Date.date": eval.Fn(func(arg eval.Val) (eval.Val, error) {
 			rec, _ := arg.([]eval.Val)

@@ -114,7 +114,10 @@ type Config struct {
 // between them: the configuration, the type system, and the
 // bindings made by earlier statements.
 type Kernel struct {
-	config   Config
+	config Config
+	// ticks counts calls to "Test.tick" since "Test.zeroTicks"; nil
+	// until "Test.zeroTicks" is first called.
+	ticks    *int32
 	name     string
 	sys      *types.System
 	bindings []compile.Binding
@@ -1036,10 +1039,21 @@ func (k *Kernel) runStatement(n ast.Node) string {
 	// specializes queries to this statement's bindings, but the
 	// logical form is what a later query's own grounding wants.
 	inlined := coreDecl
-	coreDecl, gerr := k.ground(coreDecl)
+	grounded, gerr := k.ground(coreDecl)
 	if gerr != nil {
 		return k.formatCompileError(gerr)
 	}
+	if grounded != coreDecl {
+		// Grounding can move a use of a binding out of a query's
+		// per-row expressions -- a "where x elem xs" becomes a scan
+		// of xs -- so that the binding, used once, may now be
+		// inlined. morel-java interleaves its inlining and grounding
+		// passes to the same effect.
+		grounded = compile.Inline(
+			k.sys, grounded, k.inlineEnv(), k.inlinePassCount(),
+		)
+	}
+	coreDecl = grounded
 	compiled, err := compile.Statement(coreDecl, k.values, k.sys)
 	if err != nil {
 		return k.formatCompileError(err)
