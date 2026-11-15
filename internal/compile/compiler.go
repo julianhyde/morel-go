@@ -748,10 +748,18 @@ func (c *compiler) compileFrom(from *core.From) (eval.Code, error) {
 	if from.Ordinal != nil {
 		ordinalSlot = c.allocSlot(from.Ordinal)
 	}
-	b := &fromBuilder{c: c, base: c.layout}
+	b := &fromBuilder{c: c, base: c.layout, ordinal: from.Ordinal}
 	defer func() { c.layout = b.base }()
-	for _, step := range from.Steps {
-		err := b.add(step)
+	for i := 0; i < len(from.Steps); i++ {
+		consumed, err := b.addHashScan(from.Steps, i)
+		if err != nil {
+			return nil, err
+		}
+		if consumed > 0 {
+			i += consumed - 1
+			continue
+		}
+		err = b.add(from.Steps[i])
 		if err != nil {
 			return nil, err
 		}
@@ -796,6 +804,8 @@ type fromBuilder struct {
 	// base is the stack layout below the query, which a step
 	// that replaces the row returns to.
 	base *stackLayout
+	// ordinal is the query's "ordinal" variable, or nil.
+	ordinal *core.IDPat
 }
 
 // add compiles one query step into the builder.
@@ -997,6 +1007,7 @@ func (c *compiler) compileStep(step core.FromStep,
 			leftSlots := c.patSlots(*scanPats)
 			*scanPats = append(*scanPats, s.Pat)
 			return &eval.JoinStage{
+				Name:      name,
 				Source:    source,
 				Pat:       pat,
 				Cond:      cond,

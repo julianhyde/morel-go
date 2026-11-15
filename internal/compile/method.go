@@ -239,13 +239,13 @@ func literalHead(kind ast.Op) string {
 	case ast.BoolLiteralOp:
 		return "bool"
 	case ast.CharLiteralOp:
-		return "char"
+		return charName
 	case ast.IntLiteralOp:
 		return "int"
 	case ast.RealLiteralOp:
 		return realName
 	case ast.StringLiteralOp:
-		return "string"
+		return stringName
 	case ast.WordLiteralOp:
 		return wordName
 	default:

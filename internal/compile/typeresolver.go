@@ -2589,7 +2589,7 @@ func (r *typeResolver) deduceLiteral(node ast.Node, kind ast.Op,
 		if err != nil {
 			return err
 		}
-		name = "char"
+		name = charName
 	case ast.IntLiteralOp, ast.IntLiteralPatOp:
 		err := checkIntRange(node, value)
 		if err != nil {
@@ -2599,7 +2599,7 @@ func (r *typeResolver) deduceLiteral(node ast.Node, kind ast.Op,
 	case ast.RealLiteralOp, ast.RealLiteralPatOp:
 		name = realName
 	case ast.StringLiteralOp, ast.StringLiteralPatOp:
-		name = "string"
+		name = stringName
 	case ast.UnitLiteralOp:
 		name = "unit"
 	case ast.WordLiteralOp, ast.WordLiteralPatOp:

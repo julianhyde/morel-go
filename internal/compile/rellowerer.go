@@ -270,7 +270,11 @@ func (l *lowerer) join(b *lowerBuilder, j *core.Join) core.Exp {
 	b.ordered = b.ordered && types.IsOrdered(right.Type())
 	if j.Kind == core.InnerJoin &&
 		!isBoolLiteral(j.Condition, true) {
-		b.where(subst2(l.sys, j.Condition, left, rightElement))
+		// The join's condition, which the compiler evaluates as the
+		// scan's, and may hash.
+		b.add(&core.Where{
+			Exp: subst2(l.sys, j.Condition, left, rightElement), On: true,
+		})
 	}
 	return joinElement(l.sys, j, left, rightElement)
 }

@@ -69,6 +69,7 @@ const (
 	realName    = "real"
 	wordName    = "word"
 	stringName  = "string"
+	charName    = "char"
 	unitName    = "unit"
 )
 

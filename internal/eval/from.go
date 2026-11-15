@@ -49,11 +49,16 @@ type ScanStage struct {
 	// Name is the scan variable's name, shown in the plan as
 	// "sink join(pat Name, ...)".
 	Name string
+	// Cond, if not nil, is an inner join's condition, evaluated for
+	// each pair of a row and an element; an "ordinal" in it counts
+	// those pairs, continuously across the join.
+	Cond Code
 }
 
 func (s *ScanStage) transform(q *fromCode, f *Frame, rows [][]Val,
 ) ([][]Val, error) {
 	var out [][]Val
+	pairs := 0
 	for i, row := range rows {
 		q.restore(f, row)
 		q.setOrdinal(f, i)
@@ -63,9 +68,22 @@ func (s *ScanStage) transform(q *fromCode, f *Frame, rows [][]Val,
 		}
 		elems := asList(coll)
 		for _, elem := range elems {
-			if s.Pat.Match(elem, f) {
-				out = append(out, q.snapshot(f))
+			if !s.Pat.Match(elem, f) {
+				continue
 			}
+			if s.Cond != nil {
+				q.setOrdinal(f, pairs)
+				pairs++
+				v, err := s.Cond.Eval(f)
+				if err != nil {
+					return nil, err
+				}
+				if b, _ := v.(bool); !b {
+					q.restore(f, row)
+					continue
+				}
+			}
+			out = append(out, q.snapshot(f))
 		}
 	}
 	return out, nil
@@ -772,9 +790,29 @@ func (c *fromCode) Describe() string {
 func describeSink(s FromStage, inner string) string {
 	// lint: sort until '^	}' where '^	case '
 	switch s := s.(type) {
+	case *HashScanStage:
+		return "sink hashJoin(pat " + s.Name + ", exp " +
+			s.Source.Describe() + ", leftKey " + s.LeftKey.Describe() +
+			", rightKey " + s.RightKey.Describe() + ", condition " +
+			s.Cond.Describe() + ", " + inner + ")"
+	case *JoinStage:
+		name := "buildJoin"
+		if s.Left {
+			name = "join"
+		}
+		cond := ""
+		if s.Cond != nil {
+			cond = ", condition " + s.Cond.Describe()
+		}
+		return "sink " + name + "(pat " + s.Name + ", exp " +
+			s.Source.Describe() + cond + ", " + inner + ")"
 	case *ScanStage:
+		cond := ""
+		if s.Cond != nil {
+			cond = ", condition " + s.Cond.Describe()
+		}
 		return "sink join(pat " + s.Name + ", exp " +
-			s.Source.Describe() + ", " + inner + ")"
+			s.Source.Describe() + cond + ", " + inner + ")"
 	case *WhereStage:
 		return "sink where(condition " + s.Cond.Describe() +
 			", " + inner + ")"
@@ -830,6 +868,8 @@ func (c *fromCode) restore(f *Frame, row []Val) {
 // unmatched source rows are appended at the end, in source order,
 // with the input slots NONE.
 type JoinStage struct {
+	// Name is the scan variable's name, as ScanStage's is.
+	Name      string
 	Source    Code
 	Pat       Pat
 	Cond      Code
