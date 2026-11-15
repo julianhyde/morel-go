@@ -874,7 +874,7 @@ func (u *unparser) apply(e *core.Apply, left, right int) {
 		}
 	}
 	if op, prec, assoc := infixOf(e.Fn); op != "" &&
-		(!u.inlined || op != "elem" && op != "notelem") {
+		(!u.inlined || op != elemPlanName && op != notElemPlanName) {
 		if tuple, ok := e.Arg.(*core.Tuple); ok &&
 			len(tuple.Args) == 2 {
 			l, r := binding(prec, assoc)
@@ -897,7 +897,7 @@ func (u *unparser) apply(e *core.Apply, left, right int) {
 	l, r := binding(precApply, 'l')
 	if id, isID := e.Fn.(*core.ID); isID {
 		if op, _, _ := infixName(id.Pat.Name); op != "" &&
-			(!u.inlined || op != "elem" && op != "notelem") {
+			(!u.inlined || op != elemPlanName && op != notElemPlanName) {
 			// An infix operator applied to something other than a
 			// pair is not an infix call; it is written as an
 			// application of the operator's name: "`op +` p".

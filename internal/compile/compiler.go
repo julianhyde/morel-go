@@ -208,6 +208,17 @@ func (c *compiler) compileCheck(e *core.Check) (eval.Code, error) {
 }
 
 func (c *compiler) compileExp(exp core.Exp) (eval.Code, error) {
+	code, err := c.compileExp1(exp)
+	if err != nil {
+		return nil, err
+	}
+	// An expression that constructs a value from constants, such as
+	// "[SOME 1, SOME 3]", is evaluated now, rather than each time the
+	// code runs.
+	return foldCode(exp, code), nil
+}
+
+func (c *compiler) compileExp1(exp core.Exp) (eval.Code, error) {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch e := exp.(type) {
 	case *core.Apply:
@@ -1304,14 +1315,24 @@ func (c *compiler) compileApply(e *core.Apply, tail bool) (eval.Code,
 			return eval.Constant(d), nil
 		}
 	}
-	arg, err := c.compileExp(e.Arg)
+	name, arity, curried := c.builtinFnInfo(e.Fn, fn)
+	setCode, isSet, err := c.compileElemSet(e, name)
+	if isSet || err != nil {
+		return setCode, err
+	}
+	compileArg := c.compileExp
+	if _, isTuple := e.Arg.(*core.Tuple); isTuple && arity > 1 {
+		// A tuple of arguments is compiled argument by argument, each
+		// folded on its own, so that the call is "apply2 (f, a, b)".
+		compileArg = c.compileExp1
+	}
+	arg, err := compileArg(e.Arg)
 	if err != nil {
 		return nil, err
 	}
 	if code, folded := foldSelector(e.Fn, arg); folded {
 		return code, nil
 	}
-	name, arity, curried := c.builtinFnInfo(e.Fn, fn)
 	return eval.Apply(fn, arg, e.Span, name, arity, curried, tail), nil
 }
 
@@ -1344,6 +1365,10 @@ func foldSelector(fnExp core.Exp, arg eval.Code) (eval.Code, bool) {
 // flows to a let's body (not its init) and to an application (shown
 // as tailApply); anything else compiles normally.
 func (c *compiler) compileTail(exp core.Exp) (eval.Code, error) {
+	if isConstant(exp) {
+		// A constant, such as "[1, 2]", contains no tail call; fold it.
+		return c.compileExp(exp)
+	}
 	// lint: sort until '^\t}' where '^\tcase '
 	switch e := exp.(type) {
 	case *core.Apply:

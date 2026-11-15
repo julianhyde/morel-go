@@ -99,7 +99,7 @@ ACCEPTED = {
         "the recursive function yields a row short of the depth column.",
     ),
     "optimize.smli": (
-        67,
+        75,
         "`Sys.planEx` of a statement with a local datatype: morel-java "
         "prints the `local datatype ... in ... end` the statement lives "
         "in, and this port's Core has no such wrapper. And four `Sys.plan` "
@@ -111,7 +111,9 @@ ACCEPTED = {
         "`ordinal` alone. And a `Sys.planEx` of a semi-join "
         "(hydromatic/morel#518), commented out, whose right element "
         "morel-java names `r` in the join's header and `e` in its "
-        "condition.",
+        "condition. And a `Sys.plan` of `elem` against a constant "
+        "(hydromatic/morel#519), commented out, that morel-java wraps "
+        "in `globalMarshal`.",
     ),
     "hybrid.smli": (
         292,

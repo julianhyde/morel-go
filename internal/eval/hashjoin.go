@@ -198,3 +198,43 @@ func (c *andalsoCode) Eval(f *Frame) (Val, error) {
 func (c *andalsoCode) Describe() string {
 	return "andalso(" + c.a.Describe() + ", " + c.b.Describe() + ")"
 }
+
+// ElemSet returns the code of "x elem c" (or, if negate, "x notelem
+// c") where c is a constant collection whose elements are hashable,
+// which looks x up in a set of the collection's elements.
+func ElemSet(code Code, elems []Val, negate bool) Code {
+	set := map[string]bool{}
+	var distinct []Val
+	for _, e := range elems {
+		k := HashKey(e)
+		if !set[k] {
+			set[k] = true
+			distinct = append(distinct, e)
+		}
+	}
+	return &elemSetCode{code: code, set: set, elems: distinct, negate: negate}
+}
+
+type elemSetCode struct {
+	code   Code
+	set    map[string]bool
+	elems  []Val
+	negate bool
+}
+
+func (c *elemSetCode) Eval(f *Frame) (Val, error) {
+	v, err := c.code.Eval(f)
+	if err != nil {
+		return nil, err
+	}
+	return c.set[HashKey(v)] != c.negate, nil
+}
+
+func (c *elemSetCode) Describe() string {
+	name := "elemSet"
+	if c.negate {
+		name = "notElemSet"
+	}
+	return name + "(" + c.code.Describe() + ", set " +
+		PlanString(c.elems) + ")"
+}

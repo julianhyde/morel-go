@@ -129,6 +129,9 @@ func (inl *inliner) visit(e core.Exp) (core.Exp, bool) {
 				Exp: fnExp.Exp,
 			}, true
 		}
+		if field, ok := constantRecordField(fn, arg); ok {
+			return field, true
+		}
 		if fn == e.Fn && arg == e.Arg {
 			return e, true
 		}

@@ -61,6 +61,9 @@ func PlanString(v Val) string {
 		// int32 backs both int and char; a char constant in a plan
 		// is rare, so this renders the integer form.
 		return strconv.FormatInt(int64(v), 10)
+	case int64:
+		// A time, in nanoseconds.
+		return strconv.FormatInt(v, 10)
 	case nil:
 		return ""
 	case string:
