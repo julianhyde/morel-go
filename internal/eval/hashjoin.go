@@ -44,6 +44,9 @@ type HashScanStage struct {
 	Cond     Code
 	Left     bool
 	PatSlots []int
+	// Emit says what the join passes on: each pair, or, for a
+	// semi-join or an anti-join, the input row.
+	Emit Emit
 }
 
 func (s *HashScanStage) transform(q *fromCode, f *Frame, rows [][]Val,
@@ -51,7 +54,30 @@ func (s *HashScanStage) transform(q *fromCode, f *Frame, rows [][]Val,
 	if len(rows) == 0 {
 		return nil, nil
 	}
-	q.restore(f, rows[0])
+	buckets, err := s.buckets(q, f, rows[0])
+	if err != nil {
+		return nil, err
+	}
+	var out [][]Val
+	for _, row := range rows {
+		q.restore(f, row)
+		k, err := s.LeftKey.Eval(f)
+		if err != nil {
+			return nil, err
+		}
+		out, err = s.probe(q, f, row, buckets[HashKey(k)], out)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// buckets evaluates the source, once, and puts its elements into
+// buckets by their right key.
+func (s *HashScanStage) buckets(q *fromCode, f *Frame, row []Val,
+) (map[string][]Val, error) {
+	q.restore(f, row)
 	coll, err := s.Source.Eval(f)
 	if err != nil {
 		return nil, err
@@ -68,37 +94,43 @@ func (s *HashScanStage) transform(q *fromCode, f *Frame, rows [][]Val,
 		key := HashKey(k)
 		buckets[key] = append(buckets[key], elem)
 	}
-	var out [][]Val
-	for _, row := range rows {
+	return buckets, nil
+}
+
+// probe pairs an input row with the elements of its bucket, and
+// appends to out what the join passes on.
+func (s *HashScanStage) probe(q *fromCode, f *Frame, row []Val,
+	bucket []Val, out [][]Val,
+) ([][]Val, error) {
+	matched := false
+	for _, elem := range bucket {
 		q.restore(f, row)
-		k, err := s.LeftKey.Eval(f)
+		if !s.Pat.Match(elem, f) {
+			continue
+		}
+		v, err := s.Cond.Eval(f)
 		if err != nil {
 			return nil, err
 		}
-		matched := false
-		for _, elem := range buckets[HashKey(k)] {
-			q.restore(f, row)
-			if !s.Pat.Match(elem, f) {
-				continue
-			}
-			v, err := s.Cond.Eval(f)
-			if err != nil {
-				return nil, err
-			}
-			if b, _ := v.(bool); !b {
-				continue
-			}
-			matched = true
-			if s.Left {
-				wrapSome(f, s.PatSlots)
-			}
-			out = append(out, q.snapshot(f))
+		if b, _ := v.(bool); !b {
+			continue
 		}
-		if s.Left && !matched {
-			q.restore(f, row)
-			setNone(f, s.PatSlots)
-			out = append(out, q.snapshot(f))
+		matched = true
+		if s.Emit != EmitPairs {
+			break
 		}
+		if s.Left {
+			wrapSome(f, s.PatSlots)
+		}
+		out = append(out, q.snapshot(f))
+	}
+	switch {
+	case s.Emit == EmitSemi && matched, s.Emit == EmitAnti && !matched:
+		out = append(out, row)
+	case s.Left && !matched:
+		q.restore(f, row)
+		setNone(f, s.PatSlots)
+		out = append(out, q.snapshot(f))
 	}
 	return out, nil
 }

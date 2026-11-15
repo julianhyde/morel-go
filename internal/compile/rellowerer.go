@@ -259,6 +259,16 @@ func (l *lowerer) join(b *lowerBuilder, j *core.Join) core.Exp {
 		Pat: pat, Exp: right, Join: joinOpOf(j.Kind),
 	}
 	rightElement := patElement(pat, rightElem)
+	if j.Kind.FiltersLeft() {
+		// A semi-join or anti-join passes on the left element, and
+		// binds nothing: its scan's pattern is in scope only in its
+		// condition.
+		scan.Join = ast.ScanOp
+		scan.Exists = j.Kind
+		scan.On = subst2(l.sys, j.Condition, left, rightElement)
+		b.add(scan)
+		return left
+	}
 	if j.Kind != core.InnerJoin {
 		// An outer join's condition is evaluated on candidate
 		// pairs, where both elements are present, so it reads them

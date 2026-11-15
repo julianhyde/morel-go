@@ -147,13 +147,17 @@ func (p *Project) Inputs() []Exp { return []Exp{p.Input} }
 // JoinType is which side of a join may be absent from a row.
 type JoinType int
 
-// The four join kinds. A side the kind can leave absent has each
-// of its components wrapped in "option".
+// The join kinds. A side the kind can leave absent has each of its
+// components wrapped in "option". A semi-join and an anti-join pass on
+// a left element if it has (or has not) a matching right element; their
+// element is the left input's.
 const (
 	InnerJoin JoinType = iota
 	LeftJoin
 	RightJoin
 	FullJoin
+	SemiJoin
+	AntiJoin
 )
 
 // OpName is the kind as plan text writes it, and is empty for an
@@ -161,15 +165,25 @@ const (
 func (k JoinType) OpName() string {
 	// lint: sort until '^\t}' where '^\tcase '
 	switch k {
+	case AntiJoin:
+		return "anti"
 	case FullJoin:
 		return "full"
 	case LeftJoin:
 		return "left"
 	case RightJoin:
 		return "right"
+	case SemiJoin:
+		return "semi"
 	default:
 		return ""
 	}
+}
+
+// FiltersLeft reports whether the join is a semi-join or an anti-join,
+// whose element is a left element that it passes on or not.
+func (k JoinType) FiltersLeft() bool {
+	return k == SemiJoin || k == AntiJoin
 }
 
 // LeftIsOption reports whether the join may leave its left side

@@ -402,10 +402,17 @@ func (r *rewriter) rewriteStep(s core.FromStep) core.FromStep {
 		return &core.Order{Exp: exp, Span: s.Span}
 	case *core.Scan:
 		exp := r.rewriteExp(s.Exp)
-		if exp == s.Exp {
+		on := s.On
+		if on != nil {
+			on = r.rewriteExp(on)
+		}
+		if exp == s.Exp && on == s.On {
 			return s
 		}
-		return &core.Scan{Pat: s.Pat, Exp: exp}
+		// A copy, so that the scan keeps what kind of join it is.
+		s2 := *s
+		s2.Exp, s2.On = exp, on
+		return &s2
 	case *core.SetOp:
 		if args, changed := r.rewriteExps(s.Args); changed {
 			return &core.SetOp{

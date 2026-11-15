@@ -80,8 +80,13 @@ func NewJoin(sys *types.System, kind JoinType, binder *IDPat,
 	checkBool(condition, "join condition")
 	ordered := types.IsOrdered(left.Type()) &&
 		types.IsOrdered(right.Type())
-	t := sys.CollectionOf(ordered,
-		JoinElemType(sys, kind, left, right))
+	elem := JoinElemType(sys, kind, left, right)
+	if kind.FiltersLeft() {
+		// A semi-join's element is its left input's, and its order.
+		ordered = types.IsOrdered(left.Type())
+		elem = types.ElemOf(left.Type())
+	}
+	t := sys.CollectionOf(ordered, elem)
 	return &Join{
 		relBase: relBase{T: t}, Kind: kind, Binder: binder,
 		Left: left, Right: right, Condition: condition,
@@ -276,6 +281,9 @@ func ComponentCount(node Exp) int {
 		return ComponentCount(input)
 	}
 	if join, isJoin := node.(*Join); isJoin {
+		if join.Kind.FiltersLeft() {
+			return ComponentCount(join.Left)
+		}
 		return ComponentCount(join.Left) + ComponentCount(join.Right)
 	}
 	return 1
@@ -290,7 +298,10 @@ func ComponentTypes(node Exp) []types.Type {
 		return ComponentTypes(input)
 	}
 	elem := types.ElemOf(node.Type())
-	if _, isJoin := node.(*Join); isJoin {
+	if join, isJoin := node.(*Join); isJoin {
+		if join.Kind.FiltersLeft() {
+			return ComponentTypes(join.Left)
+		}
 		if tuple, ok := elem.(*types.Tuple); ok {
 			return slices.Clone(tuple.Args)
 		}

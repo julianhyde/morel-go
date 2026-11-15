@@ -92,6 +92,11 @@ type Scan struct {
 	// names no id in a plan: what it scans is a tree of the
 	// derivation's, whose element the tree names, if at all.
 	Derived bool
+	// Exists is SemiJoin or AntiJoin if the scan is a semi-join or an
+	// anti-join: it passes on an input row once if some element
+	// matches its pattern and "On" (or, for an anti-join, if none
+	// does), and binds nothing in the rows it passes on.
+	Exists JoinType
 }
 
 // Op implements FromStep.

@@ -53,6 +53,41 @@ type ScanStage struct {
 	// each pair of a row and an element; an "ordinal" in it counts
 	// those pairs, continuously across the join.
 	Cond Code
+	// Emit says what the scan passes on: each pair, or, for a
+	// semi-join or an anti-join, the input row.
+	Emit Emit
+}
+
+// Emit says what a scan passes on for an input row.
+type Emit int
+
+const (
+	// EmitPairs passes on the row with each element that matches.
+	EmitPairs Emit = iota
+	// EmitSemi passes on the row, once, if some element matches; it
+	// stops at the first.
+	EmitSemi
+	// EmitAnti passes on the row if no element matches.
+	EmitAnti
+)
+
+// joinName is the name of a scan in a plan: "join", or "semiJoin" or
+// "antiJoin" if it passes on rows rather than pairs; with a prefix,
+// such as "hash", as "hashJoin".
+func joinName(prefix string, emit Emit) string {
+	name := "join"
+	// lint: sort until '^\t}' where '^\tcase '
+	switch emit {
+	case EmitAnti:
+		name = "antiJoin"
+	case EmitPairs:
+	case EmitSemi:
+		name = "semiJoin"
+	}
+	if prefix == "" {
+		return name
+	}
+	return prefix + strings.ToUpper(name[:1]) + name[1:]
 }
 
 func (s *ScanStage) transform(q *fromCode, f *Frame, rows [][]Val,
@@ -67,6 +102,7 @@ func (s *ScanStage) transform(q *fromCode, f *Frame, rows [][]Val,
 			return nil, err
 		}
 		elems := asList(coll)
+		matched := false
 		for _, elem := range elems {
 			if !s.Pat.Match(elem, f) {
 				continue
@@ -83,7 +119,14 @@ func (s *ScanStage) transform(q *fromCode, f *Frame, rows [][]Val,
 					continue
 				}
 			}
+			if s.Emit != EmitPairs {
+				matched = true
+				break
+			}
 			out = append(out, q.snapshot(f))
+		}
+		if s.Emit == EmitSemi && matched || s.Emit == EmitAnti && !matched {
+			out = append(out, row)
 		}
 	}
 	return out, nil
@@ -791,7 +834,8 @@ func describeSink(s FromStage, inner string) string {
 	// lint: sort until '^	}' where '^	case '
 	switch s := s.(type) {
 	case *HashScanStage:
-		return "sink hashJoin(pat " + s.Name + ", exp " +
+		return "sink " + joinName("hash", s.Emit) + "(pat " + s.Name +
+			", exp " +
 			s.Source.Describe() + ", leftKey " + s.LeftKey.Describe() +
 			", rightKey " + s.RightKey.Describe() + ", condition " +
 			s.Cond.Describe() + ", " + inner + ")"
@@ -811,7 +855,7 @@ func describeSink(s FromStage, inner string) string {
 		if s.Cond != nil {
 			cond = ", condition " + s.Cond.Describe()
 		}
-		return "sink join(pat " + s.Name + ", exp " +
+		return "sink " + joinName("", s.Emit) + "(pat " + s.Name + ", exp " +
 			s.Source.Describe() + cond + ", " + inner + ")"
 	case *WhereStage:
 		return "sink where(condition " + s.Cond.Describe() +

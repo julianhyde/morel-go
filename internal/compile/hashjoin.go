@@ -39,16 +39,22 @@ import (
 func (b *fromBuilder) addHashScan(steps []core.FromStep, i int,
 ) (int, error) {
 	scan, isScan := steps[i].(*core.Scan)
-	if !isScan || len(b.rowPats) == 0 {
+	if !isScan ||
+		len(b.rowPats) == 0 && !scan.Exists.FiltersLeft() {
 		return 0, nil
 	}
 	var cond core.Exp
 	consumed := 1
 	left := false
-	switch scan.Join {
-	case ast.LeftJoinOp:
+	emit := eval.EmitPairs
+	switch {
+	case scan.Exists == core.SemiJoin:
+		cond, emit = scan.On, eval.EmitSemi
+	case scan.Exists == core.AntiJoin:
+		cond, emit = scan.On, eval.EmitAnti
+	case scan.Join == ast.LeftJoinOp:
 		cond, left = scan.On, true
-	case ast.RightJoinOp, ast.FullJoinOp:
+	case scan.Join == ast.RightJoinOp, scan.Join == ast.FullJoinOp:
 		return 0, nil
 	default:
 		if i+1 < len(steps) {
@@ -83,7 +89,7 @@ func (b *fromBuilder) addHashScan(steps []core.FromStep, i int,
 		}
 		// Not hashed; but an inner join's condition is still the
 		// scan's, evaluated for each pair.
-		return consumed, b.addScanWithCond(scan, cond)
+		return consumed, b.addScanWithCond(scan, cond, emit)
 	}
 	c := b.c
 	name := c.scanName(scan.Pat)
@@ -95,6 +101,7 @@ func (b *fromBuilder) addHashScan(steps []core.FromStep, i int,
 	if err != nil {
 		return 0, err
 	}
+	layout := c.layout
 	c.layout = c.layout.push(rightIDs)
 	pat, err := c.compilePat(scan.Pat)
 	if err != nil {
@@ -109,19 +116,19 @@ func (b *fromBuilder) addHashScan(steps []core.FromStep, i int,
 		return 0, err
 	}
 	patSlots := c.patSlots([]core.Pat{scan.Pat})
-	b.rowPats = append(b.rowPats, scan.Pat)
 	b.stages = append(b.stages, &eval.HashScanStage{
 		Source: source, Pat: pat, Name: name,
 		LeftKey: leftKeyCode, RightKey: rightKeyCode, Cond: condCode,
-		Left: left, PatSlots: patSlots,
+		Left: left, PatSlots: patSlots, Emit: emit,
 	})
-	b.allSlots = append(b.allSlots, patSlots...)
+	b.bind(scan.Pat, patSlots, emit, layout)
 	return consumed, nil
 }
 
 // addScanWithCond compiles an inner join's scan and its condition,
 // which it evaluates for each pair of a row and an element.
 func (b *fromBuilder) addScanWithCond(scan *core.Scan, cond core.Exp,
+	emit eval.Emit,
 ) error {
 	c := b.c
 	name := c.scanName(scan.Pat)
@@ -129,6 +136,7 @@ func (b *fromBuilder) addScanWithCond(scan *core.Scan, cond core.Exp,
 	if err != nil {
 		return err
 	}
+	layout := c.layout
 	c.layout = c.layout.push(core.PatIDs(scan.Pat))
 	pat, err := c.compilePat(scan.Pat)
 	if err != nil {
@@ -138,12 +146,26 @@ func (b *fromBuilder) addScanWithCond(scan *core.Scan, cond core.Exp,
 	if err != nil {
 		return err
 	}
-	b.rowPats = append(b.rowPats, scan.Pat)
 	b.stages = append(b.stages, &eval.ScanStage{
-		Source: source, Pat: pat, Name: name, Cond: condCode,
+		Source: source, Pat: pat, Name: name, Cond: condCode, Emit: emit,
 	})
-	b.allSlots = append(b.allSlots, c.patSlots([]core.Pat{scan.Pat})...)
+	b.bind(scan.Pat, c.patSlots([]core.Pat{scan.Pat}), emit, layout)
 	return nil
+}
+
+// bind adds a join's scan pattern to the row; but a semi-join or an
+// anti-join passes on its input rows, so its pattern, which was in
+// scope only in its condition, leaves the stack layout as it found
+// it.
+func (b *fromBuilder) bind(pat core.Pat, slots []int, emit eval.Emit,
+	layout *stackLayout,
+) {
+	if emit != eval.EmitPairs {
+		b.c.layout = layout
+		return
+	}
+	b.rowPats = append(b.rowPats, pat)
+	b.allSlots = append(b.allSlots, slots...)
 }
 
 // compileJoinCond compiles a join's condition. Its "andalso"s, which
