@@ -103,6 +103,7 @@ func Replan(decl core.Decl, env *InlineEnv, sys *types.System,
 		}
 		cur = next
 	}
+	cur = PushFilters(sys, cur)
 	if cur != inlined {
 		// Grounding can move a use of a binding out of a query's
 		// per-row expressions, so that the binding, used once, may

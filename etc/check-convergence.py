@@ -111,7 +111,7 @@ ACCEPTED = {
         "`ordinal` alone.",
     ),
     "hybrid.smli": (
-        291,
+        292,
         "the Calcite plans that `Sys.plan` prints. morel-go has no "
         "Calcite, so it omits every one of this file's plan assertions, "
         "and the tests of what a `decimal` literal or aggregate pushes "

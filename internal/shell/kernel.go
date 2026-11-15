@@ -1043,6 +1043,7 @@ func (k *Kernel) runStatement(n ast.Node) string {
 	if gerr != nil {
 		return k.formatCompileError(gerr)
 	}
+	grounded = compile.PushFilters(k.sys, grounded)
 	if grounded != coreDecl {
 		// Grounding can move a use of a binding out of a query's
 		// per-row expressions -- a "where x elem xs" becomes a scan

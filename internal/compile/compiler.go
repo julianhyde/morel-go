@@ -623,8 +623,8 @@ func planFnName(name string, t types.Type) string {
 			return "List.@"
 		case "^":
 			return "String.^"
-		case "mod":
-			return arithStruct(t) + ".mod"
+		case "div", "mod":
+			return arithStruct(t) + "." + op
 		case "o":
 			return "General.o"
 		default:
