@@ -130,6 +130,12 @@ ACCEPTED = {
         "follow. And a Calcite plan of a semi-join, which morel-go, "
         "having no Calcite, does not print.",
     ),
+    "tpcds-10m.smli": (
+        4,
+        "the type of q51's rows: morel-java types their `d_date` as "
+        "`'a option`, where the values are dates, and this port as "
+        "`date option`.",
+    ),
     "foreign.smli": (
         194,
         "the `foodmart` dataset, as in blog.smli.",

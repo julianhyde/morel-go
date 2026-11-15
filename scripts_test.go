@@ -21,6 +21,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -71,6 +73,12 @@ func checkScript(t *testing.T, f, rel string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	conditions := requires(string(src))
+	for _, condition := range conditions {
+		if !holds(condition) {
+			t.Skipf("%s requires %s", rel, condition)
+		}
+	}
 	kernel := shell.NewKernel(rel)
 	// Scripts resolve data files (Datalog .input) against the
 	// "directory" property; testdata is the analog of java's
@@ -84,11 +92,76 @@ func checkScript(t *testing.T, f, rel string) {
 		kernel.Config().Directory = "testdata/data"
 	}
 	kernel.Config().ScriptDirectory = filepath.Dir(f)
+	if slices.Contains(conditions, "tpcds") {
+		// The TPC-DS queries run over the data set's files, which a
+		// prelude binds as "tpcds", as morel-java's harness does.
+		kernel.Config().Directory = tpcdsDirectory()
+		if out := kernel.Execute("val tpcds = file;"); !strings.HasPrefix(
+			out, "val tpcds") {
+			t.Fatalf("binding tpcds: %s", out)
+		}
+	}
 	if strings.HasSuffix(f, ".smli") {
 		checkIdempotent(t, kernel, rel, string(src))
 	} else {
 		checkTranscript(t, kernel, f, rel, string(src))
 	}
+}
+
+// requiresPattern matches a script's "(*) requires: <conditions>"
+// directive.
+var requiresPattern = regexp.MustCompile(`^\(\*\) requires: (.*)`)
+
+// requiresLines is how far into a script the directive is looked for:
+// it belongs in the header, which may be long.
+const requiresLines = 60
+
+// requires returns the conditions that a script's header requires, in
+// a directive "(*) requires: <conditions>", separated by spaces. A
+// script runs only if all hold.
+func requires(src string) []string {
+	var conditions []string
+	lines := strings.Split(src, "\n")
+	for _, line := range lines[:min(len(lines), requiresLines)] {
+		if m := requiresPattern.FindStringSubmatch(line); m != nil {
+			conditions = append(conditions, strings.Fields(m[1])...)
+		}
+	}
+	return conditions
+}
+
+// holds reports whether a "requires:" condition holds. "tpcds" holds
+// when the environment variable MOREL_TPCDS names a directory that
+// "tpcds/generate.sh" in morel-java wrote, holding the TPC-DS data set
+// and Spark's answers, in "answers"; see tpcdsDirectory. Any other
+// condition, such as "spark", does not hold in this port.
+func holds(condition string) bool {
+	switch condition {
+	case "tpcds":
+		return tpcdsDirectory() != ""
+	default:
+		return false
+	}
+}
+
+// tpcdsDirectory is the TPC-DS data directory that MOREL_TPCDS names,
+// or "" if there is none, or it has no answers.
+func tpcdsDirectory() string {
+	dir := os.Getenv("MOREL_TPCDS")
+	if dir == "" {
+		return ""
+	}
+	home, err := os.UserHomeDir()
+	if err == nil && strings.HasPrefix(dir, "~") {
+		dir = home + dir[1:]
+	}
+	// The directory is the tester's own setting, not untrusted input.
+	//nolint:gosec // G703
+	info, err := os.Stat(filepath.Join(dir, "answers"))
+	if err != nil || !info.IsDir() {
+		return ""
+	}
+	return dir
 }
 
 // checkIdempotent checks that a ".smli" script reproduces itself:
