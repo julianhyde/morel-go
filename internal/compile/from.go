@@ -242,6 +242,12 @@ func (st *fromState) step(step ast.FromStep) error {
 		if err != nil {
 			return err
 		}
+		if isSingletonRecord(s.Exp) {
+			// "compute {s = sum over x}": the braces ask for a
+			// record, even of one field.
+			st.scalar = r.recordTerm(fields)
+			return nil
+		}
 		st.scalar = r.rowElem(fields)
 		return nil
 	case *ast.DistinctStep:

@@ -864,9 +864,16 @@ func (b *fromBuilder) add(step core.FromStep) error {
 		b.yieldExp = s.Exp
 		return nil
 	default:
+		independent := false
+		if scan, isScan := step.(*core.Scan); isScan {
+			independent = b.independent(scan.Exp)
+		}
 		stage, err := b.c.compileStep(step, &b.rowPats)
 		if err != nil {
 			return err
+		}
+		if ss, isScan := stage.(*eval.ScanStage); isScan {
+			ss.Independent = independent
 		}
 		b.stages = append(b.stages, stage)
 		if scan, ok := step.(*core.Scan); ok {

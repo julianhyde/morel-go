@@ -232,6 +232,14 @@ func (l *lowerer) join(b *lowerBuilder, j *core.Join) core.Exp {
 	if left == nil {
 		return nil
 	}
+	if j.Kind.LeftIsOption() && core.ComponentCount(j.Left) == 1 {
+		// A right or full join pads its left side with NONE, by
+		// wrapping each variable of the row in SOME; so the left
+		// element must be one variable, which is wrapped whole. A
+		// projection, "{d = SOME 5, item_sk = i}", would otherwise be
+		// computed afterwards from "i", which is wrapped instead.
+		left = b.materializeVar(l, left)
+	}
 	right := j.Right
 	if j.Binder != nil {
 		// A dependent join reads the left element through its
@@ -664,6 +672,23 @@ func (b *lowerBuilder) materialize(l *lowerer,
 	element core.Exp,
 ) core.Exp {
 	if element == nil || b.isRow(element) {
+		return element
+	}
+	pat := l.freshPat(element.Type())
+	b.add(&core.Yield{
+		Fields: []core.YieldField{{Pat: pat, Exp: element}},
+	})
+	b.row = []*core.IDPat{pat}
+	return &core.ID{Pat: pat}
+}
+
+// materializeVar makes the element the step list's row, as one
+// variable, unless it is that already.
+func (b *lowerBuilder) materializeVar(l *lowerer,
+	element core.Exp,
+) core.Exp {
+	if id, isID := element.(*core.ID); isID && len(b.row) == 1 &&
+		id.Pat == b.row[0] {
 		return element
 	}
 	pat := l.freshPat(element.Type())

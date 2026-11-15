@@ -18,10 +18,12 @@
 package eval
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/hydromatic/morel-go/internal/core"
 )
@@ -217,6 +219,12 @@ func valsEqual(a, b Val) bool {
 			}
 		}
 		return true
+	case time.Time:
+		// Two dates are equal if they are the same instant, whatever
+		// zone each is held in: one read from a file is in UTC, and
+		// one built from fields has a fixed offset.
+		b2, ok := b.(time.Time)
+		return ok && a.Equal(b2)
 	default:
 		return a == b
 	}
@@ -294,6 +302,10 @@ func compareVals1(a, b Val, partial bool) (int, bool) {
 		return cmpReal(a, f), true
 	case int32:
 		return cmpOrdered(a, asInt(b)), true
+	case int64:
+		// A time, in nanoseconds.
+		bt, _ := b.(int64)
+		return cmp.Compare(a, bt), true
 	case nil:
 		// A cleared slot outside the current row; any consistent
 		// order will do.
@@ -303,6 +315,10 @@ func compareVals1(a, b Val, partial bool) (int, bool) {
 		return -1, true
 	case string:
 		return cmpOrdered(a, asString(b)), true
+	case time.Time:
+		// A date, ordered by the instant it denotes.
+		bt, _ := b.(time.Time)
+		return a.Compare(bt), true
 	case uint64:
 		return cmpOrdered(a, asWord(b)), true
 	default:

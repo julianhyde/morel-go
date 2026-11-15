@@ -148,6 +148,7 @@ func (b *fromBuilder) addScanWithCond(scan *core.Scan, cond core.Exp,
 	}
 	b.stages = append(b.stages, &eval.ScanStage{
 		Source: source, Pat: pat, Name: name, Cond: condCode, Emit: emit,
+		Independent: b.independent(scan.Exp),
 	})
 	b.bind(scan.Pat, c.patSlots([]core.Pat{scan.Pat}), emit, layout)
 	return nil
@@ -184,6 +185,20 @@ func (c *compiler) compileJoinCond(cond core.Exp) (eval.Code, error) {
 		return eval.Andalso(aCode, bCode), nil
 	}
 	return c.compileExp(cond)
+}
+
+// independent reports whether a scan's source reads nothing of the
+// input row -- none of its variables, nor its ordinal -- and so may be
+// evaluated once, for every row.
+func (b *fromBuilder) independent(source core.Exp) bool {
+	var rowIDs []*core.IDPat
+	for _, p := range b.rowPats {
+		rowIDs = append(rowIDs, core.PatIDs(p)...)
+	}
+	if b.ordinal != nil {
+		rowIDs = append(rowIDs, b.ordinal)
+	}
+	return !referencesAny(source, rowIDs) && !containsOrdinal(source)
 }
 
 // equiKeys returns the keys of a join condition that a hash join can

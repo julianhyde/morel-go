@@ -24,11 +24,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
+	"weak"
 
 	"github.com/hydromatic/morel-go/internal/csv"
 	"github.com/hydromatic/morel-go/internal/types"
@@ -73,6 +76,35 @@ type File struct {
 	// nil for a directory, and for a data file whose header is
 	// empty.
 	row []column
+	// cache holds a data file's rows as last read, so that a query
+	// that scans the file for each row of another does not read it
+	// each time; it is read again if its modification time or
+	// length has changed. It holds them weakly: once nothing else
+	// holds them, they may be collected, and are read again when next
+	// needed, as morel-java holds them behind a soft reference
+	// (hydromatic/morel#516).
+	cache *rowCache
+}
+
+// rowCache is a data file's rows, held weakly, and the file's
+// modification time and length when they were read.
+type rowCache struct {
+	// first points weakly to the first element of the rows' array,
+	// which any slice of the rows in use holds, and n is how many
+	// there are.
+	first   weak.Pointer[Val]
+	n       int
+	modTime time.Time
+	size    int64
+}
+
+// rows returns the cached rows, or nil if they have been collected.
+func (c *rowCache) rows() []Val {
+	p := c.first.Value()
+	if p == nil {
+		return nil
+	}
+	return unsafe.Slice(p, c.n)
 }
 
 // FileKind is what kind of file an entry is, deduced from its name.
@@ -494,6 +526,41 @@ func (f *File) ReadRows() ([]Val, error) {
 	if !f.Kind.IsData() {
 		return nil, nil
 	}
+	info, statErr := os.Stat(f.Path)
+	if statErr != nil {
+		// Cannot tell whether the file changed; read it, uncached.
+		return f.readRows()
+	}
+	f.mu.Lock()
+	c := f.cache
+	f.mu.Unlock()
+	if c != nil && c.modTime.Equal(info.ModTime()) &&
+		c.size == info.Size() {
+		if rows := c.rows(); rows != nil {
+			return rows, nil
+		}
+	}
+	rows, err := f.readRows()
+	if err != nil {
+		return nil, err
+	}
+	// Clipped, so that appending to the rows, which every reader
+	// shares, copies them rather than writing past their end.
+	rows = slices.Clip(rows)
+	if len(rows) == 0 {
+		return rows, nil
+	}
+	f.mu.Lock()
+	f.cache = &rowCache{
+		first: weak.Make(&rows[0]), n: len(rows),
+		modTime: info.ModTime(), size: info.Size(),
+	}
+	f.mu.Unlock()
+	return rows, nil
+}
+
+// readRows reads a data file's rows from disk.
+func (f *File) readRows() ([]Val, error) {
 	f.mu.Lock()
 	row, expanded := f.row, f.expanded
 	f.mu.Unlock()

@@ -443,7 +443,7 @@ func (r *rewriter) rewriteStep(s core.FromStep) core.FromStep {
 		if exp == s.Exp {
 			return s
 		}
-		return &core.Where{Exp: exp}
+		return &core.Where{Exp: exp, On: s.On}
 	case *core.Yield:
 		return r.rewriteYield(s)
 	default:

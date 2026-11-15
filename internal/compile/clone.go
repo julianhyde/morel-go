@@ -321,8 +321,15 @@ func cloneStep(s core.FromStep, fresh map[*core.IDPat]*core.IDPat,
 	case *core.Order:
 		return &core.Order{Exp: cloneExp(s.Exp, fresh), Span: s.Span}
 	case *core.Scan:
-		exp := cloneExp(s.Exp, fresh)
-		return &core.Scan{Pat: clonePat(s.Pat, fresh), Exp: exp}
+		// A copy, so that the scan keeps what kind of join it is. The
+		// pattern is cloned before the "on", which reads it.
+		s2 := *s
+		s2.Exp = cloneExp(s.Exp, fresh)
+		s2.Pat = clonePat(s.Pat, fresh)
+		if s.On != nil {
+			s2.On = cloneExp(s.On, fresh)
+		}
+		return &s2
 	case *core.SetOp:
 		return &core.SetOp{
 			Kind:     s.Kind,
@@ -337,7 +344,7 @@ func cloneStep(s core.FromStep, fresh map[*core.IDPat]*core.IDPat,
 		fn := cloneExp(s.Fn, fresh)
 		return &core.Through{Pat: clonePat(s.Pat, fresh), Fn: fn}
 	case *core.Where:
-		return &core.Where{Exp: cloneExp(s.Exp, fresh)}
+		return &core.Where{Exp: cloneExp(s.Exp, fresh), On: s.On}
 	case *core.Yield:
 		var exp core.Exp
 		if s.Exp != nil {

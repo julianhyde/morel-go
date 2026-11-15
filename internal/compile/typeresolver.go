@@ -195,7 +195,10 @@ func (r *typeResolver) unify(sys *types.System, decl ast.Decl,
 		for len(r.pendingSafe) > 0 {
 			ps := r.pendingSafe[0]
 			r.pendingSafe = r.pendingSafe[1:]
-			if _, isVar := subst.Resolve(ps.vResult).(*unify.Var); !isVar {
+			// Retry if the result is not yet known in full: it may be
+			// a variable, or partly known -- "'b option option", say,
+			// where the selector is the argument of "Option.join".
+			if len(termVars(subst.Resolve(ps.vResult))) == 0 {
 				continue
 			}
 			t := subst.Resolve(ps.vArg)

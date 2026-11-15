@@ -21,6 +21,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hydromatic/morel-go/internal/core"
 )
@@ -68,6 +69,9 @@ func PlanString(v Val) string {
 		return ""
 	case string:
 		return v
+	case time.Time:
+		// A date, as morel-java writes it: "2000-01-27T00:00Z".
+		return FormatDate(v)
 	case uint64:
 		return strconv.FormatUint(v, 10)
 	default:

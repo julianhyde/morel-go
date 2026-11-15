@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // HashScanStage is a join whose condition has an equality between a
@@ -168,6 +169,10 @@ func writeHashKey(b *strings.Builder, v Val) {
 		b.WriteString("]")
 	case string:
 		b.WriteString(strconv.Quote(v))
+	case time.Time:
+		// A date, by the instant it denotes, as "=" compares dates.
+		b.WriteString("T")
+		b.WriteString(strconv.FormatInt(v.UnixNano(), 10))
 	default:
 		fmt.Fprintf(b, "%T:%v", v, v)
 	}

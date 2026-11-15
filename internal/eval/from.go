@@ -56,6 +56,9 @@ type ScanStage struct {
 	// Emit says what the scan passes on: each pair, or, for a
 	// semi-join or an anti-join, the input row.
 	Emit Emit
+	// Independent is whether Source reads nothing of the input row,
+	// so that it is evaluated once rather than for each row.
+	Independent bool
 }
 
 // Emit says what a scan passes on for an input row.
@@ -94,40 +97,66 @@ func (s *ScanStage) transform(q *fromCode, f *Frame, rows [][]Val,
 ) ([][]Val, error) {
 	var out [][]Val
 	pairs := 0
+	var once []Val
 	for i, row := range rows {
 		q.restore(f, row)
 		q.setOrdinal(f, i)
-		coll, err := s.Source.Eval(f)
+		elems := once
+		if elems == nil {
+			coll, err := s.Source.Eval(f)
+			if err != nil {
+				return nil, err
+			}
+			elems = asList(coll)
+			if s.Independent {
+				// Evaluated once, for every row: a file's table, say,
+				// is read once rather than once per row.
+				once = elems
+				if once == nil {
+					once = []Val{}
+				}
+			}
+		}
+		var err error
+		out, err = s.scanRow(q, f, row, elems, &pairs, out)
 		if err != nil {
 			return nil, err
 		}
-		elems := asList(coll)
-		matched := false
-		for _, elem := range elems {
-			if !s.Pat.Match(elem, f) {
+	}
+	return out, nil
+}
+
+// scanRow pairs an input row with each element of the source, and
+// appends to out what the scan passes on. pairs counts the pairs the
+// condition has seen, across the join, for "ordinal".
+func (s *ScanStage) scanRow(q *fromCode, f *Frame, row []Val,
+	elems []Val, pairs *int, out [][]Val,
+) ([][]Val, error) {
+	matched := false
+	for _, elem := range elems {
+		if !s.Pat.Match(elem, f) {
+			continue
+		}
+		if s.Cond != nil {
+			q.setOrdinal(f, *pairs)
+			*pairs++
+			v, err := s.Cond.Eval(f)
+			if err != nil {
+				return nil, err
+			}
+			if b, _ := v.(bool); !b {
+				q.restore(f, row)
 				continue
 			}
-			if s.Cond != nil {
-				q.setOrdinal(f, pairs)
-				pairs++
-				v, err := s.Cond.Eval(f)
-				if err != nil {
-					return nil, err
-				}
-				if b, _ := v.(bool); !b {
-					q.restore(f, row)
-					continue
-				}
-			}
-			if s.Emit != EmitPairs {
-				matched = true
-				break
-			}
-			out = append(out, q.snapshot(f))
 		}
-		if s.Emit == EmitSemi && matched || s.Emit == EmitAnti && !matched {
-			out = append(out, row)
+		if s.Emit != EmitPairs {
+			matched = true
+			break
 		}
+		out = append(out, q.snapshot(f))
+	}
+	if s.Emit == EmitSemi && matched || s.Emit == EmitAnti && !matched {
+		out = append(out, row)
 	}
 	return out, nil
 }
